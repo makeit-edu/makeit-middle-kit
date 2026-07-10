@@ -247,9 +247,13 @@ case "$MODE" in
     run_step "6/6 영상 렌더용 브라우저 준비"                   step_headless_shell
     ;;
   --update)
+    # 주의: npm ci 는 node_modules 를 통째로 지우고 다시 설치한다.
+    #       렌더용 브라우저(.remotion/)가 node_modules 안에 있어 같이 삭제되므로,
+    #       여기서 반드시 다시 확보해야 수강생의 첫 렌더가 86MB 재다운로드로 느려지지 않는다.
     echo "월부 중급반 키트 — 의존성 갱신을 확인합니다."
-    run_step "1/2 프로그램 의존성 확인"                        step_npm_program
-    run_step "2/2 영상 프로그램 의존성 확인"                   step_npm_remotion
+    run_step "1/3 프로그램 의존성 확인"                        step_npm_program
+    run_step "2/3 영상 프로그램 의존성 확인"                   step_npm_remotion
+    run_step "3/3 영상 렌더용 브라우저 확인"                   step_headless_shell
     ;;
   --fonts)
     # 폰트 수정 이전에 만들어진 작업방을 고칠 때 쓴다 (새 작업방은 자동 설치됨)
