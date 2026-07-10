@@ -48,6 +48,8 @@ run_step() {
 step_apt() {
   sudo apt-get update -y && sudo apt-get install -y --no-install-recommends \
     zip \
+    unzip \
+    curl \
     libnss3 \
     libdbus-1-3 \
     libatk1.0-0 \
@@ -62,6 +64,43 @@ step_apt() {
     libcups2 \
     libcairo2 \
     libpango-1.0-0
+}
+
+# ----------------------------------------------------------------------------
+# (a-2) 한글 폰트 설치 — 영상 자막용
+#     맥(Apple SD Gothic Neo)·윈도우(맑은 고딕)는 OS 폰트에 무임승차했지만
+#     리눅스 컨테이너에는 한글 폰트가 하나도 없어 자막이 전부 네모(□)로 렌더된다.
+#     상업적 사용이 자유로운 무료 폰트만 담는다.
+# ----------------------------------------------------------------------------
+step_fonts() {
+  sudo apt-get install -y --no-install-recommends \
+    fontconfig \
+    fonts-noto-cjk \
+    fonts-noto-cjk-extra \
+    fonts-nanum \
+    fonts-nanum-extra \
+    fonts-unfonts-core
+
+  # Pretendard — 애플 시스템 폰트와 가장 비슷한 무료 폰트(SIL OFL). apt 저장소에 없어 직접 받는다.
+  # 내려받기에 실패해도 위 폰트들로 자막이 렌더되므로 설치를 중단하지 않는다.
+  local pretendard_dir="/usr/share/fonts/truetype/pretendard"
+  if [ ! -d "$pretendard_dir" ]; then
+    local tmp
+    tmp="$(mktemp -d)"
+    if curl -fsSL --retry 2 -o "$tmp/pretendard.zip" \
+      "https://github.com/orioncactus/pretendard/releases/download/v1.3.9/Pretendard-1.3.9.zip"; then
+      if unzip -q -o "$tmp/pretendard.zip" -d "$tmp/unpacked"; then
+        sudo mkdir -p "$pretendard_dir"
+        sudo find "$tmp/unpacked" -name "*.ttf" -exec cp {} "$pretendard_dir/" \;
+        echo "Pretendard 폰트를 설치했습니다."
+      fi
+    else
+      echo "Pretendard 내려받기에 실패했지만, 기본 한글 폰트로 자막은 정상 렌더됩니다."
+    fi
+    rm -rf "$tmp"
+  fi
+
+  sudo fc-cache -f >/dev/null 2>&1 || true
 }
 
 # ----------------------------------------------------------------------------
@@ -200,16 +239,23 @@ step_upstream() {
 case "$MODE" in
   --prebuild)
     echo "월부 중급반 키트 — 기본 설치(prebuild 대상)를 시작합니다."
-    run_step "1/5 시스템 라이브러리 설치 (영상 렌더용)"        step_apt
-    run_step "2/5 프로그램 의존성 설치"                        step_npm_program
-    run_step "3/5 영상 프로그램 의존성 설치"                   step_npm_remotion
-    run_step "4/5 코덱스(AI 비서) 설치"                        step_codex_install
-    run_step "5/5 영상 렌더용 브라우저 준비"                   step_headless_shell
+    run_step "1/6 시스템 라이브러리 설치 (영상 렌더용)"        step_apt
+    run_step "2/6 한글 폰트 설치 (영상 자막용)"                step_fonts
+    run_step "3/6 프로그램 의존성 설치"                        step_npm_program
+    run_step "4/6 영상 프로그램 의존성 설치"                   step_npm_remotion
+    run_step "5/6 코덱스(AI 비서) 설치"                        step_codex_install
+    run_step "6/6 영상 렌더용 브라우저 준비"                   step_headless_shell
     ;;
   --update)
     echo "월부 중급반 키트 — 의존성 갱신을 확인합니다."
     run_step "1/2 프로그램 의존성 확인"                        step_npm_program
     run_step "2/2 영상 프로그램 의존성 확인"                   step_npm_remotion
+    ;;
+  --fonts)
+    # 폰트 수정 이전에 만들어진 작업방을 고칠 때 쓴다 (새 작업방은 자동 설치됨)
+    echo "월부 중급반 키트 — 영상 자막용 한글 폰트를 설치합니다. 2~3분 걸려요."
+    sudo apt-get update -y >/dev/null 2>&1 || true
+    run_step "1/1 한글 폰트 설치"                              step_fonts
     ;;
   --user)
     echo "월부 중급반 키트 — 사용자별 설정을 준비합니다."
@@ -220,15 +266,16 @@ case "$MODE" in
     ;;
   *)
     echo "월부 중급반 키트 설치를 시작합니다. 3~5분 정도 걸려요. 커피 한 모금 하고 오세요 ☕"
-    run_step "1/9 시스템 라이브러리 설치 (영상 렌더용)"        step_apt
-    run_step "2/9 프로그램 의존성 설치"                        step_npm_program
-    run_step "3/9 영상 프로그램 의존성 설치"                   step_npm_remotion
-    run_step "4/9 코덱스(AI 비서) 설치"                        step_codex_install
-    run_step "5/9 영상 렌더용 브라우저 준비"                   step_headless_shell
-    run_step "6/9 코덱스 기본 설정"                            step_codex_config
-    run_step "7/9 한글 명령 등록"                              step_path
-    run_step "8/9 키 입력 양식(.env.local) 준비"               step_env_template
-    run_step "9/9 업데이트 채널(upstream) 연결"                step_upstream
+    run_step "1/10 시스템 라이브러리 설치 (영상 렌더용)"       step_apt
+    run_step "2/10 한글 폰트 설치 (영상 자막용)"               step_fonts
+    run_step "3/10 프로그램 의존성 설치"                       step_npm_program
+    run_step "4/10 영상 프로그램 의존성 설치"                  step_npm_remotion
+    run_step "5/10 코덱스(AI 비서) 설치"                       step_codex_install
+    run_step "6/10 영상 렌더용 브라우저 준비"                  step_headless_shell
+    run_step "7/10 코덱스 기본 설정"                           step_codex_config
+    run_step "8/10 한글 명령 등록"                             step_path
+    run_step "9/10 키 입력 양식(.env.local) 준비"              step_env_template
+    run_step "10/10 업데이트 채널(upstream) 연결"              step_upstream
     ;;
 esac
 

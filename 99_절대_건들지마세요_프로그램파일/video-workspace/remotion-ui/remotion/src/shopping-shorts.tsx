@@ -119,7 +119,10 @@ export const shoppingShortsDefaultProps: ShoppingShortsProps = {
   },
 };
 
-const fontFamily = "'Apple SD Gothic Neo', 'Pretendard', 'Noto Sans KR', sans-serif";
+// 'Noto Sans CJK KR'·'NanumGothic' 은 렌더 컨테이너(리눅스)에 설치되는 실제 폰트 이름이다.
+// 이 이름이 없으면 한글 자막이 전부 네모(□)로 렌더된다.
+const fontFamily =
+  "'Apple SD Gothic Neo', 'Pretendard', 'Noto Sans KR', 'Noto Sans CJK KR', 'NanumGothic', sans-serif";
 
 const captionStylePresets = {
   "default-white": {
