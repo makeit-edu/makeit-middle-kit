@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# 새상품 — 2주차 상품 작업을 만듭니다. 사용법: 새상품 1  (1번 상품이면 --product 001 로 변환되어 실행)
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
+
+if [ "$#" -lt 1 ]; then
+  echo ""
+  echo "상품번호를 함께 입력해주세요. 예: 새상품 1   (1번 상품 작업 만들기)"
+  echo "원본 영상은 먼저 [02_2주차_쇼핑숏폼자동화/영상넣는곳] 의 상품 폴더에 올려두세요."
+  exit 1
+fi
+
+echo "[새상품] ${1}번 상품 작업을 만듭니다..."
+exec npm --prefix "$PROGRAM_DIR" run video:new-job -- --product "$1" "${@:2}"

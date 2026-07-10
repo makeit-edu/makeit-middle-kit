@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# 키설정 — API 키 2개(OpenAI·ElevenLabs)와 수강 코드 1개를 입력합니다. (D8·D9, PRD 5-5)
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
+
+echo "[키설정] API 키 2개와 수강 코드를 입력하는 단계입니다. 키는 비밀번호예요 — 채팅방 공유 금지!"
+
+# 대상 스크립트는 구현 완료 상태 — 파일이 없다면 구버전 작업방이므로 복구를 안내
+if [ ! -f "$PROGRAM_DIR/scripts/keys.mjs" ]; then
+  echo ""
+  echo "⚠️  프로그램 파일이 없어요 (구버전 작업방으로 보여요)."
+  echo "   터미널에 '업데이트' 를 입력해 최신 프로그램을 받은 뒤 다시 시도해 주세요."
+  exit 1
+fi
+
+exec npm --prefix "$PROGRAM_DIR" run keys

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "templates": [
+    {
+      "id": "recent-settings",
+      "name": "최근 사용한 설정",
+      "createdAt": "2026-07-05T15:02:04.329Z",
+      "updatedAt": "2026-07-05T15:02:04.329Z",
+      "data": {
+        "captionStyle": {
+          "presetId": "black-box"
+        },
+        "visualFilter": "basic",
+        "audioPresetId": "lively-reaction",
+        "backgroundMusic": {
+          "volume": 0.055,
+          "title": "",
+          "fadeInSec": 1,
+          "fadeOutSec": 1
+        },
+        "thumbnailTail": {
+          "headline": "왜 자꾸\n손이 갈까",
+          "subheadline": "",
+          "hideCta": false,
+          "hideProductLabel": false
+        }
+      }
+    }
+  ]
+}

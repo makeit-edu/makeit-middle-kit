@@ -1,0 +1,63 @@
+// 월부 중급반 키트 — GitHub Codespaces 개발 컨테이너 설정 (PRD 5-2, D3~D7, D10, D13)
+{
+  "name": "월부 중급반 키트",
+
+  // D3: Node 22 + Debian bookworm — Remotion 공식 Docker 가이드와 동일 조합.
+  //     Node 20은 2026-04 EOL로 태그 동결, universal 이미지는 수 GB로 과중.
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
+
+  // D6: CODEX_HOME을 워크스페이스 내부로 고정 — rebuild 시 홈 디렉토리는 소멸하지만
+  //     /workspaces 는 생존하므로 auth.json·config.toml이 살아남아 재로그인 빈도 감소.
+  //     .codex/ 는 반드시 .gitignore 대상 (auth.json = 토큰, 커밋 절대 금지).
+  "containerEnv": {
+    "CODEX_HOME": "/workspaces/${localWorkspaceFolderBasename}/.codex"
+  },
+
+  // 코치진 원격 지원용(gh codespace ssh) — 수강생 사용 흐름에는 영향 없음
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {}
+  },
+
+  // D13: 편집기 서버는 4321 포트·127.0.0.1 바인딩 유지 —
+  //      Codespaces 포워더가 컨테이너 loopback에 접속하므로 바인딩 변경 불필요.
+  //      openPreview(임베디드 프리뷰)로 팝업 차단 리스크 회피.
+  "forwardPorts": [4321],
+  "portsAttributes": {
+    "4321": {
+      "label": "영상편집기",
+      "onAutoForward": "openPreview"
+    }
+  },
+
+  "customizations": {
+    "vscode": {
+      // D4: Codex는 CLI TUI가 기본 흐름, openai.chatgpt 확장은 보조.
+      //     확장 단독 OAuth는 Codespaces에서 실패(#6403)하므로 로그인은 CLI로만 안내.
+      "extensions": ["openai.chatgpt"],
+      // 초보 수강생의 Ctrl+S/Cmd+S 저장 실수 제거 목적 (PRD 5-2 [검증필요])
+      "settings": {
+        "files.autoSave": "afterDelay"
+      }
+    }
+  },
+
+  // D11: 무거운 설치(apt·npm ci·Headless Shell)는 onCreate 에 배치해 prebuild 에 구워지게 한다.
+  //      postCreate 는 prebuild 에 구워지지 않으므로 시크릿/사용자별 단계만 둔다 (PRD 5-2).
+  "onCreateCommand": "bash .devcontainer/setup.sh --prebuild",
+
+  // prebuild 이후 템플릿이 갱신됐을 때 의존성만 다시 맞춘다
+  "updateContentCommand": "bash .devcontainer/setup.sh --update",
+
+  // 생성 직후 1회(사용자별): Codex 설치 + config.toml + PATH + .env.local 템플릿 + upstream
+  "postCreateCommand": "bash .devcontainer/setup.sh --user",
+
+  // 접속할 때마다: 환영 안내 + 미커밋 작업물 경고 (PRD 4-4, 8-R3)
+  "postAttachCommand": "bash .devcontainer/welcome.sh",
+
+  // D10: 2코어 8GB 기본 — 4코어는 렌더 2배 빠르지만 무료 core-hour도 2배 속도로 소진.
+  //      렌더가 답답한 수강생만 개별로 4코어 변경 안내.
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "8gb"
+  }
+}

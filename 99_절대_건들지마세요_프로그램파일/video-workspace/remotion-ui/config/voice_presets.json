@@ -1,0 +1,65 @@
+{
+  "provider": "elevenlabs",
+  "modelId": "eleven_multilingual_v2",
+  "defaultVoiceSource": "opencode/KyufukinChecker/ad-video/scripts/generate-v8-tts.mjs",
+  "presets": [
+    {
+      "id": "natural",
+      "label": "자연형",
+      "description": "AI 느낌을 줄이는 기본 후보",
+      "voiceSettings": {
+        "stability": 0.7,
+        "similarity_boost": 0.82,
+        "speed": 1
+      }
+    },
+    {
+      "id": "commerce-soft",
+      "label": "부드러운 광고형",
+      "description": "쇼핑 쇼츠 톤이 있지만 과장하지 않는 후보",
+      "voiceSettings": {
+        "stability": 0.62,
+        "similarity_boost": 0.86,
+        "style": 0.18,
+        "use_speaker_boost": true,
+        "speed": 1.03
+      }
+    },
+    {
+      "id": "lively-story",
+      "label": "생동감 스토리형",
+      "description": "후기형 쇼츠에 맞게 억양 변화를 키우고 AI식 단조로움을 줄이는 후보",
+      "voiceSettings": {
+        "stability": 0.46,
+        "similarity_boost": 0.82,
+        "style": 0.42,
+        "use_speaker_boost": true,
+        "speed": 1.06
+      }
+    },
+    {
+      "id": "lively-reaction",
+      "label": "리액션 강화형",
+      "description": "질문형 후킹과 후기 리액션의 억양 변화를 더 크게 주고 1.2배속을 기본으로 쓰는 후보",
+      "voiceSettings": {
+        "stability": 0.26,
+        "similarity_boost": 0.78,
+        "style": 0.92,
+        "use_speaker_boost": true,
+        "speed": 1.2
+      }
+    },
+    {
+      "id": "fast-short",
+      "label": "짧은 쇼츠형",
+      "description": "20초대 영상용으로 약간 빠른 후보",
+      "voiceSettings": {
+        "stability": 0.58,
+        "similarity_boost": 0.86,
+        "style": 0.24,
+        "use_speaker_boost": true,
+        "speed": 1.07
+      }
+    }
+  ]
+}

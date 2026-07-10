@@ -1,0 +1,7 @@
+{
+  "note": "이 폴더(public/bgm)에 CC0/저작자표시 불필요 음원(mp3/m4a/wav)을 넣으면 영상 편집기 BGM 드롭다운에 자동으로 나타납니다.",
+  "note2": "곡을 더 넣으려면 파일을 여기에 두고 아래 tracks에 파일명과 보기 좋은 제목을 추가하세요. tracks에 없어도 파일명 그대로 목록에 나옵니다.",
+  "tracks": [
+    { "file": "mixkit-beautiful-dream-493.mp3", "title": "잔잔한 드림 (Beautiful Dream)" }
+  ]
+}

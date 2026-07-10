@@ -1,0 +1,15 @@
+{
+  "videoSrc": "jobs/sample-001/source.mp4",
+  "productName": "QA테스트",
+  "productNo": "0000",
+  "durationSec": 24,
+  "sourceDurationSec": 24,
+  "sourceClips": [],
+  "hook": "",
+  "captions": [],
+  "imageOverlays": [],
+  "adBadge": {"text": "광고", "position": "top-right"},
+  "cta": "테스트",
+  "backgroundMusic": {"volume": 0.055, "title": "", "src": "", "fadeInSec": 1, "fadeOutSec": 1},
+  "thumbnailTail": {"durationSec": 0.6, "text": "제품번호 0000"}
+}

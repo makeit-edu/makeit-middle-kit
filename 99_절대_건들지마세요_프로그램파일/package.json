@@ -1,0 +1,30 @@
+{
+  "name": "weolbu-middle-class-codex-project",
+  "private": true,
+  "type": "module",
+  "config": {
+    "templateRepo": "https://github.com/makeit-edu/makeit-middle-kit.git"
+  },
+  "scripts": {
+    "doctor": "node scripts/doctor.mjs",
+    "doctor:week1": "node scripts/doctor.mjs --week=1",
+    "doctor:week2": "node scripts/doctor.mjs --week=2",
+    "init-env": "node scripts/create-env-local.mjs",
+    "check-wordpress": "node scripts/wordpress-connection-check.mjs",
+    "adsense:check-sites": "node scripts/wordpress-connection-check.mjs",
+    "adsense:create-drafts": "node scripts/adsense-create-drafts.mjs",
+    "adsense:auto-drafts": "node scripts/adsense-auto-drafts.mjs",
+    "setup:week1": "node scripts/setup-week1-adsense.mjs",
+    "setup:week2": "node scripts/setup-week2-video.mjs",
+    "video:setup": "node scripts/setup-week2-video.mjs",
+    "video:start": "node video-workspace/remotion-ui/scripts/editor-server.mjs",
+    "video:new-job": "node video-workspace/remotion-ui/scripts/new-job.mjs",
+    "video:images": "node video-workspace/remotion-ui/scripts/make-images.mjs",
+    "video:make": "node video-workspace/remotion-ui/scripts/make-video.mjs",
+    "video:export": "node scripts/export-videos.mjs",
+    "keys": "node scripts/keys.mjs",
+    "save": "node scripts/save.mjs",
+    "clean": "node scripts/clean.mjs",
+    "update:kit": "node scripts/update-kit.mjs"
+  }
+}

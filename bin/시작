@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# 시작 — AI 비서(코덱스)를 켭니다. (D4: CLI TUI 가 기본 흐름)
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
+CODEX_RUNTIME_DIR="$PROGRAM_DIR/runtime/codex"
+CODEX_BIN="$CODEX_RUNTIME_DIR/node_modules/.bin/codex"
+
+echo "[시작] AI 비서(코덱스)를 켭니다..."
+
+# CODEX_HOME 은 devcontainer 가 워크스페이스 내부로 지정 (D6). 없으면 동일 규칙으로 보정.
+export CODEX_HOME="${CODEX_HOME:-$ROOT/.codex}"
+
+# ── 코덱스가 아직 설치 전이면 여기서 설치 (setup.sh 실패 대비 자가 복구) ──
+if [ ! -x "$CODEX_BIN" ]; then
+  echo "코덱스가 아직 설치되어 있지 않아 지금 설치합니다. 1~2분만 기다려 주세요..."
+  if ! npm install --prefix "$CODEX_RUNTIME_DIR" --no-audit --no-fund @openai/codex@latest; then
+    echo ""
+    echo "❌ 코덱스 설치에 실패했어요."
+    echo "   터미널에 '진단' 을 입력한 결과를 복사해 문의 채널에 올려 주세요."
+    exit 1
+  fi
+fi
+
+# ── 로그인 여부 확인: CODEX_HOME/auth.json 이 없으면 기기 코드 로그인 안내 (D5) ──
+if [ ! -f "$CODEX_HOME/auth.json" ]; then
+  echo ""
+  echo "첫 사용이라 ChatGPT 로그인이 필요해요. 아래 순서만 따라 하면 됩니다."
+  echo ""
+  echo "  1) 잠시 뒤 터미널에 코드와 인터넷 주소가 나옵니다."
+  echo "  2) 코드는 마우스로 드래그한 뒤 우클릭 → 복사 (Ctrl+C 는 복사가 아니에요!)"
+  echo "  3) 주소를 Ctrl(맥은 Cmd) 누른 채 클릭해 새 탭에서 열고, 코드를 붙여넣어 승인"
+  echo ""
+  echo "  ※ 승인이 안 되면: ChatGPT 설정 → 보안 및 로그인 → 맨 아래"
+  echo "    'Codex용 장치 코드 인증 활성화'가 켜져 있는지 먼저 확인하세요. (온보딩 0단계)"
+  echo ""
+  if ! "$CODEX_BIN" login --device-auth; then
+    echo ""
+    echo "❌ 로그인에 실패했어요. 위 안내(0단계 토글)를 확인한 뒤 다시 '시작' 을 입력해 주세요."
+    exit 1
+  fi
+  echo ""
+  echo "✅ 로그인 성공! 이어서 AI 비서를 켭니다."
+fi
+
+# ── 저장소 루트를 작업 폴더로 하여 코덱스 실행 (AGENTS.md 라우팅이 루트 기준) ──
+cd "$ROOT"
+exec "$CODEX_BIN"

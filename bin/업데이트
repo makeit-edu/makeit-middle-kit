@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# 업데이트 — 프로그램을 최신판으로 받아옵니다. 내 작업 폴더(01/02 자료)는 건드리지 않아요. (D17, PRD 5-9)
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
+
+echo "[업데이트] 프로그램 영역만 최신판으로 동기화합니다. (내 작업물은 그대로 유지돼요)"
+
+# 대상 스크립트는 구현 완료 상태 — 파일이 없다면 구버전 작업방이므로 복구를 안내
+if [ ! -f "$PROGRAM_DIR/scripts/update-kit.mjs" ]; then
+  echo ""
+  echo "⚠️  프로그램 파일이 없어요 (구버전 작업방으로 보여요)."
+  echo "   문의 채널에 이 화면을 복사해 올려 주세요."
+  exit 1
+fi
+
+exec npm --prefix "$PROGRAM_DIR" run update:kit

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# 이미지만들기 — 기획안의 이미지 문구로 썸네일·보조 이미지를 생성합니다. (2주차 4단계, 선택)
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
+
+echo "[이미지만들기] 기획안 기준으로 이미지를 생성합니다. (OpenAI 이미지 — 장당 소액 과금)"
+exec npm --prefix "$PROGRAM_DIR" run video:images -- "$@"

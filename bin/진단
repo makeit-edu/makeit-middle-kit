@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# 진단 — 환경 상태를 점검합니다. (온보딩 3단계 관문 · 문제 발생 시 1차 확인 명령)
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
+
+echo "[진단] 키트 상태를 점검합니다. [확인 필요] 항목이 있으면 결과 전체를 복사해 문의 채널에 올려 주세요."
+
+# 인자를 그대로 전달 — 예: '진단 --week=2' 는 2주차 항목 점검
+if [ "$#" -gt 0 ]; then
+  exec npm --prefix "$PROGRAM_DIR" run doctor -- "$@"
+else
+  exec npm --prefix "$PROGRAM_DIR" run doctor
+fi

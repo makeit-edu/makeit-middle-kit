@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# 영상만들기 — 음성(TTS)을 만들고 영상을 렌더링합니다. 완성본은 [완성영상] 폴더에 저장돼요. (2주차 5단계)
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
+
+echo "[영상만들기] 음성 생성 + 영상 렌더링을 시작합니다. 몇 분 걸려요 — 진행 표시가 움직이면 정상입니다."
+exec npm --prefix "$PROGRAM_DIR" run video:make -- "$@"

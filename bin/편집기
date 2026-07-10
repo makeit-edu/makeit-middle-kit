@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# 편집기 — 영상 편집기 서버를 켭니다. 접속은 화면 안 미리보기 또는 "포트 4321" 알림에서. (2주차 6단계, 선택)
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
+
+echo "[편집기] 영상 편집기를 켭니다. 잠시 후 미리보기 창이 열리거나 '포트 4321' 알림이 떠요."
+echo "         (끄려면 이 터미널에서 Ctrl+C)"
+exec npm --prefix "$PROGRAM_DIR" run video:start -- "$@"
