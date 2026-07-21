@@ -1,6 +1,6 @@
 import {execFileSync, spawn} from "node:child_process";
 import {createHash} from "node:crypto";
-import {copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync} from "node:fs";
+import {copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync} from "node:fs";
 import path from "node:path";
 import {
   FINISHED_VIDEO_DIR,
@@ -293,6 +293,9 @@ function repositionImageOverlays(timeline, captions) {
 }
 
 function buildSecondaryCta(timeline, captions, variant) {
+  // [항목 7] 기획안 [05] '네이버링크표시: 끄기' → 네이버판 추가 CTA(왼쪽아래 링크 안내) 화면을 뺀다.
+  // 옵션이 없는 기존 timeline은 disabled가 undefined라 이 줄을 지나쳐 기존 동작 그대로다.
+  if (timeline.secondaryCta?.disabled) return null;
   const ctaCaption = [...captions].reverse().find((caption) => caption.variant === "cta");
   // 네이버 버전: "왼쪽 아래 링크에서 확인하세요" 음성·자막이 나오는 순간부터
   // 화살표 화면이 같이 뜨도록 시작을 CTA 자막 시작점으로 앞당긴다(둘이 겹쳐 5초 유지).
@@ -316,9 +319,24 @@ function applyEndingRules(timeline, variant) {
   const captions = extendFinalCtaCaption(Array.isArray(timeline.captions) ? timeline.captions : [], timeline);
   const captionEndSec = captions.reduce((max, caption) => Math.max(max, Number(caption.endSec || 0)), 0);
   // 쿠팡용 버전은 네이버 추가 CTA 화면(왼쪽아래 링크)을 넣지 않는다.
-  const secondaryCta = variant === "coupang" ? null : buildSecondaryCta(timeline, captions, variant);
+  // [항목 7] '네이버링크표시: 끄기'(disabled)는 파생값 재계산과 분리해 timeline에 보존한다 —
+  // 영상만들기의 렌더 루프가 쿠팡을 마지막에 돌며 secondaryCta를 null로 덮어도 끄기 설정이
+  // 소실되지 않아, 편집기 '다시 제작'(네이버식 단일본)에서 링크 안내 화면이 부활하지 않는다.
+  // 표시 시간(startSec/endSec/durationSec)은 남기지 않는다 — 남기면 렌더 컴포넌트가 화면을 그린다.
+  let secondaryCta;
+  if (timeline.secondaryCta?.disabled) {
+    const {startSec: _s, endSec: _e, durationSec: _d, ...kept} = timeline.secondaryCta;
+    secondaryCta = kept;
+  } else {
+    secondaryCta = variant === "coupang" ? null : buildSecondaryCta(timeline, captions, variant);
+  }
   const visibleEndSec = Math.max(captionEndSec, Number(secondaryCta?.endSec || 0));
-  const durationSec = roundTime(Math.max(visibleEndSec + tailSec, 1));
+  // [항목 8] 기획안 [05] '영상길이: N' → 음성이 끝나도 배경 컷과 BGM이 N초까지 이어진다 (90초 안전 상한).
+  // Number.isFinite 가드 필수: 필드가 없는 기존 timeline은 아래 기존 계산식을 문자 그대로 탄다.
+  // (가드 없이 Math.max(x, undefined)를 쓰면 NaN → JSON에서 null → 24초 폴백으로 기존 작업 길이가 왜곡된다)
+  const durationSec = Number.isFinite(timeline.targetDurationSec)
+    ? roundTime(Math.max(visibleEndSec + tailSec, Math.min(Number(timeline.targetDurationSec), 90)))
+    : roundTime(Math.max(visibleEndSec + tailSec, 1));
 
   return {
     ...timeline,
@@ -333,7 +351,7 @@ function applyEndingRules(timeline, variant) {
     editorNotes: {
       ...(timeline.editorNotes || {}),
       ctaHoldSec: CTA_HOLD_SEC,
-      secondaryCtaHoldSec: secondaryCta ? SECONDARY_CTA_HOLD_SEC : 0,
+      secondaryCtaHoldSec: secondaryCta && !secondaryCta.disabled ? SECONDARY_CTA_HOLD_SEC : 0,
       thumbnailTailSec: tailSec,
     },
   };
@@ -420,7 +438,17 @@ async function regenerateEditorNarration(timeline, renderedAt, onProgress = () =
   const previousAudio = timeline.audio || {};
   const presetId = previousAudio.presetId || "lively-reaction";
   const preset = voiceConfig.presets.find((item) => item.id === presetId) || voiceConfig.presets[0];
-  const speed = Number(previousAudio.speed || preset.voiceSettings?.speed || 1);
+  // [항목 4] 말속도: 기획안 [05] '말속도: N' → audio.requestedSpeed가 있으면 최우선 적용.
+  // 우선순위: 기획안 옵션 > VOICE_SPEED(.env.local 문서 비노출 고급 경로) > 직전 렌더 speed > 프리셋 > 1
+  // 0.7~1.2 클램프는 ElevenLabs 허용 범위 밖 값의 API 400 오류 방지용이다.
+  const clampVoiceSpeed = (value) => Math.min(1.2, Math.max(0.7, value));
+  const requestedSpeed = Number(previousAudio.requestedSpeed);
+  const envSpeed = Number(envValue("VOICE_SPEED"));
+  const speed = Number.isFinite(requestedSpeed) && requestedSpeed > 0
+    ? clampVoiceSpeed(requestedSpeed)
+    : Number.isFinite(envSpeed) && envSpeed > 0
+      ? clampVoiceSpeed(envSpeed)
+      : Number(previousAudio.speed || preset.voiceSettings?.speed || 1);
   const modelId = String(previousAudio.modelId || voiceConfig.modelId || "eleven_multilingual_v2");
   const voiceId = String(previousAudio.voiceId || envValue("ELEVENLABS_VOICE_ID") || "DtyPtKRq6hp0tIhLTanw");
   const suffix = `editor_${renderedAt}`;
@@ -437,6 +465,49 @@ async function regenerateEditorNarration(timeline, renderedAt, onProgress = () =
     createHash("sha1")
       .update(JSON.stringify({voiceId, modelId, voiceSettings, text}))
       .digest("hex");
+
+  // [항목 3] 음량고르게: 기획안 [05] '음량고르게: 예' → audio.normalize=true로 켜진다.
+  // 옵션 줄 미기재 = 필드 없음 = 아래 코드가 아예 실행되지 않아 출력이 기존과 동일하다 (원칙 6).
+  // VOICE_NORMALIZE=1 은 문서 비노출 고급 경로(.env.local) — 기획안 옵션이 항상 우선한다.
+  const normalizeEnabled =
+    previousAudio.normalize === true ||
+    (previousAudio.normalize === undefined && envValue("VOICE_NORMALIZE") === "1");
+  // 타깃 음량 -16 LUFS 는 잠정값 — 배포 전 실측 검증 항목 (기획서 §3-3, 미결정 #6)
+  const LOUDNORM_FILTER = "loudnorm=I=-16:TP=-1.5:LRA=11";
+  // 정규화 결과는 voice-cache 옆 normalized/ 에 1회 캐시해 재렌더 때 재인코딩을 건너뛴다.
+  // (voice-cache 에는 항상 '원본'만 남아 ON/OFF를 오가도 크레딧 없이 복원된다)
+  const normalizedCacheDir = path.join(jobRoot, "audio", "normalized");
+  if (normalizeEnabled) mkdirSync(normalizedCacheDir, {recursive: true});
+  let normalizeFailed = false;
+  // 모든 세그먼트를 같은 파라미터(mp3 44.1kHz 128k)로 재인코딩해야 이어붙이기(-c copy)가 안전하다.
+  const normalizeSegment = (sourcePath, targetPath) => {
+    const tempPath = `${targetPath}.tmp.mp3`; // 실패 시 반쯤 만들어진 파일이 캐시로 남지 않게 임시 파일에 먼저 만든다
+    try {
+      run(process.execPath, [
+        remotionCli,
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        windowsLocalPath(sourcePath),
+        "-af",
+        LOUDNORM_FILTER,
+        "-codec:a",
+        "libmp3lame",
+        "-b:a",
+        "128k",
+        "-ar",
+        "44100",
+        windowsLocalPath(tempPath),
+        "-y",
+      ]);
+      renameSync(tempPath, targetPath);
+    } finally {
+      // 실패 시 .tmp.mp3 찌꺼기가 normalized/ 캐시 폴더에 누적되지 않게 정리한다 (성공 시엔 이미 rename돼 없음).
+      rmSync(tempPath, {force: true});
+    }
+  };
 
   const segmentReports = [];
   const concatLines = [];
@@ -479,6 +550,30 @@ async function regenerateEditorNarration(timeline, renderedAt, onProgress = () =
           }),
       );
       copyFileSync(outputPath, cachePath);
+    }
+
+    // [항목 3] 음량 정규화 — 캐시 저장(원본 보존) '뒤', 자막 길이 측정(probeDuration) '앞'에서 수행한다.
+    // 이 위치라야 자막 표시시간이 정규화된 파일 기준으로 측정돼 싱크가 안전하다.
+    // 원자성 규칙: 한 문장이라도 실패하면 전 문장을 원본으로 통일한다 — 정규화본과 원본이 섞이면
+    // 이어붙이기(-c copy)가 코덱 파라미터 불일치로 깨질 수 있다. 정규화 실패로 렌더가 멈추는 일은 없다(원칙 3).
+    if (normalizeEnabled && !normalizeFailed) {
+      try {
+        const normalizedPath = path.join(normalizedCacheDir, `${cacheKeyOf(item.text)}.mp3`);
+        if (!existsSync(normalizedPath)) normalizeSegment(outputPath, normalizedPath);
+        copyFileSync(normalizedPath, outputPath);
+      } catch {
+        normalizeFailed = true;
+        process.stdout.write("\n");
+        console.warn("[안내] 음량 정규화 실패 — 원본 음량으로 계속 진행합니다 (영상 만들기는 멈추지 않아요).");
+        // 이미 정규화된 앞 문장들을 원본으로 되돌리고, 자막 표시시간도 원본 기준으로 다시 잰다.
+        for (const done of segmentReports) {
+          const originalCachePath = path.join(voiceCacheDir, `${cacheKeyOf(done.text)}.mp3`);
+          if (existsSync(originalCachePath)) copyFileSync(originalCachePath, done.outputPath);
+          const restoredSec = probeDuration(done.outputPath);
+          done.durationSec = restoredSec;
+          done.displayDurationSec = Math.max(restoredSec, 0.05);
+        }
+      }
     }
 
     const durationSec = probeDuration(outputPath);
@@ -624,6 +719,55 @@ if (renderVariant === "naver" && Array.isArray(timeline.captions)) {
   }
 }
 const renderedAt = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+
+// [항목 6] 음성미리듣기(--voice-only): 음성만 만들고 영상 렌더는 완전히 건너뛴다.
+// - editorNotes.voiceRegenerationRequested 플래그 '값과 무관하게' 항상 음성을 만들고 즉시 끝낸다.
+//   (플래그 블록 안에 넣으면 자막 문구만 고친 대표 시나리오에서 풀 렌더로 흘러가는 사고가 난다 — 기획서 §3-6)
+// - 여기서 return 하므로 아래의 렌더 단계와 완성영상 폴더 복사는 절대 실행되지 않는다 (수용 기준 1·2항).
+if (hasFlag("--voice-only")) {
+  // 자막이 아직 없는 상태(영상만들기 전)는 고장이 아니라 순서 문제 — 에러 톤 없이 안내 후 정상 종료한다.
+  // (아래 catch의 "중간에 멈췄습니다" 문구로 흘러가면 초보 수강생이 프로그램 오류로 오인한다)
+  const speakableCount = (Array.isArray(timeline.captions) ? timeline.captions : [])
+    .filter((caption) => cleanVoiceText(caption.text).length > 0).length;
+  if (speakableCount === 0) {
+    reportProgress({status: "done", message: "아직 만들 음성이 없습니다", progress: 100});
+    if (hasFlag("--json")) {
+      process.stdout.write(JSON.stringify({voiceOnly: true, skipped: true, reason: "no-captions"}));
+    } else {
+      console.log("");
+      console.log("[안내] 아직 만들 음성이 없어요.");
+      console.log("먼저 '영상만들기' 로 영상을 만들고, 편집기에서 자막을 고친 뒤 실행해주세요.");
+      console.log("");
+    }
+    return;
+  }
+  try {
+    const result = await regenerateEditorNarration(timeline, renderedAt, reportProgress);
+    writeFileSync(timelinePath, JSON.stringify(result.timeline, null, 2), "utf8");
+    reportProgress({status: "done", message: "음성 준비 완료", progress: 100});
+    if (hasFlag("--json")) {
+      // --json 모드에서 stdout은 JSON 전용 계약을 지킨다.
+      process.stdout.write(JSON.stringify({voiceOnly: true, ...result.report}));
+    } else {
+      console.log("");
+      console.log(`[음성미리듣기] 음성 파일이 준비됐습니다: ${windowsLocalPath(result.report.outputPath)}`);
+      if (result.report.reusedSegments > 0) {
+        console.log(`  (${result.report.segmentCount}문장 중 ${result.report.reusedSegments}문장은 기존 음성을 재사용했어요 — 바뀐 문장만 새로 만들었습니다)`);
+      }
+      console.log("  영상은 만들지 않았습니다. 들어보고 마음에 들면 터미널에 '영상만들기' 를 입력하거나 편집기에서 다시 제작하세요.");
+    }
+  } catch (error) {
+    const message = error?.message || String(error);
+    reportProgress({status: "error", message, progress: 0});
+    console.error("");
+    console.error("[안내] 음성 미리듣기가 중간에 멈췄습니다.");
+    console.error(message);
+    console.error("");
+    process.exit(1);
+  }
+  return;
+}
+
 let renderTimeline = timeline;
 let voiceReport = null;
 
@@ -754,7 +898,11 @@ try {
   }
   if (!copySource) throw new Error(`렌더 결과 mp4를 찾지 못했습니다 (${outputPath})`);
   copyFileSync(copySource, finishedPath);
-  console.log(`[완성영상] 저장 완료: ${windowsLocalPath(finishedPath)}`);
+  // [항목 9] --json 모드에서 stdout은 JSON 전용 계약 — 진행 로그는 stderr로 보낸다.
+  // (stdout에 로그가 섞이면 편집기 서버의 JSON 해석이 깨지는 버그가 재발한다)
+  const savedMessage = `[완성영상] 저장 완료: ${windowsLocalPath(finishedPath)}`;
+  if (hasFlag("--json")) console.error(savedMessage);
+  else console.log(savedMessage);
 } catch (error) {
   finishedPath = null;
   // 실패를 조용히 넘기지 않는다 — 원인을 화면에 보여줘야 고칠 수 있다.

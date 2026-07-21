@@ -88,6 +88,28 @@ function yesNoValue(text) {
   return /예|yes|true|필요|있음/i.test(value);
 }
 
+// "끄기" 계열 값 판정 — [05] 옵션 줄(네이버링크표시/썸네일하단문구 등)에서 쓴다.
+function offOptionValue(text) {
+  const value = String(text || "").trim().replace(/\s+/g, "");
+  return /^(끄기|끔|off|숨기기|숨김|없음|아니오|아니요|no|false)$/i.test(value);
+}
+
+// ---- 기획안 [05] 옵션 줄 (영상자동화 개선 기획서 v1.1 — 항목 3·4·7·8) ----
+// 수강생이 기획안 [05] 블록에 손으로 한 줄씩 추가하는 옵션이다. 코덱스는 이 옵션을 만들지 않는다.
+// 라벨은 공백을 무시하고 인식한다 ("썸네일 번호"와 "썸네일번호" 모두 인식).
+// 여기 등록된 라벨은 자막(unknownSentences)으로 흘러가지 않는다 — 미등록 시 자막 오염 사고가 난다(§2-2).
+const planOptionLabels = new Map([
+  ["말속도", "voiceSpeed"], // [항목 4] 음성 속도 (0.7~1.2)
+  ["음량고르게", "audioNormalize"], // [항목 3] 음량 정규화 켜기
+  ["네이버링크표시", "naverLinkDisplay"], // [항목 7] 네이버판 링크 안내 화면 끄기/문구 교체
+  ["광고표시문구", "adBadgeText"], // [항목 7] 광고 배지 문구 교체 (완전 끄기는 미지원)
+  ["썸네일하단문구", "thumbTailCta"], // [항목 7] 썸네일 하단 CTA 반복 표시 끄기
+  ["영상모두쓰기", "useAllClips"], // [항목 8] 원본 클립 전부 사용
+  ["영상길이", "videoLength"], // [항목 8] 목표 영상 길이 (초, 90 상한)
+  ["썸네일번호", "thumbnailNumber"], // [항목 2] 썸네일 후보 번호 — 값은 '이미지만들기'가 사용, 여기서는 자막 오염 방지용 인식만
+  ["참조이미지", "referenceImage"], // [항목 1] 방어 등록 — 실수로 넣어도 오염되지 않게 인식만 하고 무시
+]);
+
 // ---- 기획안 저장 위치 안전망 ----
 // 코덱스가 기획안 txt를 엉뚱한 곳(jobs 폴더 등)에 저장했으면, 원본 영상이 있던 제품 폴더
 // 바로 아래(source-clips.json의 mustSavePlanningFileHere)로 자동으로 옮긴다.
@@ -163,6 +185,8 @@ function parseSelectedVideoBlock(text) {
   // 자막으로 쓸 수 있게 모아둔다. (메타 정보성 라벨은 제외)
   const unknownSentences = [];
   const metaLabelPattern = /썸네일|광고|가상|인물|판단|기준|저장|위치|링크|상품|번호|리스크|표시|AI|메모|이미지|배경/i;
+  // 수강생이 [05] 블록에 손으로 넣은 옵션 줄 (기획서 v1.1 항목 3·4·7·8) — 자막과 분리해서 모은다.
+  const options = {};
   let current = "";
   let matched = false;
   for (const rawLine of source.split(/\r?\n/)) {
@@ -176,6 +200,13 @@ function parseSelectedVideoBlock(text) {
         matched = true;
         current = key;
         fields[current] = [match[2].trim()].filter(Boolean);
+        continue;
+      }
+      // [05] 옵션 줄 인식 — 옵션은 항상 "라벨: 값" 한 줄이라 다음 줄을 이어붙이지 않는다.
+      const optionKey = planOptionLabels.get(label.replace(/\s+/g, ""));
+      if (optionKey) {
+        options[optionKey] = match[2].trim();
+        current = "";
         continue;
       }
       if (!metaLabelPattern.test(label)) {
@@ -223,6 +254,7 @@ function parseSelectedVideoBlock(text) {
     thumb: cleanSingleLineValue(fieldValue(fields.thumb)),
     adText: yesNoValue(fieldValue(fields.virtualPerson)) ? "광고\n가상인물" : "광고",
     virtualPerson: yesNoValue(fieldValue(fields.virtualPerson)),
+    options,
   };
 }
 
@@ -246,7 +278,165 @@ function parseNumberedCodexAnswer(text) {
     .replace(/^["'“”']|["'“”']$/g, "")
     .trim();
 
-  return {hook, captions, cta, thumb, adText: "광고", virtualPerson: false};
+  return {hook, captions, cta, thumb, adText: "광고", virtualPerson: false, options: {}};
+}
+
+// ---- [05] 옵션 검증·정규화 (기획서 v1.1 항목 3·4·7·8) ----
+// 옵션 줄 원문을 확인해 timeline에 넣을 확정 값(normalized), 확인 화면 요약(summary),
+// 초보 눈높이 안내 문구(notes)로 나눈다. 잘못된 값은 조용히 망가뜨리지 않고 안내 후 무시한다.
+function normalizePlanOptions(raw, virtualPerson) {
+  const normalized = {};
+  const summary = [];
+  const notes = [];
+
+  // [항목 4] 말속도: 0.7~1.2 범위 밖은 클램프 (ElevenLabs 허용 범위 — API 400 방지)
+  if (raw.voiceSpeed !== undefined) {
+    const value = Number(String(raw.voiceSpeed).replace(/[^\d.]/g, ""));
+    if (Number.isFinite(value) && value > 0) {
+      const clamped = Math.min(1.2, Math.max(0.7, value));
+      if (clamped !== value) notes.push(`말속도는 0.7~1.2 사이만 가능해서 ${clamped}(으)로 맞췄어요.`);
+      normalized.voiceSpeed = clamped;
+      summary.push(`말속도 ${clamped}`);
+      notes.push("말속도를 바꾸면 음성 전체가 1회 새로 생성됩니다 (일레븐랩스 크레딧 소모). 줄을 지우면 원래 속도로 돌아와요.");
+    } else {
+      notes.push(`'말속도: ${raw.voiceSpeed}' 값을 숫자로 읽지 못해 이번에는 적용하지 않았어요. (예: 말속도: 1.0)`);
+    }
+  }
+
+  // [항목 3] 음량고르게: '예'일 때만 켠다. 줄이 없거나 '아니오'면 기존과 완전히 동일하게 동작.
+  // '켜기'/'on'/'ㅇ' 처럼 인식 못 하는 값은 조용히 무시하지 않고 안내한다 (말속도·영상길이와 같은 규칙).
+  if (raw.audioNormalize !== undefined) {
+    if (yesNoValue(raw.audioNormalize)) {
+      normalized.audioNormalize = true;
+      summary.push("음량 고르게 켜기");
+      notes.push("음량 고르게를 켜면 영상 만들기가 몇 초 더 걸릴 수 있어요.");
+    } else if (!offOptionValue(raw.audioNormalize)) {
+      notes.push(`'음량고르게: ${raw.audioNormalize}' 값은 인식하지 못해 이번에는 적용하지 않았어요 — 켜려면 '음량고르게: 예' 라고 적어주세요.`);
+    }
+  }
+
+  // [항목 8] 영상모두쓰기: '예'일 때만 켠다. (인식 못 하는 값은 위와 같은 규칙으로 안내)
+  if (raw.useAllClips !== undefined) {
+    if (yesNoValue(raw.useAllClips)) {
+      normalized.useAllClips = true;
+      summary.push("원본 영상 모두 쓰기");
+    } else if (!offOptionValue(raw.useAllClips)) {
+      notes.push(`'영상모두쓰기: ${raw.useAllClips}' 값은 인식하지 못해 이번에는 적용하지 않았어요 — 켜려면 '영상모두쓰기: 예' 라고 적어주세요.`);
+    }
+  }
+
+  // [항목 8] 영상길이: 숫자 검증 + 90초 안전 상한 클램프
+  if (raw.videoLength !== undefined) {
+    const value = Number(String(raw.videoLength).replace(/[^\d.]/g, ""));
+    if (Number.isFinite(value) && value > 0) {
+      const clamped = Math.min(90, value);
+      if (clamped !== value) notes.push("영상길이는 최대 90초까지만 가능해서 90초로 맞췄어요.");
+      normalized.targetDurationSec = clamped;
+      summary.push(`영상길이 ${clamped}초`);
+      notes.push("음성이 끝난 뒤에는 자막 없는 배경 화면과 음악만 이어져요 (시청지속률에는 불리할 수 있어요).");
+    } else {
+      notes.push(`'영상길이: ${raw.videoLength}' 값을 숫자로 읽지 못해 이번에는 적용하지 않았어요. (예: 영상길이: 30)`);
+    }
+  }
+
+  // [항목 7] 네이버링크표시: '끄기' 또는 '문구A / 문구B / 문구C' 교체. 네이버판 전용.
+  if (raw.naverLinkDisplay !== undefined) {
+    notes.push("'네이버링크표시' 옵션은 네이버용 영상에만 적용됩니다 (쿠팡용에는 원래 이 화면이 없어요).");
+    if (offOptionValue(raw.naverLinkDisplay)) {
+      normalized.secondaryCtaDisabled = true;
+      summary.push("네이버 링크 안내 화면 끄기");
+    } else if (/^(예|yes|true|켜기|킴|표시)$/i.test(String(raw.naverLinkDisplay).trim())) {
+      // '예'를 문구 교체("예")로 오인하지 않게 방어 — 이 화면은 원래 켜져 있다.
+      notes.push("'네이버링크표시'는 원래 켜져 있어요 — '끄기' 또는 교체 문구(문구A / 문구B / 문구C)만 적을 수 있습니다.");
+    } else if (String(raw.naverLinkDisplay).trim()) {
+      const lines = String(raw.naverLinkDisplay)
+        .split("/")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 3);
+      if (lines.length > 0) {
+        normalized.secondaryCtaText = lines.join("\n");
+        summary.push("네이버 링크 안내 문구 교체");
+      }
+    }
+  }
+
+  // [항목 7] 광고표시문구: 문구 교체만 지원. 완전 끄기는 표시광고법상 필수라 미지원.
+  if (raw.adBadgeText !== undefined) {
+    const text = String(raw.adBadgeText).trim();
+    if (!text || offOptionValue(text)) {
+      notes.push("광고 표시는 법(표시광고법)상 필수라 끌 수 없어요 — 문구 교체만 가능합니다. (예: 광고표시문구: 광고입니다)");
+    } else {
+      normalized.adBadgeText = virtualPerson ? `${text}\n가상인물` : text;
+      summary.push(`광고 표시 문구 "${text}"`);
+    }
+  }
+
+  // [항목 7] 썸네일하단문구: 지금은 '끄기'만 지원.
+  if (raw.thumbTailCta !== undefined) {
+    if (offOptionValue(raw.thumbTailCta)) {
+      normalized.thumbTailCtaHidden = true;
+      summary.push("썸네일 하단 문구 끄기");
+    } else {
+      notes.push("'썸네일하단문구' 옵션은 지금은 '끄기'만 지원해요. (예: 썸네일하단문구: 끄기)");
+    }
+  }
+
+  // '썸네일번호'(항목 2)는 '이미지만들기'가 사용하고, '참조이미지'(항목 1)는 방어 등록이라 여기서는 건드리지 않는다.
+
+  return {normalized, summary, notes};
+}
+
+// 확정된 옵션을 timeline에 주입한다. 옵션 줄이 빠진 항목은 이전에 옵션으로 넣었던 값을 지워
+// "옵션 줄을 지우면 원래대로"를 보장한다. (지우는 대상은 전부 이번 개선의 신규 필드이거나
+// 렌더가 매번 다시 채우는 파생 필드라, 기존 작업 timeline과 100% 호환된다 — 원칙 4)
+function applyPlanOptions(timeline, normalized) {
+  // [항목 4] 말속도 → audio.requestedSpeed (렌더에서 최우선 적용)
+  if (normalized.voiceSpeed !== undefined) {
+    timeline.audio = {...(timeline.audio || {}), requestedSpeed: normalized.voiceSpeed};
+  } else if (timeline.audio && timeline.audio.requestedSpeed !== undefined) {
+    // 옵션 줄이 사라졌으면: 옵션으로 덮였던 실제 속도 기록(speed)도 함께 지워 프리셋 속도로 되돌린다.
+    delete timeline.audio.requestedSpeed;
+    delete timeline.audio.speed;
+  }
+
+  // [항목 3] 음량고르게 → audio.normalize (렌더에서 loudnorm 수행, 실패 시 원본 음량 폴백)
+  if (normalized.audioNormalize) {
+    timeline.audio = {...(timeline.audio || {}), normalize: true};
+  } else if (timeline.audio && timeline.audio.normalize !== undefined) {
+    delete timeline.audio.normalize;
+  }
+
+  // [항목 8] 영상모두쓰기 / 영상길이 → 신규 루트 필드 (없으면 렌더가 기존 코드 경로 그대로)
+  if (normalized.useAllClips) timeline.useAllClips = true;
+  else delete timeline.useAllClips;
+  if (normalized.targetDurationSec !== undefined) timeline.targetDurationSec = normalized.targetDurationSec;
+  else delete timeline.targetDurationSec;
+
+  // [항목 7] 네이버링크표시 → secondaryCta.disabled / text
+  if (normalized.secondaryCtaDisabled) {
+    timeline.secondaryCta = {...(timeline.secondaryCta || {}), disabled: true};
+  } else if (timeline.secondaryCta && timeline.secondaryCta.disabled !== undefined) {
+    delete timeline.secondaryCta.disabled;
+  }
+  if (normalized.secondaryCtaText !== undefined) {
+    timeline.secondaryCta = {...(timeline.secondaryCta || {}), text: normalized.secondaryCtaText};
+  } else if (timeline.secondaryCta && timeline.secondaryCta.text !== undefined && !normalized.secondaryCtaDisabled) {
+    // 문구 옵션이 사라졌으면 저장된 문구를 지운다 → 렌더가 기본 문구를 다시 채운다(= 원래대로).
+    delete timeline.secondaryCta.text;
+  }
+
+  // [항목 7] 광고표시문구 → adBadge.text 교체 (미기재면 위에서 세팅한 기본 광고 문구 그대로)
+  if (normalized.adBadgeText !== undefined) {
+    timeline.adBadge = {...(timeline.adBadge || {}), text: normalized.adBadgeText, position: "top-right"};
+  }
+
+  // [항목 7] 썸네일하단문구 → thumbnailTail.hideCta (렌더 컴포넌트는 이미 지원)
+  if (normalized.thumbTailCtaHidden) {
+    timeline.thumbnailTail = {...(timeline.thumbnailTail || {durationSec: 0.6}), hideCta: true};
+  } else if (timeline.thumbnailTail && timeline.thumbnailTail.hideCta !== undefined) {
+    delete timeline.thumbnailTail.hideCta;
+  }
 }
 
 // 썸네일 문구(한 줄)를 화면에서 안 잘리게 두 줄로 균형 분할한다
@@ -384,7 +574,13 @@ if (pasted === null) {
   console.log("");
   pasted = await readPastedText(rl);
 }
-const {hook, captions, cta, thumb, adText, virtualPerson} = parseSelectedVideoBlock(pasted) || parseNumberedCodexAnswer(pasted);
+const parsedPlan = parseSelectedVideoBlock(pasted) || parseNumberedCodexAnswer(pasted);
+const {hook, captions, cta, thumb, adText, virtualPerson} = parsedPlan;
+// [05] 옵션 줄 검증 (기획서 v1.1 항목 3·4·7·8 — 옵션 미기재 = 현행 동작)
+const {normalized: planOptions, summary: planOptionSummary, notes: planOptionNotes} = normalizePlanOptions(
+  parsedPlan.options || {},
+  virtualPerson,
+);
 
 if (captions.length === 0) {
   rl.close();
@@ -409,6 +605,9 @@ if (cta) console.log(`  [CTA]       ${cta}`);
 if (cta) console.log("  [추가 CTA]  왼쪽아래 링크를 클릭 후 / 지금 바로 / 확인하세요 :)");
 if (thumb) console.log(`  [썸네일]    ${thumb}`);
 console.log(`  [표시]      ${virtualPerson ? "광고 + 가상인물" : "광고"}`);
+// [05] 옵션 줄이 있으면 어떻게 적용되는지 보여준다 (없으면 아무것도 출력하지 않음 = 현행 화면 그대로)
+if (planOptionSummary.length > 0) console.log(`  [옵션]      ${planOptionSummary.join(" / ")}`);
+planOptionNotes.forEach((note) => console.log(`  [안내]      ${note}`));
 console.log("");
 
 // 대본이 짧으면 완성 영상이 20초 목표에 못 미친다 — 렌더 전에 미리 알려준다.
@@ -469,6 +668,8 @@ if (thumb) {
     headlineFontSize: fontSize,
   };
 }
+// [05] 옵션을 timeline에 반영한다 (옵션 줄이 없으면 신규 필드를 지워 원래 동작으로 되돌린다).
+applyPlanOptions(timeline, planOptions);
 timeline.editorNotes = {...(timeline.editorNotes || {}), voiceRegenerationRequested: true};
 writeFileSync(timelinePath, JSON.stringify(timeline, null, 2), "utf8");
 
@@ -494,6 +695,10 @@ for (const variant of ["naver", "coupang"]) {
       {cwd: windowsLocalPath(projectRoot), stdio: "inherit"},
     );
   }
+  // [항목 11] 2회 렌더가 모두 성공한 직후 "영상만들기 직후" 스냅샷을 저장한다 (기획서 원안).
+  // 영상만들기를 다시 돌리면 여기서 덮어써서, 편집기의 '원본 복구' 기준점이 항상 최신 직후가 된다.
+  // (편집기 서버의 mtime 휴리스틱은 이 스냅샷이 없을 때를 위한 보조 안전망일 뿐이다)
+  copyFileSync(timelinePath, path.join(jobPaths.timelineDir, "timeline.initial.json"));
 } catch {
   console.log("");
   console.log("[안내] 영상 제작이 중간에 멈췄습니다. [02_2주차_쇼핑숏폼자동화/완성영상] 폴더를 확인해보세요 — 일부 영상은 이미 완성됐을 수 있습니다.");

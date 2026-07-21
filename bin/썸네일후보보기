@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# 썸네일후보보기 — 원본 영상에서 썸네일 후보 장면을 번호와 함께 뽑아 보여줍니다. (과금 없음)
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
+
+echo "[썸네일후보보기] 원본 영상에서 썸네일 후보 장면을 뽑습니다. (과금 없음)"
+exec node "$PROGRAM_DIR/video-workspace/remotion-ui/scripts/thumbnail-candidates.mjs" "$@"

@@ -40,9 +40,12 @@ type CtaBackground = {
 };
 
 type SecondaryCta = {
-  startSec: number;
-  endSec: number;
-  text: string;
+  // [항목 7] '네이버링크표시: 끄기' — disabled면 렌더는 이 화면을 그리지 않는다.
+  // (끄기 상태의 timeline에는 disabled만 남고 표시 시간이 없어 startSec/endSec가 undefined일 수 있다)
+  disabled?: boolean;
+  startSec?: number;
+  endSec?: number;
+  text?: string;
   arrow?: boolean;
 };
 
@@ -69,6 +72,8 @@ type ShoppingShortsProps = {
   durationSec: number;
   sourceDurationSec: number;
   sourceClips?: SourceClip[];
+  // [항목 8] 기획안 [05] '영상모두쓰기: 예' → true. 필드가 없으면(기존 timeline) 기존 리듬 컷 그대로.
+  useAllClips?: boolean;
   hook: string;
   captions: Caption[];
   captionStyle?: CaptionStyle;
@@ -194,9 +199,54 @@ type AutoCut = {
   zoomSeed: number;
 };
 
-function buildAutoCuts(sourceClips: SourceClip[] | undefined, fallbackSrc: string, durationFrames: number, fps: number) {
+function buildAutoCuts(
+  sourceClips: SourceClip[] | undefined,
+  fallbackSrc: string,
+  durationFrames: number,
+  fps: number,
+  mode?: "all-clips",
+) {
   const clips = (sourceClips || []).filter((clip) => clip?.src);
   if (clips.length < 2 || durationFrames <= 0) return [];
+
+  // [항목 8] 영상모두쓰기 모드: 넣은 클립이 전부, 각자 길이에 비례한 구간으로, 순서대로 1회씩 나온다.
+  // 각 클립의 '중앙' 구간을 잘라 앞부분 편중을 없앤다. mode 미지정이면 아래 기존 리듬 컷 로직을
+  // 한 글자도 바꾸지 않고 그대로 탄다 (기본 배치의 컷 시점·zoomSeed 불변 — 원칙 1).
+  if (mode === "all-clips") {
+    const knownDurations = clips.map((clip) => Math.max(0, Number(clip.durationSec || 0)));
+    const totalKnownSec = knownDurations.reduce((sum, value) => sum + value, 0);
+    const allCuts: AutoCut[] = [];
+    let cursorFrame = 0;
+    for (let i = 0; i < clips.length; i += 1) {
+      const remainingFrames = durationFrames - cursorFrame;
+      if (remainingFrames <= 0) break;
+      const remainingClips = clips.length - i;
+      // 길이 정보가 있으면 전체 길이에 비례해 배분하고, 없으면 남은 구간을 균등 배분한다.
+      const share =
+        totalKnownSec > 0 && knownDurations[i] > 0
+          ? Math.round(durationFrames * (knownDurations[i] / totalKnownSec))
+          : Math.round(remainingFrames / remainingClips);
+      const cutFrames =
+        i === clips.length - 1
+          ? remainingFrames // 마지막 클립이 반올림 오차를 흡수해 총 길이를 정확히 채운다
+          : Math.max(1, Math.min(share, remainingFrames - (remainingClips - 1))); // 뒤 클립에도 최소 1프레임 보장
+      const cutSec = cutFrames / fps;
+      const clipDurationSec = knownDurations[i];
+      // 클립이 배분 구간보다 길면 중앙 구간을, 짧으면 처음부터 재생한다.
+      const trimBeforeSec = clipDurationSec > cutSec ? Math.max(0, (clipDurationSec - cutSec) / 2) : 0;
+      const trimBeforeFrame = secondsToFrame(trimBeforeSec, fps);
+      allCuts.push({
+        src: clips[i].src || fallbackSrc,
+        fromFrame: cursorFrame,
+        durationFrames: cutFrames,
+        trimBeforeFrame,
+        trimAfterFrame: trimBeforeFrame + cutFrames,
+        zoomSeed: i % 4,
+      });
+      cursorFrame += cutFrames;
+    }
+    return allCuts;
+  }
 
   const rhythmSec = [2.1, 1.7, 2.4, 1.9, 2.7, 1.8];
   const cursors = new Map<number, number>();
@@ -275,9 +325,11 @@ const SourceVideoLayer: React.FC<{
   durationFrames: number;
   opacity: number;
   visualFilter?: ShoppingShortsProps["visualFilter"];
-}> = ({videoSrc, sourceClips, durationFrames, opacity, visualFilter}) => {
+  useAllClips?: boolean;
+}> = ({videoSrc, sourceClips, durationFrames, opacity, visualFilter, useAllClips}) => {
   const {fps} = useVideoConfig();
-  const cuts = buildAutoCuts(sourceClips, videoSrc, durationFrames, fps);
+  // [항목 8] useAllClips가 true일 때만 새 배치(mode)로 — 아니면 기존 호출과 완전히 동일하다.
+  const cuts = buildAutoCuts(sourceClips, videoSrc, durationFrames, fps, useAllClips ? "all-clips" : undefined);
 
   if (cuts.length === 0) {
     return (
@@ -536,13 +588,18 @@ const CtaBackgroundLayer: React.FC<{captions: Caption[]; background?: CtaBackgro
 const SecondaryCtaOverlay: React.FC<{cta?: SecondaryCta}> = ({cta}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  if (!cta) return null;
+  // [항목 7] 끄기(disabled) 상태이거나 표시 시간이 없으면 그리지 않는다.
+  // (startSec/endSec가 undefined인 객체가 들어오면 아래 비교가 모두 false가 되어 항상 그려지는 사고 방지)
+  if (!cta || cta.disabled) return null;
+  const startSec = Number(cta.startSec);
+  const endSec = Number(cta.endSec);
+  if (!Number.isFinite(startSec) || !Number.isFinite(endSec)) return null;
 
   const currentSec = frame / fps;
-  if (currentSec < cta.startSec || currentSec >= cta.endSec) return null;
+  if (currentSec < startSec || currentSec >= endSec) return null;
 
-  const localFrame = frame - secondsToFrame(cta.startSec, fps);
-  const durationFrames = Math.max(1, secondsToFrame(cta.endSec - cta.startSec, fps));
+  const localFrame = frame - secondsToFrame(startSec, fps);
+  const durationFrames = Math.max(1, secondsToFrame(endSec - startSec, fps));
   const opacity = interpolate(localFrame, [0, 5, durationFrames - 6, durationFrames], [0, 1, 1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -831,6 +888,7 @@ export const ShoppingShorts: React.FC<ShoppingShortsProps> = (props) => {
           durationFrames={tailFrom}
           opacity={videoOpacity}
           visualFilter={props.visualFilter}
+          useAllClips={props.useAllClips}
         />
       </div>
       {props.narrationSrc ? <Audio src={staticFile(props.narrationSrc)} volume={1} /> : null}

@@ -25,6 +25,8 @@ let defaultPropsPath = jobPaths.defaultPropsPath;
 let timelineDir = jobPaths.timelineDir;
 let timelinePath = path.join(timelineDir, "timeline.json");
 let renderJobsDir = path.join(timelineDir, "render-jobs");
+// [항목 11] "영상을 처음 만든 직후" 상태 스냅샷 — 원본 복구가 자막·음성·이미지를 살린 채 되돌아갈 기준점
+let initialSnapshotPath = path.join(timelineDir, "timeline.initial.json");
 const templatesDir = path.join(projectRoot, "editor-data", "templates");
 const templatesPath = path.join(templatesDir, "templates.json");
 let renderDir = jobPaths.renderDir;
@@ -36,7 +38,41 @@ function reloadJobPaths() {
   timelineDir = jobPaths.timelineDir;
   timelinePath = path.join(timelineDir, "timeline.json");
   renderJobsDir = path.join(timelineDir, "render-jobs");
+  initialSnapshotPath = path.join(timelineDir, "timeline.initial.json");
   renderDir = jobPaths.renderDir;
+}
+
+// [항목 11] 이 편집기 서버(자식 렌더 포함)가 timeline.json에 마지막으로 쓴 시각(jobId별).
+// 이 값보다 디스크 파일이 더 새로우면 "터미널 영상만들기가 다시 쓴 것"으로 판단할 수 있다.
+const editorWriteTimes = new Map();
+
+function rememberEditorWrite() {
+  try {
+    editorWriteTimes.set(jobPaths.jobId, statSync(timelinePath).mtimeMs);
+  } catch {
+    // 기록 실패는 치명적이지 않다 — 다음 쓰기 때 다시 기록된다.
+  }
+}
+
+// [항목 11] 편집기가 timeline.json을 바꾸기 "직전"에 호출한다.
+// 스냅샷(timeline.initial.json)의 정본은 make-video.mjs가 2회 렌더 성공 직후 직접 저장하는 파일이고,
+// 여기는 보조 안전망이다: "이 서버가 이전에 timeline.json을 쓴 기록이 있고(lastEditorWriteMs 존재),
+// 그 후 외부(터미널 영상만들기)가 다시 쓴 게 확실"할 때만 스냅샷을 만들거나 갱신한다.
+// lastEditorWriteMs가 없는 첫 저장(서버 첫 기동/재시작 직후)은 판단 근거가 없어 캡처하지 않는다 —
+// 업데이트 이전부터 편집하던 기존 작업의 '편집 중간 상태'를 처음 직후로 오캡처하는 사고 방지.
+function maybeCaptureInitialSnapshot() {
+  try {
+    if (!existsSync(timelinePath)) return;
+    mkdirSync(timelineDir, {recursive: true});
+    const diskMtimeMs = statSync(timelinePath).mtimeMs;
+    const lastEditorWriteMs = editorWriteTimes.get(jobPaths.jobId);
+    // 외부(터미널)가 이 서버의 마지막 쓰기 이후 timeline.json을 다시 썼다고 '확실'할 때만 (1ms 오차 허용)
+    if (lastEditorWriteMs !== undefined && diskMtimeMs > lastEditorWriteMs + 1) {
+      copyFileSync(timelinePath, initialSnapshotPath);
+    }
+  } catch {
+    // 스냅샷 실패가 편집 저장을 막아서는 안 된다.
+  }
 }
 
 // jobs 폴더의 작업 목록 (상품번호·이름·완성영상 유무)
@@ -144,6 +180,8 @@ function ensureTimeline() {
   }
   if (!existsSync(timelinePath)) {
     copyFileSync(defaultPropsPath, timelinePath);
+    // 빈 틀을 만든 것은 편집기 자신 — 이후 터미널 영상만들기가 다시 쓰면 스냅샷 후보로 감지된다 (항목 11)
+    rememberEditorWrite();
   }
 }
 
@@ -413,7 +451,33 @@ function nextTemplateName(templates, productName) {
   return `${base} ${index}`;
 }
 
+// [항목 9] --json 모드 stdout에 안내 로그(예: "[완성영상] 저장 완료: …")가 섞여도
+// 마지막에 출력된 JSON 리포트를 찾아낸다. (성공한 렌더가 "해석 실패"로 뜨던 버그의 1차 안전망)
+function extractJsonReport(stdout) {
+  const text = String(stdout || "").trim();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    // 로그가 섞인 경우 — 아래에서 JSON 시작점을 찾아 다시 시도한다.
+  }
+  let index = text.indexOf("{");
+  while (index !== -1) {
+    try {
+      const parsed = JSON.parse(text.slice(index).trim());
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {
+      // 이 위치는 JSON 시작점이 아니었다 — 다음 "{" 후보에서 재시도.
+    }
+    index = text.indexOf("{", index + 1);
+  }
+  return null;
+}
+
 function runRender({progressFile, quality} = {}) {
+  const startedAtMs = Date.now();
+  // 렌더 스크립트가 완료 시 남기는 결과 기록 — 2차 안전망으로 사용 (render-editor-timeline.mjs가 매 렌더마다 저장)
+  const lastRenderPath = path.join(timelineDir, "last-render.json");
   return new Promise((resolve, reject) => {
     const args = [windowsLocalPath(path.join(projectRoot, "scripts", "render-editor-timeline.mjs")), "--json"];
     if (progressFile) args.push("--progress-file", progressFile);
@@ -432,15 +496,36 @@ function runRender({progressFile, quality} = {}) {
       stderr += chunk.toString();
     });
     child.on("close", (code) => {
+      // 렌더 자식 프로세스가 timeline.json을 갱신했을 수 있다(음성 재생성 기록 등) — 편집기발 쓰기로 기록 (항목 11)
+      rememberEditorWrite();
       if (code !== 0) {
         reject(new Error(stderr || `렌더링 프로세스 실패: ${code}`));
         return;
       }
-      try {
-        resolve(JSON.parse(stdout));
-      } catch {
-        reject(new Error(`렌더링 결과를 해석하지 못했습니다: ${stdout}`));
+      // [항목 9] 1차: stdout에서 JSON 리포트 추출 (로그가 섞여 있어도 성공 처리)
+      const report = extractJsonReport(stdout);
+      if (report) {
+        resolve(report);
+        return;
       }
+      // [항목 9] 2차: 정상 종료(exit 0)인데 리포트 해석 실패 → 렌더 스크립트가 남긴 last-render.json 사용.
+      // generatedAt이 이번 렌더 시작 이후인지 확인해 옛 기록 오채택을 막는다.
+      try {
+        const saved = JSON.parse(readFileSync(lastRenderPath, "utf8"));
+        const generatedAtMs = Date.parse(saved && saved.generatedAt ? saved.generatedAt : "");
+        if (Number.isFinite(generatedAtMs) && generatedAtMs >= startedAtMs - 10_000) {
+          resolve(saved);
+          return;
+        }
+      } catch {
+        // last-render.json이 없거나 깨져 있으면 아래 안내로 넘어간다.
+      }
+      // 여기까지 오면 결과 확인이 정말 불가능한 경우 — 초보 눈높이 안내 (영상 자체는 만들어졌을 가능성이 높다)
+      reject(
+        new Error(
+          "영상은 만들어졌을 가능성이 높지만, 결과 화면 표시에 실패했습니다. '완성 영상 보기'를 눌러 방금 만든 영상이 있는지 확인해주세요.",
+        ),
+      );
     });
   });
 }
@@ -503,7 +588,8 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "GET" && url.pathname === "/api/timeline") {
       const timeline = normalizeTimeline(JSON.parse(readFileSync(timelinePath, "utf8")));
-      sendJson(response, 200, {timeline});
+      // hasInitialSnapshot: "원본 복구" 버튼의 확인 문구를 실제 동작에 맞게 분기하기 위한 값 (항목 11)
+      sendJson(response, 200, {timeline, hasInitialSnapshot: existsSync(initialSnapshotPath)});
       return;
     }
 
@@ -512,14 +598,56 @@ const server = http.createServer(async (request, response) => {
       const data = JSON.parse(body || "{}");
       if (!data.timeline) throw new Error("timeline 값이 없습니다.");
       const timeline = normalizeTimeline(data.timeline);
+      maybeCaptureInitialSnapshot(); // 편집기가 덮어쓰기 전, 영상만들기 직후 상태를 보존 (항목 11)
       writeFileSync(timelinePath, JSON.stringify(timeline, null, 2), "utf8");
+      rememberEditorWrite();
       sendJson(response, 200, {ok: true});
       return;
     }
 
     if (request.method === "POST" && url.pathname === "/api/reset") {
-      copyFileSync(defaultPropsPath, timelinePath);
-      sendJson(response, 200, {ok: true});
+      // [항목 11] 스냅샷이 있으면 "영상을 처음 만든 직후"(자막·음성·이미지가 살아있는 상태)로,
+      // 없으면(업데이트 이전에 만든 작업) 기존과 동일하게 기본 틀로 되돌린다 (폴백).
+      const restoreSource = existsSync(initialSnapshotPath) ? initialSnapshotPath : defaultPropsPath;
+      copyFileSync(restoreSource, timelinePath);
+      rememberEditorWrite();
+      sendJson(response, 200, {ok: true, restoredFromSnapshot: restoreSource === initialSnapshotPath});
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/upload-image") {
+      // [항목 12] 편집기 "내 이미지로 바꾸기" — base64 dataUrl(JSON)로 받아 custom_*.jpg 로 저장한다.
+      // multipart 파서·추가 의존성 없음. 기존 story_0N.png 는 덮어쓰지 않아 원본이 보존된다.
+      let body;
+      try {
+        body = await readBody(request);
+      } catch {
+        // readBody의 8MB 한도 초과 — 프론트가 먼저 줄여 보내지만, 만약을 위한 서버측 안내
+        try {
+          sendJson(response, 413, {error: "사진이 너무 커요 — 조금 작은 사진으로 다시 시도해 주세요."});
+        } catch {
+          // 이미 연결이 끊긴 경우는 조용히 넘어간다.
+        }
+        return;
+      }
+      const data = JSON.parse(body || "{}");
+      const dataUrl = String(data.dataUrl || "");
+      const match = /^data:image\/(jpeg|jpg|png);base64,([A-Za-z0-9+/=\s]+)$/.exec(dataUrl);
+      if (!match) {
+        sendJson(response, 400, {error: "이미지 파일(jpg/png)만 올릴 수 있어요. 사진을 다시 선택해주세요."});
+        return;
+      }
+      const buffer = Buffer.from(match[2], "base64");
+      if (buffer.length === 0) {
+        sendJson(response, 400, {error: "이미지 내용을 읽지 못했어요. 사진을 다시 선택해주세요."});
+        return;
+      }
+      const extension = match[1] === "png" ? "png" : "jpg";
+      const fileName = `custom_${Date.now()}.${extension}`;
+      mkdirSync(jobPaths.publicJobRoot, {recursive: true});
+      writeFileSync(path.join(jobPaths.publicJobRoot, fileName), buffer);
+      // src는 기존 이미지와 동일한 규약(jobs/<jobId>/<파일명>) — 미리보기·렌더 모두 그대로 인식한다
+      sendJson(response, 200, {ok: true, src: `jobs/${jobPaths.jobId}/${fileName}`});
       return;
     }
 
@@ -576,7 +704,9 @@ const server = http.createServer(async (request, response) => {
       }
       const timeline = normalizeTimeline(JSON.parse(readFileSync(timelinePath, "utf8")));
       const nextTimeline = applyTemplateData(timeline, template.data || {});
+      maybeCaptureInitialSnapshot(); // 템플릿 적용도 편집기발 쓰기 — 직전 상태 보존 (항목 11)
       writeFileSync(timelinePath, JSON.stringify(nextTimeline, null, 2), "utf8");
+      rememberEditorWrite();
       sendJson(response, 200, {ok: true, timeline: nextTimeline});
       return;
     }
@@ -607,7 +737,9 @@ const server = http.createServer(async (request, response) => {
           ...(voiceMode === "request" ? {voiceRegenerationRequestedAt: now} : {}),
         },
       };
+      maybeCaptureInitialSnapshot(); // 재제작 직전 — 영상만들기 직후 상태라면 이 시점에 보존된다 (항목 11)
       writeFileSync(timelinePath, JSON.stringify(nextTimeline, null, 2), "utf8");
+      rememberEditorWrite();
 
       const initialJob = writeRenderJob(jobId, {
         status: "queued",
@@ -659,6 +791,7 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "POST" && url.pathname === "/api/render") {
+      maybeCaptureInitialSnapshot(); // 렌더 자식이 timeline.json을 갱신하기 전 상태 보존 (항목 11)
       const report = await runRender();
       sendJson(response, 200, {
         ok: true,

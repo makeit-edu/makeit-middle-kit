@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# 이미지되돌리기 — '이미지바꾸기' 로 교체했던 이미지를 원래대로 복원합니다. 예: 이미지되돌리기 2
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
+
+echo "[이미지되돌리기] 교체 전에 백업해둔 이미지로 되돌립니다."
+exec node "$PROGRAM_DIR/video-workspace/remotion-ui/scripts/replace-image.mjs" --restore "$@"

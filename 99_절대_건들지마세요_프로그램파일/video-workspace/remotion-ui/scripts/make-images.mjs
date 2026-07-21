@@ -4,10 +4,17 @@
 //   1. 기획안 txt에서 고른 후보의 [04 이미지 만들기용] 블록을 붙여넣으면
 //   2. OpenAI 이미지 모델로 세로형(1024x1536) 이미지를 생성해서
 //   3. 현재 작업의 영상에 자동으로 연결한다 (타이밍은 편집기에서 조절 가능)
-import {existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync} from "node:fs";
+//
+// 추가 모드:
+//   - '닮은이미지만들기'(--reference): 원본 영상에서 고해상 장면을 뽑아 참조로 첨부해
+//     "내 상품과 닮은" 장면 이미지를 만든다. 실패하면 기존 텍스트 방식으로 자동 폴백.
+//   - 기획안 [05] 블록에 '썸네일 번호: N' 이 있으면 '썸네일후보보기'로 뽑아둔
+//     후보 프레임을 썸네일 배경으로 사용한다 (없으면 기존 AI 생성으로 폴백).
+import {execFileSync} from "node:child_process";
+import {copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
-import {ensureNodeModules, looksMojibake, programRoot, projectRootFromScript, readTextSmart, resolveJobPaths, studentRoot} from "./job-config.mjs";
+import {ensureNodeModules, looksMojibake, programRoot, projectRootFromScript, readTextSmart, resolveJobPaths, studentRoot, windowsLocalPath} from "./job-config.mjs";
 import {requireLicense} from "../../../scripts/lib/env.mjs";
 
 // 진입 게이트: 수강 코드(MAKEIT_MIDDLE_LICENSE) 검증 (PRD D9 — 2주차 실사용 진입 스크립트 공통)
@@ -15,6 +22,10 @@ requireLicense({scriptLabel: "이미지 만들기"});
 
 const projectRoot = projectRootFromScript(import.meta.url);
 ensureNodeModules(projectRoot);
+
+// '닮은이미지만들기' 래퍼가 --reference 플래그를 넘긴다. 플래그가 없으면(기존 '이미지만들기')
+// 아래 참조 관련 코드는 한 줄도 실행되지 않아 현행과 완전히 동일하게 동작한다.
+const REFERENCE_MODE = process.argv.includes("--reference");
 
 const IMAGE_MODEL = "gpt-image-1.5";
 const IMAGE_SIZE = "1024x1536";
@@ -57,21 +68,8 @@ if (!apiKey || apiKey.includes("your-")) {
   process.exit(1);
 }
 
-async function generateImage(prompt, outputPath) {
-  const response = await fetch("https://api.openai.com/v1/images/generations", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: IMAGE_MODEL,
-      prompt: `${prompt}\n\n${STYLE_SUFFIX}`,
-      size: IMAGE_SIZE,
-      quality: IMAGE_QUALITY,
-      output_format: "png",
-    }),
-  });
+// 응답 본문을 파일로 저장 (generations/edits 공통 — 기존 :82-93 로직 그대로)
+async function saveImageResponse(response, outputPath) {
   if (!response.ok) {
     const body = await response.text();
     if (response.status === 401) {
@@ -91,6 +89,108 @@ async function generateImage(prompt, outputPath) {
     return;
   }
   throw new Error("이미지 응답이 비어 있습니다. 잠시 후 다시 시도해주세요.");
+}
+
+// referenceImages가 비어 있으면(기본) 기존 generations 경로 그대로 — 분기 자체가 없다.
+// 참조가 있으면 images/edits에 원본 프레임을 첨부해 "내 상품과 닮은" 이미지를 만든다.
+async function generateImage(prompt, outputPath, {referenceImages = []} = {}) {
+  if (referenceImages.length > 0) {
+    // Node 20 내장 FormData + Blob 사용 (의존성 추가 0개)
+    const buildForm = (withFidelity) => {
+      const form = new FormData();
+      form.append("model", IMAGE_MODEL);
+      form.append("prompt", `${prompt}\n\n${STYLE_SUFFIX}`);
+      form.append("size", IMAGE_SIZE);
+      form.append("quality", IMAGE_QUALITY);
+      // 참조(상품 로고·라벨·디테일) 충실도 우선 파라미터 — 미지원 응답이면 아래에서 빼고 1회 재시도
+      if (withFidelity) form.append("input_fidelity", "high");
+      for (const refPath of referenceImages) {
+        form.append("image[]", new Blob([readFileSync(refPath)], {type: "image/png"}), path.basename(refPath));
+      }
+      return form;
+    };
+    const postEdits = (withFidelity) =>
+      fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: {authorization: `Bearer ${apiKey}`},
+        body: buildForm(withFidelity),
+      });
+    let response = await postEdits(true);
+    if (response.status === 400) {
+      const body = await response.text();
+      if (/input_fidelity/i.test(body)) {
+        // 이 계정/모델이 input_fidelity를 지원하지 않는 경우 — 파라미터 없이 재시도
+        response = await postEdits(false);
+      } else {
+        throw new Error(`이미지 생성 실패 (400): ${body.slice(0, 200)}`);
+      }
+    }
+    await saveImageResponse(response, outputPath);
+    return;
+  }
+  const response = await fetch("https://api.openai.com/v1/images/generations", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: IMAGE_MODEL,
+      prompt: `${prompt}\n\n${STYLE_SUFFIX}`,
+      size: IMAGE_SIZE,
+      quality: IMAGE_QUALITY,
+      output_format: "png",
+    }),
+  });
+  await saveImageResponse(response, outputPath);
+}
+
+// ---- 원본 영상 프레임 추출 (닮은이미지만들기 전용) ----
+// 주의: jobs/<jobId>/frames/의 640px 축소본은 쓰지 않는다 (저해상이라 참조 목적과 상충).
+//       source.mp4에서 scale 필터 없이 고해상 그대로 다시 뽑는다 (기획서 항목 1·2 공통 원칙).
+const remotionCli = windowsLocalPath(path.join(projectRoot, "node_modules", "@remotion", "cli", "remotion-cli.js"));
+
+function runFfmpeg(args, options = {}) {
+  execFileSync(process.execPath, [remotionCli, "ffmpeg", ...args], options);
+}
+
+function probeDurationSec(filePath) {
+  try {
+    const stdout = execFileSync(
+      process.execPath,
+      [remotionCli, "ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", filePath],
+      {encoding: "utf8", stdio: ["ignore", "pipe", "ignore"]},
+    );
+    const value = Number(stdout.trim());
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// source.mp4에서 참조용 고해상 프레임 1~2장을 뽑아 경로 목록을 돌려준다. 실패하면 throw.
+function extractReferenceFrames(sourceVideo) {
+  const refDir = path.join(jobPaths.publicJobRoot, "ref-frames");
+  rmSync(refDir, {recursive: true, force: true});
+  mkdirSync(refDir, {recursive: true});
+  const durationSec = probeDurationSec(sourceVideo);
+  // 영상 길이를 3등분한 지점 2곳 (길이를 모르면 2·5초 고정)
+  const times = durationSec > 0 ? [durationSec / 3, (durationSec * 2) / 3] : [2, 5];
+  const made = [];
+  times.forEach((t, i) => {
+    const outPath = path.join(refDir, `ref_${String(i + 1).padStart(2, "0")}.png`);
+    try {
+      runFfmpeg(
+        ["-hide_banner", "-loglevel", "error", "-ss", t.toFixed(1), "-i", sourceVideo, "-frames:v", "1", outPath, "-y"],
+        {stdio: "ignore"},
+      );
+      if (existsSync(outPath)) made.push(outPath);
+    } catch {
+      // 한 장 실패해도 나머지는 계속
+    }
+  });
+  if (made.length === 0) throw new Error("참조 프레임 추출 실패");
+  return made;
 }
 
 function formatSeconds(seconds) {
@@ -200,7 +300,42 @@ function isStopLabel(label) {
     "가상인물판단이유",
     "이후보를고르면좋은상황",
     "주의",
+    // ---- v1.1 신규 옵션 라벨 9종 (기획서 §2-2 — 전부 등록 필수) ----
+    // 수강생이 [04] 블록에 잘못 넣어도 직전 이미지 프롬프트에 흡수(오염)되지 않도록 막는다.
+    // 특히 '썸네일하단문구'는 기존 '썸네일문구' 키워드에 연속 부분문자열로 매칭되지 않아 별도 등록이 필수.
+    "썸네일번호",
+    "말속도",
+    "음량고르게",
+    "네이버링크표시",
+    "광고표시문구",
+    "썸네일하단문구",
+    "영상모두쓰기",
+    "영상길이",
+    "참조이미지",
   ].some((labelName) => normalized.includes(labelName));
+}
+
+// 기획안에서 '썸네일 번호: N' 옵션 값을 읽는다 ([05] 블록 권장 — 자체 파서, 항목 2 1차).
+// 라벨이 없으면 null → 현행 AI 생성 경로 그대로 (기본값 불변 원칙).
+function parseThumbnailNumber(text) {
+  if (!text) return null;
+  const match = /썸네일\s*번호\s*[:：]\s*(\d{1,2})/.exec(String(text));
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isInteger(value) && value >= 1 ? value : null;
+}
+
+// 기획안 전체(planText)에서 '썸네일 번호'로 적힌 고유 번호를 전부 모은다.
+// 후보가 여럿인 기획안은 후보마다 다른 번호를 넣을 수 있어서, 첫 매칭만 취하면
+// 다른 후보의 번호가 현재 작업에 오적용될 수 있다 — 고유 번호가 1개일 때만 폴백에 쓴다.
+function allThumbnailNumbers(text) {
+  if (!text) return [];
+  const numbers = new Set();
+  for (const match of String(text).matchAll(/썸네일\s*번호\s*[:：]\s*(\d{1,2})/g)) {
+    const value = Number(match[1]);
+    if (Number.isInteger(value) && value >= 1) numbers.add(value);
+  }
+  return [...numbers];
 }
 
 function parseImagePromptBlock(text) {
@@ -304,10 +439,15 @@ const rl = readline.createInterface({input: process.stdin, output: process.stdou
 
 console.log("");
 console.log("==================================================");
-console.log(` 영상 이미지 만들기 — 현재 작업: ${jobPaths.jobId}`);
+if (REFERENCE_MODE) {
+  console.log(` 닮은 이미지 만들기 (원본 영상 참조) — 현재 작업: ${jobPaths.jobId}`);
+} else {
+  console.log(` 영상 이미지 만들기 — 현재 작업: ${jobPaths.jobId}`);
+}
 console.log("==================================================");
 
 let pasted = null;
+let pickedBody = null; // 자동 인식으로 고른 후보의 전체 본문 ([05] 옵션 줄 탐색용)
 let autoImageCount = null; // null이면 붙여넣기 모드(파싱된 개수 그대로 사용)
 let makeThumbnail = true;
 const planText = loadPlanningText();
@@ -340,6 +480,7 @@ if (candidates.length > 0) {
     console.log("\n직접 붙여넣기 모드로 진행합니다.\n");
   } else if (pick) {
     pasted = extractImageBlockFromCandidate(pick.body);
+    pickedBody = pick.body;
     console.log(`\n[${pick.label || `후보 ${pick.num}`}] 이미지 ${autoImageCount}장${makeThumbnail ? " + 썸네일" : ""} 만듭니다.\n`);
   }
 }
@@ -364,8 +505,43 @@ if (sceneDescriptions.length === 0 && !tailDescription) {
 if (autoImageCount !== null) sceneDescriptions = sceneDescriptions.slice(0, autoImageCount);
 if (!makeThumbnail) tailDescription = "";
 
+// ---- 항목 2 1차: '썸네일 번호: N' 옵션 처리 ----
+// '썸네일후보보기'로 뽑아둔 후보 프레임을 썸네일 배경으로 쓴다.
+// 옵션이 없으면 이 블록은 아무 것도 바꾸지 않는다 (현행 AI 생성 그대로).
+// 탐색 순서: 선택한 후보 본문 → 붙여넣은 텍스트 → (마지막) 기획안 전체.
+// 기획안 전체 폴백은 고유 번호가 1개일 때만 적용한다 — 2개 이상이면 어느 후보의 번호인지
+// 알 수 없어 적용하지 않고 안내 후 기존 AI 생성으로 폴백한다 (영상만들기의 [05] 블록 단위 규약과 정합).
+let thumbNo = parseThumbnailNumber(pickedBody) ?? parseThumbnailNumber(pasted);
+if (thumbNo === null && makeThumbnail) {
+  const planNumbers = allThumbnailNumbers(planText);
+  if (planNumbers.length === 1) {
+    thumbNo = planNumbers[0];
+  } else if (planNumbers.length >= 2) {
+    console.log("");
+    console.log("[안내] 기획안에 '썸네일 번호'가 여러 개 있어요 — 후보마다 번호가 달라 어느 것을 쓸지 알 수 없어요.");
+    console.log("[04] 블록과 함께 [05] 블록도 붙여넣어 주세요. 이번에는 기존 방식(AI 생성)으로 썸네일 배경을 만듭니다.");
+  }
+}
+let thumbCandidateFile = null;
+if (makeThumbnail && thumbNo !== null) {
+  const candidatePath = path.join(
+    jobPaths.publicJobRoot,
+    "thumb-candidates",
+    `candidate_${String(thumbNo).padStart(2, "0")}.png`,
+  );
+  if (existsSync(candidatePath)) {
+    thumbCandidateFile = candidatePath;
+    tailDescription = ""; // AI 생성 대신 후보 프레임을 복사한다 (아래 생성부)
+  } else {
+    console.log("");
+    console.log(`[안내] '썸네일 번호: ${thumbNo}' 에 해당하는 후보 이미지를 찾지 못했습니다.`);
+    console.log("먼저 터미널에 '썸네일후보보기' 를 실행해 후보를 만들어주세요.");
+    console.log("이번에는 기존 방식(AI 생성)으로 썸네일 배경을 만듭니다.");
+  }
+}
+
 // 붙여넣기 모드에서 썸네일 프롬프트가 안 잡히면 한 번 더 받는다.
-if (autoImageCount === null && makeThumbnail && !tailDescription) {
+if (autoImageCount === null && makeThumbnail && !tailDescription && !thumbCandidateFile) {
   console.log("");
   console.log("썸네일 배경 프롬프트가 아직 인식되지 않았습니다.");
   console.log("썸네일 배경 프롬프트만 다시 붙여넣어 주세요.");
@@ -374,18 +550,58 @@ if (autoImageCount === null && makeThumbnail && !tailDescription) {
 }
 rl.close();
 
-if (sceneDescriptions.length === 0 && !tailDescription) {
+if (sceneDescriptions.length === 0 && !tailDescription && !thumbCandidateFile) {
   console.log("");
   console.log("[안내] 만들 이미지나 썸네일 프롬프트를 찾지 못했습니다.");
   console.log("기획안 txt에서 선택한 후보의 [04 이미지 만들기용] 블록을 그대로 복사해 다시 시도해주세요.");
   process.exit(0);
 }
 
+// ---- 참조 프레임 준비 (닮은이미지만들기 전용 — 실패 시 기존 텍스트 방식으로 자동 폴백) ----
+let referenceImages = [];
+if (REFERENCE_MODE && sceneDescriptions.length > 0) {
+  const sourceVideo = path.join(jobPaths.publicJobRoot, "source.mp4");
+  if (!existsSync(sourceVideo)) {
+    console.log("");
+    console.log("[안내] 이 작업에는 원본 영상(source.mp4)이 없어 참조 방식을 쓸 수 없습니다.");
+    console.log("기존 텍스트 방식으로 이미지를 만듭니다.");
+  } else {
+    try {
+      referenceImages = extractReferenceFrames(sourceVideo);
+      console.log("");
+      console.log(`원본 영상에서 참조 장면 ${referenceImages.length}장을 뽑았습니다 — 장면 이미지가 내 상품과 닮게 생성됩니다.`);
+      console.log("(참조 장면이 함께 전송되어 장당 과금이 기존보다 조금 늘어납니다)");
+    } catch {
+      console.log("");
+      console.log("[안내] 참조 장면 추출 실패 — 기존 텍스트 방식으로 다시 만듭니다.");
+    }
+  }
+}
+
+// 장면 이미지 1장 생성 — 참조 방식이 실패하면 그 장부터 기존 텍스트 방식으로 자동 전환
+async function generateSceneImage(description, outputPath) {
+  if (referenceImages.length > 0) {
+    try {
+      await generateImage(description, outputPath, {referenceImages});
+      return;
+    } catch {
+      process.stdout.write("\n");
+      console.log("[안내] 참조 방식 실패 — 기존 텍스트 방식으로 다시 만듭니다.");
+      referenceImages = []; // 남은 장면도 기존 방식으로 완성한다 (기획서 항목 1 폴백 원칙)
+    }
+  }
+  await generateImage(description, outputPath);
+}
+
 const totalCount = sceneDescriptions.length + (tailDescription ? 1 : 0);
 console.log("");
 console.log(`이미지 ${totalCount}장을 만듭니다. (장당 약 90원, 30초~1분씩 걸립니다)`);
 console.log(`  - 장면 이미지: ${sceneDescriptions.length}장`);
-console.log("  - 썸네일 배경: 1장");
+if (thumbCandidateFile) {
+  console.log(`  - 썸네일 배경: 후보 ${thumbNo}번 장면 사용 (원본 영상 프레임 복사 — 과금 없음)`);
+} else {
+  console.log("  - 썸네일 배경: 1장");
+}
 console.log("진행률 게이지가 표시됩니다. 100%가 될 때까지 창을 닫지 마세요.");
 
 // ---- 생성 ----
@@ -402,12 +618,18 @@ for (const [index, description] of sceneDescriptions.entries()) {
       estimateSec: 55,
       startedAt: progressStartedAt,
     },
-    () => generateImage(description, path.join(jobPaths.publicJobRoot, fileName)),
+    () => generateSceneImage(description, path.join(jobPaths.publicJobRoot, fileName)),
   );
   madeScenes.push(fileName);
 }
 let madeTail = null;
-if (tailDescription) {
+if (thumbCandidateFile) {
+  // '썸네일 번호: N' — 후보 프레임을 그대로 썸네일 배경으로 사용 (경로·파일명은 기존과 완전 동일)
+  copyFileSync(thumbCandidateFile, path.join(jobPaths.publicJobRoot, "thumbnail_tail.png"));
+  madeTail = "thumbnail_tail.png";
+  console.log("");
+  console.log(`썸네일 배경: 후보 ${thumbNo}번 장면을 사용했습니다 (원본 영상 프레임).`);
+} else if (tailDescription) {
   await withEstimatedProgress(
     {
       startPercent: (sceneDescriptions.length / totalCount) * 100,

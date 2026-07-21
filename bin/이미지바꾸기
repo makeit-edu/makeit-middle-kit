@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# 이미지바꾸기 — 장면/썸네일 이미지를 내 사진으로 교체합니다. 예: 이미지바꾸기 2 / 이미지바꾸기 썸네일
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
+
+echo "[이미지바꾸기] 내 사진으로 이미지를 교체합니다. (교체 전 원본은 자동 백업돼요)"
+exec node "$PROGRAM_DIR/video-workspace/remotion-ui/scripts/replace-image.mjs" "$@"

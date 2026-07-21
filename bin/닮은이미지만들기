@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# 닮은이미지만들기 — 원본 영상 장면을 참조해 내 상품과 닮은 이미지를 만듭니다. (실패 시 기존 방식으로 자동 전환)
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
+
+echo "[닮은이미지만들기] 원본 영상 장면을 참조해 이미지를 생성합니다. (OpenAI 이미지 — 참조 첨부로 장당 과금이 조금 더 됩니다)"
+exec npm --prefix "$PROGRAM_DIR" run video:images -- --reference "$@"

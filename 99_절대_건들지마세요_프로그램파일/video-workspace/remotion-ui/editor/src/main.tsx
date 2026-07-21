@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useRef, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {createRoot} from "react-dom/client";
 import {Player, type PlayerRef} from "@remotion/player";
 import {ShoppingShorts} from "../../remotion/src/shopping-shorts";
@@ -233,6 +233,19 @@ function cloneTimeline(timeline: Timeline) {
 
 function toFriendlyError(error: unknown, fallbackTitle: string): FriendlyError {
   const message = error instanceof Error ? error.message : String(error || "");
+  // 서버가 이미 초보 눈높이로 만들어 보낸 안내(항목 9 안전망)는 그대로 보여준다.
+  if (message.includes("완성 영상 보기")) {
+    return {
+      title: "영상 결과를 확인해주세요",
+      message,
+    };
+  }
+  if (message.includes("사진이 너무 커요") || message.includes("이미지 파일(jpg/png)")) {
+    return {
+      title: "이미지를 올리지 못했습니다",
+      message,
+    };
+  }
   if (message.includes("ElevenLabs") || message.includes("API 키")) {
     return {
       title: "음성을 만들지 못했습니다",
@@ -330,6 +343,40 @@ function isEditableTarget(target: EventTarget | null) {
   return target.isContentEditable || tagName === "input" || tagName === "textarea" || tagName === "select";
 }
 
+// [항목 12] 내 이미지로 바꾸기 — 스마트폰 사진(대용량)도 1080x1920 이내로 줄여 JPEG(0.85)로 변환한다.
+// (PNG dataURL은 촬영 사진에서 용량이 크게 부풀어 서버 한도(8MB)를 넘을 수 있어 JPEG로 고정 전송)
+async function resizeImageToDataUrl(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () =>
+        reject(new Error("이미지 파일(jpg/png)만 올릴 수 있어요. 사진을 다시 선택해주세요."));
+      element.src = objectUrl;
+    });
+    const maxWidth = 1080;
+    const maxHeight = 1920;
+    const scale = Math.min(1, maxWidth / Math.max(image.naturalWidth, 1), maxHeight / Math.max(image.naturalHeight, 1));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("이미지 변환에 실패했습니다. 브라우저를 새로고침한 뒤 다시 시도해주세요.");
+    context.drawImage(image, 0, 0, width, height);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    // 서버 본문 한도(8MB)를 넘기지 않도록 전송 전에 한 번 더 확인한다.
+    if (dataUrl.length > 7_500_000) {
+      throw new Error("사진이 너무 커요 — 조금 작은 사진으로 다시 시도해 주세요.");
+    }
+    return dataUrl;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 function App() {
   const playerRef = useRef<PlayerRef>(null);
   const currentSecRef = useRef(0);
@@ -367,6 +414,8 @@ function App() {
   const [voicePresets, setVoicePresets] = useState<VoicePreset[]>(FALLBACK_VOICE_PRESETS);
   const [bgmTracks, setBgmTracks] = useState<BgmTrack[]>([]);
   const [friendlyError, setFriendlyError] = useState<FriendlyError | null>(null);
+  // [항목 11] 영상만들기 직후 스냅샷 존재 여부 — "원본 복구" 확인 문구를 실제 동작에 맞게 바꾸기 위한 값
+  const [hasInitialSnapshot, setHasInitialSnapshot] = useState(false);
   const [layerEditBaseline, setLayerEditBaseline] = useState<{
     timeline: Timeline;
     captionTextDirty: boolean;
@@ -530,6 +579,38 @@ function App() {
       return {...current, thumbnailTail: {...current.thumbnailTail, ...patch}};
     });
     refreshPreviewFrame();
+  };
+
+  // [항목 12] 편집기 "내 이미지로 바꾸기" — 업로드 후 해당 블록의 src만 교체한다.
+  // updateImageOverlay/updateThumbnail을 통하므로 실행취소(⌘Z)에 자동으로 편입된다.
+  const replaceImageWithFile = async (item: TimelineItem, file: File) => {
+    setBusy(true);
+    setStatus("내 이미지를 올리는 중입니다.");
+    try {
+      const dataUrl = await resizeImageToDataUrl(file);
+      const response = await licensedFetch("/api/upload-image", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          index: item.kind === "thumbnail" ? "thumbnail" : item.index,
+          dataUrl,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "이미지를 올리지 못했습니다. 잠시 후 다시 시도해주세요.");
+      const src = String(data.src || "");
+      if (!src) throw new Error("이미지를 올리지 못했습니다. 잠시 후 다시 시도해주세요.");
+      if (item.kind === "image" && typeof item.index === "number") {
+        updateImageOverlay(item.index, {src});
+      } else if (item.kind === "thumbnail") {
+        updateThumbnail({src});
+      }
+      setStatus("이미지를 바꿨습니다. ⌘Z(Ctrl+Z)로 되돌릴 수 있고, 저장 버튼을 눌러야 파일에 저장됩니다.");
+    } catch (error) {
+      setFriendlyError(toFriendlyError(error, "이미지를 올리지 못했습니다"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const updateScene = (index: number, patch: Partial<Scene>) => {
@@ -916,6 +997,7 @@ function App() {
     if (!response.ok) throw new Error("타임라인을 불러오지 못했습니다.");
     const data = await response.json();
     setTimeline(data.timeline);
+    setHasInitialSnapshot(Boolean(data.hasInitialSnapshot)); // 항목 11
     setHistory([]);
     setFuture([]);
     setStatus("샘플 영상을 불러왔습니다. 아래 타임라인 블록을 누르면 해당 구간을 바로 수정할 수 있습니다.");
@@ -1168,7 +1250,17 @@ function App() {
         if (!response.ok) throw new Error(data.error || "영상 제작 상태를 확인하지 못했습니다.");
         const nextJob = data.job as RenderJobStatus;
         if (cancelled) return;
-        setRenderJob(nextJob);
+        // [항목 10-D] 상태·진행률·메시지가 그대로면 이전 객체를 유지해 불필요한 리렌더를 막는다
+        // (서버가 updatedAt만 갱신해도 화면이 매번 다시 그려지던 문제 방지)
+        setRenderJob((current) =>
+          current &&
+          current.jobId === nextJob.jobId &&
+          current.status === nextJob.status &&
+          current.progress === nextJob.progress &&
+          current.message === nextJob.message
+            ? current
+            : nextJob,
+        );
         setStatus(nextJob.message || "영상을 제작하는 중입니다.");
 
         if (nextJob.status === "done") {
@@ -1217,7 +1309,11 @@ function App() {
   }, [renderJob?.jobId, renderJob?.status]);
 
   const resetTimeline = async () => {
-    if (!window.confirm("시계 쇼츠 샘플의 원본 설정으로 되돌릴까요?")) return;
+    // [항목 11] 스냅샷 유무에 따라 실제 동작이 다르므로 확인 문구도 정확하게 나눈다.
+    const confirmMessage = hasInitialSnapshot
+      ? "영상을 처음 만든 직후 상태로 되돌릴까요? (그동안 편집한 내용은 사라지지만, 자막·음성·이미지는 처음 만든 그대로 살아있어요)"
+      : "처음 기본 상태로 되돌릴까요? (자막·이미지·음성 편집 내용이 모두 사라져요)";
+    if (!window.confirm(confirmMessage)) return;
     setBusy(true);
     setStatus("원본 설정으로 되돌리는 중입니다.");
     try {
@@ -1226,7 +1322,9 @@ function App() {
       await loadTimeline();
       setSelectedTimelineId(null);
       setCaptionTextDirty(false);
-      setStatus("원본 설정으로 되돌렸습니다.");
+      setStatus(
+        hasInitialSnapshot ? "영상을 처음 만든 직후 상태로 되돌렸습니다." : "원본 설정으로 되돌렸습니다.",
+      );
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "초기화 중 오류가 발생했습니다.");
       setFriendlyError(toFriendlyError(error, "원본으로 되돌리지 못했습니다"));
@@ -1402,6 +1500,82 @@ function App() {
     setLicenseVerified(true);
     setLicenseError("");
   };
+
+  // [항목 10-C] 재생헤드 위치는 상태(setCurrentSec) 대신 이 함수로 읽는다 — TimelineBoard가
+  // 재생 틱마다 리렌더되지 않도록 격리 (참조가 변하지 않는 안정 함수).
+  const getCurrentSec = useCallback(() => currentSecRef.current, []);
+
+  // [항목 10-C] TimelineBoard/LayerInspector를 React.memo로 감싸려면 콜백 참조가 렌더마다
+  // 바뀌면 안 된다. 최신 구현은 ref에 담아 두고, 겉으로는 참조가 고정된 프록시 함수를 전달한다.
+  // (프록시가 항상 ref.current를 통해 호출하므로 오래된 클로저를 볼 위험이 없다)
+  const latestHandlers = {
+    splitItemAt,
+    toggleTrackLock,
+    focusTimelineItem,
+    seekToSec,
+    zoomTimeline,
+    setTimelineHeightScale,
+    undoTimeline,
+    redoTimeline,
+    updateTimelineItemTiming,
+    updateBackgroundMusic,
+    cancelLayerEdit,
+    applyLayerEdit,
+    updateCaptionText,
+    updateCaption,
+    updateCaptionStyle,
+    updateCaptionStylePreset,
+    updateImageOverlay,
+    updateScene,
+    updateThumbnail,
+    updateAudioSettings,
+    updateVisualFilter,
+    splitSelectedItem,
+    duplicateTimelineItem,
+    deleteTimelineItem,
+    updateRevisionPrompt,
+    replaceImageWithFile,
+  };
+  const latestHandlersRef = useRef(latestHandlers);
+  latestHandlersRef.current = latestHandlers;
+
+  const stableHandlers = useMemo(() => {
+    const ref = latestHandlersRef;
+    return {
+      onCutItem: (item: TimelineItem, sec: number) => ref.current.splitItemAt(item, sec),
+      onToggleTrackLock: (trackId: string) => ref.current.toggleTrackLock(trackId),
+      onSelect: (item: TimelineItem) => ref.current.focusTimelineItem(item),
+      onSeek: (sec: number) => ref.current.seekToSec(sec),
+      onZoomChange: (zoom: number) => ref.current.zoomTimeline(zoom),
+      onResetZoom: () => ref.current.zoomTimeline(1),
+      onTimelineHeightChange: (scale: number) => ref.current.setTimelineHeightScale(scale),
+      onUndo: () => ref.current.undoTimeline(),
+      onRedo: () => ref.current.redoTimeline(),
+      onItemTimingChange: (item: TimelineItem, timing: TimelineItemTiming) =>
+        ref.current.updateTimelineItemTiming(item, timing),
+      onBgmVolumeChange: (volume: number) => ref.current.updateBackgroundMusic({volume}),
+      onCancel: () => ref.current.cancelLayerEdit(),
+      onApply: () => ref.current.applyLayerEdit(),
+      onCaptionTextChange: (index: number, text: string) => ref.current.updateCaptionText(index, text),
+      onCaptionChange: (index: number, patch: Partial<Caption>) => ref.current.updateCaption(index, patch),
+      onCaptionStyleChange: (patch: Partial<CaptionStyle>) => ref.current.updateCaptionStyle(patch),
+      onCaptionStylePresetChange: (index: number, presetId: CaptionStylePresetId, applyToAll: boolean) =>
+        ref.current.updateCaptionStylePreset(index, presetId, applyToAll),
+      onImageChange: (index: number, patch: Partial<ImageOverlay>) => ref.current.updateImageOverlay(index, patch),
+      onSceneChange: (index: number, patch: Partial<Scene>) => ref.current.updateScene(index, patch),
+      onThumbnailChange: (patch: Partial<Timeline["thumbnailTail"]>) => ref.current.updateThumbnail(patch),
+      onBackgroundMusicChange: (patch: Partial<NonNullable<Timeline["backgroundMusic"]>>) =>
+        ref.current.updateBackgroundMusic(patch),
+      onAudioChange: (patch: Partial<NonNullable<Timeline["audio"]>>) => ref.current.updateAudioSettings(patch),
+      onVisualFilterChange: (visualFilter: NonNullable<Timeline["visualFilter"]>) =>
+        ref.current.updateVisualFilter(visualFilter),
+      onSplit: () => ref.current.splitSelectedItem(),
+      onDuplicate: (item: TimelineItem) => ref.current.duplicateTimelineItem(item),
+      onDelete: (item: TimelineItem) => ref.current.deleteTimelineItem(item),
+      onRevisionPromptChange: (itemId: string, prompt: string) => ref.current.updateRevisionPrompt(itemId, prompt),
+      onReplaceImage: (item: TimelineItem, file: File) => void ref.current.replaceImageWithFile(item, file),
+    };
+  }, []);
 
   if (!licenseVerified) {
     return (
@@ -1604,28 +1778,28 @@ function App() {
         <TimelineBoard
           tracks={timelineTracks}
           durationSec={timeline.durationSec}
-          currentSec={currentSec}
+          getCurrentSec={getCurrentSec}
           selectedItemId={selectedTimelineId}
           editorMode={editorMode}
-          onCutItem={splitItemAt}
+          onCutItem={stableHandlers.onCutItem}
           lockedTracks={lockedTracks}
-          onToggleTrackLock={toggleTrackLock}
-          onSelect={focusTimelineItem}
-          onSeek={(sec) => seekToSec(sec)}
+          onToggleTrackLock={stableHandlers.onToggleTrackLock}
+          onSelect={stableHandlers.onSelect}
+          onSeek={stableHandlers.onSeek}
           zoom={timelineZoom}
-          onZoomChange={zoomTimeline}
-          onResetZoom={() => zoomTimeline(1)}
+          onZoomChange={stableHandlers.onZoomChange}
+          onResetZoom={stableHandlers.onResetZoom}
           timelineRowHeight={timelineRowHeight}
           timelineScrollHeight={timelineScrollHeight}
           timelineHeightScale={timelineHeightScale}
           timelineHeightProgress={timelineHeightProgress}
-          onTimelineHeightChange={setTimelineHeightScale}
+          onTimelineHeightChange={stableHandlers.onTimelineHeightChange}
           canUndo={history.length > 0}
           canRedo={future.length > 0}
-          onUndo={undoTimeline}
-          onRedo={redoTimeline}
-          onItemTimingChange={updateTimelineItemTiming}
-          onBgmVolumeChange={(volume) => updateBackgroundMusic({volume})}
+          onUndo={stableHandlers.onUndo}
+          onRedo={stableHandlers.onRedo}
+          onItemTimingChange={stableHandlers.onItemTimingChange}
+          onBgmVolumeChange={stableHandlers.onBgmVolumeChange}
         />
         <div className="output-strip">
           <button
@@ -1697,23 +1871,24 @@ function App() {
           revisionPrompt={timeline.editorNotes?.revisionPrompts?.[activeTimelineItem.id] || ""}
           voicePresets={voicePresets}
           bgmTracks={bgmTracks}
-          onCancel={cancelLayerEdit}
-          onApply={applyLayerEdit}
-          onCaptionTextChange={updateCaptionText}
-          onCaptionChange={updateCaption}
-          onCaptionStyleChange={updateCaptionStyle}
-          onCaptionStylePresetChange={updateCaptionStylePreset}
-          onImageChange={updateImageOverlay}
-          onSceneChange={updateScene}
-          onThumbnailChange={updateThumbnail}
-          onBackgroundMusicChange={updateBackgroundMusic}
-          onAudioChange={updateAudioSettings}
-          onVisualFilterChange={updateVisualFilter}
-          onSplit={splitSelectedItem}
-          onDuplicate={duplicateTimelineItem}
-          onDelete={deleteTimelineItem}
-          onRevisionPromptChange={(prompt) => updateRevisionPrompt(activeTimelineItem.id, prompt)}
-          onSeek={seekToSec}
+          onCancel={stableHandlers.onCancel}
+          onApply={stableHandlers.onApply}
+          onCaptionTextChange={stableHandlers.onCaptionTextChange}
+          onCaptionChange={stableHandlers.onCaptionChange}
+          onCaptionStyleChange={stableHandlers.onCaptionStyleChange}
+          onCaptionStylePresetChange={stableHandlers.onCaptionStylePresetChange}
+          onImageChange={stableHandlers.onImageChange}
+          onSceneChange={stableHandlers.onSceneChange}
+          onThumbnailChange={stableHandlers.onThumbnailChange}
+          onBackgroundMusicChange={stableHandlers.onBackgroundMusicChange}
+          onAudioChange={stableHandlers.onAudioChange}
+          onVisualFilterChange={stableHandlers.onVisualFilterChange}
+          onSplit={stableHandlers.onSplit}
+          onDuplicate={stableHandlers.onDuplicate}
+          onDelete={stableHandlers.onDelete}
+          onRevisionPromptChange={stableHandlers.onRevisionPromptChange}
+          onSeek={stableHandlers.onSeek}
+          onReplaceImage={stableHandlers.onReplaceImage}
         />
       ) : null}
 
@@ -1776,7 +1951,8 @@ function App() {
   );
 }
 
-function LayerInspector({
+// [항목 10-C] React.memo — 재생 폴링 등으로 App이 다시 그려져도 props가 그대로면 건너뛴다.
+const LayerInspector = React.memo(function LayerInspector({
   item,
   timeline,
   revisionPrompt,
@@ -1799,6 +1975,7 @@ function LayerInspector({
   onDelete,
   onRevisionPromptChange,
   onSeek,
+  onReplaceImage,
 }: {
   item: TimelineItem;
   timeline: Timeline;
@@ -1820,8 +1997,9 @@ function LayerInspector({
   onSplit: () => void;
   onDuplicate: (item: TimelineItem) => void;
   onDelete: (item: TimelineItem) => void;
-  onRevisionPromptChange: (prompt: string) => void;
+  onRevisionPromptChange: (itemId: string, prompt: string) => void;
   onSeek: (sec: number) => void;
+  onReplaceImage: (item: TimelineItem, file: File) => void;
 }) {
   const caption = item.kind === "caption" && typeof item.index === "number" ? timeline.captions[item.index] : null;
   const image = item.kind === "image" && typeof item.index === "number" ? timeline.imageOverlays?.[item.index] : null;
@@ -1836,6 +2014,13 @@ function LayerInspector({
   }, [item.id]);
   const activeCaptionStyle = caption?.stylePresetId || timeline.captionStyle?.presetId || "black-box";
   const activeVoicePreset = timeline.audio?.presetId || "lively-reaction";
+  // [항목 12] "내 이미지로 바꾸기" 파일 선택창 — 이미지/썸네일 섹션이 함께 쓰는 숨김 input
+  const replaceImageInputRef = useRef<HTMLInputElement | null>(null);
+  const handleReplaceImageFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = ""; // 같은 파일을 다시 골라도 change가 발생하도록 초기화
+    if (file) onReplaceImage(item, file);
+  };
 
   return (
     <div className="layer-modal-backdrop" role="dialog" aria-modal="true" aria-label="선택한 레이어 편집">
@@ -1960,6 +2145,20 @@ function LayerInspector({
       {image && typeof item.index === "number" ? (
         <div className="layer-form-grid">
           <img className="layer-preview-image" src={`/${image.src}`} alt="" />
+          <div className="layer-full">
+            {/* [항목 12] 내 이미지로 바꾸기 — 새 custom_* 파일로 저장되므로 기존 AI 이미지는 지워지지 않는다 */}
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => replaceImageInputRef.current?.click()}
+            >
+              내 이미지로 바꾸기
+            </button>
+            <p className="layer-note">
+              내 사진(jpg/png)으로 이 장면 이미지를 바꿉니다. 나오는 시점은 자막에 맞춰 자동이고,
+              ⌘Z(Ctrl+Z)로 되돌릴 수 있어요.
+            </p>
+          </div>
           <label>
             시작
             <input
@@ -2016,7 +2215,7 @@ function LayerInspector({
               rows={3}
               value={revisionPrompt}
               placeholder="예: 배경을 더 밝게, 제품이 더 크게 보이게, 손 움직임을 줄이기"
-              onChange={(event) => onRevisionPromptChange(event.target.value)}
+              onChange={(event) => onRevisionPromptChange(item.id, event.target.value)}
             />
           </label>
         </div>
@@ -2069,7 +2268,7 @@ function LayerInspector({
               rows={3}
               value={revisionPrompt}
               placeholder="예: 이 구간은 0.5초만 더 짧게, 제품을 잡는 장면 위주로, 흔들림 적은 컷으로"
-              onChange={(event) => onRevisionPromptChange(event.target.value)}
+              onChange={(event) => onRevisionPromptChange(item.id, event.target.value)}
             />
           </label>
         </div>
@@ -2181,8 +2380,31 @@ function LayerInspector({
               }
             />
           </label>
+          <div className="layer-full">
+            {/* [항목 12] 썸네일 배경도 내 사진으로 교체 가능 — 문구·레이아웃은 그대로 얹힌다 */}
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => replaceImageInputRef.current?.click()}
+            >
+              내 이미지로 바꾸기
+            </button>
+            <p className="layer-note">
+              썸네일 배경을 내 사진(jpg/png)으로 바꿉니다. 문구는 지금과 동일하게 표시되고,
+              ⌘Z(Ctrl+Z)로 되돌릴 수 있어요.
+            </p>
+          </div>
         </div>
       ) : null}
+
+      {/* [항목 12] 이미지/썸네일 공용 숨김 파일 입력 */}
+      <input
+        ref={replaceImageInputRef}
+        type="file"
+        accept="image/*"
+        style={{display: "none"}}
+        onChange={handleReplaceImageFile}
+      />
 
       <div className="layer-modal-footer">
         {["caption", "image", "video"].includes(item.kind) ? (
@@ -2210,7 +2432,7 @@ function LayerInspector({
     </aside>
     </div>
   );
-}
+});
 
 function FriendlyErrorModal({error, onClose}: {error: FriendlyError; onClose: () => void}) {
   return (
@@ -2363,6 +2585,13 @@ function RenderProgressModal({
         </div>
         <strong className="render-progress-percent">{Math.round(progress)}%</strong>
         {done ? (
+          // [항목 9 R0 동반 조치] 편집기 재제작본은 variant 미지정 단일본(네이버용 기준)임을 안내
+          <p className="layer-note">
+            참고: 편집기에서 다시 제작한 영상은 <strong>네이버용 기준</strong>이에요. 쿠팡에 올릴 영상은
+            터미널의 '영상만들기' 결과물을 사용해주세요.
+          </p>
+        ) : null}
+        {done ? (
           <div className="voice-modal-actions">
             <button type="button" className="ghost-button" onClick={onClose}>
               닫기
@@ -2483,10 +2712,12 @@ function TemplatePanel({
   );
 }
 
-function TimelineBoard({
+// [항목 10-C] React.memo — 재생 폴링(160ms)으로 App이 다시 그려져도 타임라인 보드는 건너뛴다.
+// (재생헤드는 아래에서 DOM에 직접 그리므로 리렌더가 필요 없다)
+const TimelineBoard = React.memo(function TimelineBoard({
   tracks,
   durationSec,
-  currentSec,
+  getCurrentSec,
   editorMode,
   onCutItem,
   lockedTracks,
@@ -2511,7 +2742,7 @@ function TimelineBoard({
 }: {
   tracks: TimelineTrack[];
   durationSec: number;
-  currentSec: number;
+  getCurrentSec: () => number;
   selectedItemId: string | null;
   editorMode: "select" | "cut";
   onCutItem: (item: TimelineItem, sec: number) => void;
@@ -2548,6 +2779,12 @@ function TimelineBoard({
   const suppressClickRef = useRef(false);
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
   const [cutHover, setCutHover] = useState<{trackId: string; pct: number} | null>(null);
+  // [항목 10-A] 드래그 중에는 화면(로컬 상태)에만 그리고, 놓는 순간 1회만 실제 타임라인에 반영한다.
+  // state는 그리기용, ref는 pointerup 시 커밋용(핸들러 클로저가 최신 값을 보도록).
+  const [dragPreview, setDragPreview] = useState<{itemId: string; startSec: number; endSec: number} | null>(null);
+  const dragPreviewRef = useRef<{itemId: string; startSec: number; endSec: number} | null>(null);
+  const [bgmVolumePreview, setBgmVolumePreview] = useState<number | null>(null);
+  const bgmVolumePreviewRef = useRef<number | null>(null);
 
   const markers = useMemo(() => {
     const values = [];
@@ -2555,11 +2792,25 @@ function TimelineBoard({
     if (!values.includes(durationSec)) values.push(durationSec);
     return values;
   }, [durationSec]);
-  const cursorLeft = clamp((currentSec / Math.max(durationSec, 1)) * 100, 0, 100);
   const zoomProgress = clamp(((zoom - 0.5) / (3 - 0.5)) * 100, 0, 100);
 
+  // [항목 10-C] 재생헤드(세로선·시각 표시)는 React 리렌더 없이 CSS 변수/텍스트로 직접 갱신한다.
+  const scaleRef = useRef<HTMLDivElement | null>(null);
+  const playheadTimeRef = useRef<HTMLElement | null>(null);
+  const applyPlayhead = useCallback(() => {
+    const sec = getCurrentSec();
+    const pct = clamp((sec / Math.max(durationSec, 1)) * 100, 0, 100);
+    scaleRef.current?.style.setProperty("--playhead-left", `${pct}%`);
+    if (playheadTimeRef.current) playheadTimeRef.current.textContent = formatClock(sec);
+  }, [durationSec, getCurrentSec]);
+  useEffect(() => {
+    applyPlayhead();
+    const timer = window.setInterval(applyPlayhead, 160);
+    return () => window.clearInterval(timer);
+  }, [applyPlayhead]);
+
   const getSnapCandidate = (value: number, item: TimelineItem) => {
-    const candidates = [0, durationSec, currentSec];
+    const candidates = [0, durationSec, getCurrentSec()];
     tracks.forEach((track) => {
       track.items.forEach((candidate) => {
         if (candidate.id === item.id) return;
@@ -2589,7 +2840,8 @@ function TimelineBoard({
     if (!laneElement || !itemElement) return;
     event.preventDefault();
     event.stopPropagation();
-    onSeek(item.startSec);
+    // [항목 10-B] 여기 있던 onSeek(item.startSec) 제거 — 블록을 클릭만 해도 재생헤드가
+    // 튀던 문제의 원인. 시킹은 실제로 드래그를 놓는 순간(pointerup)에만 1회 수행한다.
     dragRef.current = {
       item,
       mode,
@@ -2613,9 +2865,11 @@ function TimelineBoard({
       }
 
       if (drag.mode === "volume") {
+        // [항목 10-A] 드래그 중에는 로컬 미리보기만 갱신 — 커밋(실제 반영)은 pointerup에서 1회
         const ratio = clamp((drag.itemRect.bottom - moveEvent.clientY) / Math.max(drag.itemRect.height, 1), 0, 1);
-        onBgmVolumeChange(roundTime(ratio * 0.3));
-        onSeek(drag.item.startSec);
+        const nextVolume = roundTime(ratio * 0.3);
+        bgmVolumePreviewRef.current = nextVolume;
+        setBgmVolumePreview(nextVolume);
         return;
       }
 
@@ -2652,13 +2906,14 @@ function TimelineBoard({
         nextEnd = clamp(nextEnd, drag.startSec + 0.18, durationSec);
       }
 
+      // [항목 10-A] 드래그 중에는 로컬 미리보기(state/ref)만 갱신한다.
+      // 예전처럼 매 pointermove마다 타임라인을 실제 수정하면 App 전체가 수십~수백 번
+      // 리렌더되고(화면 흔들림), 실행취소 기록도 픽셀 단위로 오염된다.
       const roundedStart = roundTime(nextStart);
       const roundedEnd = roundTime(nextEnd);
-      onItemTimingChange(drag.item, {
-        startSec: roundedStart,
-        endSec: roundedEnd,
-      });
-      onSeek(drag.mode === "resize-end" ? roundedEnd : roundedStart);
+      const preview = {itemId: drag.item.id, startSec: roundedStart, endSec: roundedEnd};
+      dragPreviewRef.current = preview;
+      setDragPreview(preview);
     };
 
     const handlePointerUp = () => {
@@ -2668,8 +2923,20 @@ function TimelineBoard({
         window.setTimeout(() => {
           suppressClickRef.current = false;
         }, 0);
+        // [항목 10-A] 놓는 순간 1회만 실제 타임라인에 반영 — "드래그 1회 = 실행취소 1단계"
+        if (drag.mode === "volume") {
+          if (bgmVolumePreviewRef.current !== null) onBgmVolumeChange(bgmVolumePreviewRef.current);
+        } else if (dragPreviewRef.current && dragPreviewRef.current.itemId === drag.item.id) {
+          const committed = dragPreviewRef.current;
+          onItemTimingChange(drag.item, {startSec: committed.startSec, endSec: committed.endSec});
+          onSeek(drag.mode === "resize-end" ? committed.endSec : committed.startSec);
+        }
       }
       dragRef.current = null;
+      dragPreviewRef.current = null;
+      bgmVolumePreviewRef.current = null;
+      setDragPreview(null);
+      setBgmVolumePreview(null);
       setDraggingItemId(null);
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
@@ -2683,6 +2950,8 @@ function TimelineBoard({
     const rect = event.currentTarget.getBoundingClientRect();
     const ratio = clamp((event.clientX - rect.left) / Math.max(rect.width, 1), 0, 1);
     onSeek(ratio * durationSec);
+    // memo로 보드 리렌더가 없어도 재생헤드는 클릭 즉시 따라오도록 직접 갱신 (항목 10-C)
+    window.requestAnimationFrame(applyPlayhead);
   };
 
   const updateTimelineHeightFromPointer = (clientY: number, rect: DOMRect) => {
@@ -2801,10 +3070,15 @@ function TimelineBoard({
 
       <div className="timeline-body-shell">
         <div className="timeline-scroll">
-          <div className="timeline-scale" style={{width: `${zoom * 100}%`}}>
+          <div ref={scaleRef} className="timeline-scale" style={{width: `${zoom * 100}%`}}>
             <div className="timeline-ruler" onClick={seekFromPointer}>
-              <strong className="playhead-time" style={{left: `${cursorLeft}%`}}>
-                {formatClock(currentSec)}
+              {/* [항목 10-C] 재생헤드 시각/위치는 CSS 변수·textContent로 직접 갱신된다 */}
+              <strong
+                ref={playheadTimeRef}
+                className="playhead-time"
+                style={{left: "var(--playhead-left, 0%)"}}
+              >
+                {formatClock(getCurrentSec())}
               </strong>
               {markers.map((marker) => {
                 const left = clamp((marker / Math.max(durationSec, 1)) * 100, 0, 100);
@@ -2850,15 +3124,23 @@ function TimelineBoard({
                     }
                     onMouseLeave={editorMode === "cut" ? () => setCutHover(null) : undefined}
                   >
-                    <div className="timeline-cursor" style={{left: `${cursorLeft}%`}} />
+                    <div className="timeline-cursor" style={{left: "var(--playhead-left, 0%)"}} />
                     {editorMode === "cut" && cutHover && cutHover.trackId === track.id ? (
                       <div className="cut-guide-line" style={{left: `${cutHover.pct}%`}} />
                     ) : null}
                     {track.items.map((item) => {
-                      const left = clamp((item.startSec / Math.max(durationSec, 1)) * 100, 0, 100);
-                      const width = clamp(((item.endSec - item.startSec) / Math.max(durationSec, 1)) * 100, 2.8, 100 - left);
+                      // [항목 10-A] 드래그 중인 블록은 로컬 미리보기 좌표로 그린다 (커밋 전까지 타임라인 원본 불변)
+                      const preview = dragPreview && dragPreview.itemId === item.id ? dragPreview : null;
+                      const itemStartSec = preview ? preview.startSec : item.startSec;
+                      const itemEndSec = preview ? preview.endSec : item.endSec;
+                      const left = clamp((itemStartSec / Math.max(durationSec, 1)) * 100, 0, 100);
+                      const width = clamp(((itemEndSec - itemStartSec) / Math.max(durationSec, 1)) * 100, 2.8, 100 - left);
                       const canResize = item.kind === "caption" || item.kind === "image" || item.kind === "video" || item.kind === "thumbnail";
-                      const volumeTop = 100 - clamp(((item.volume ?? 0) / 0.3) * 100, 7, 92);
+                      const displayVolume =
+                        item.kind === "bgm" && bgmVolumePreview !== null && draggingItemId === item.id
+                          ? bgmVolumePreview
+                          : item.volume ?? 0;
+                      const volumeTop = 100 - clamp((displayVolume / 0.3) * 100, 7, 92);
                       return (
                         <button
                           key={item.id}
@@ -2935,7 +3217,7 @@ function TimelineBoard({
       </div>
     </section>
   );
-}
+});
 
 function buildTimelineItems(timeline: Timeline): TimelineItem[] {
   const duration = Math.max(timeline.durationSec, 1);
