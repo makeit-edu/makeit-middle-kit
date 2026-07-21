@@ -13,7 +13,7 @@
 import {execFileSync} from "node:child_process";
 import {copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from "node:fs";
 import path from "node:path";
-import readline from "node:readline/promises";
+import {createPrompt} from "./lib/prompt.mjs";
 import {ensureNodeModules, looksMojibake, programRoot, projectRootFromScript, readTextSmart, resolveJobPaths, studentRoot, windowsLocalPath} from "./job-config.mjs";
 import {requireLicense} from "../../../scripts/lib/env.mjs";
 
@@ -435,7 +435,7 @@ function extractImageBlockFromCandidate(body) {
 }
 
 // ---- 입력 받기 ----
-const rl = readline.createInterface({input: process.stdin, output: process.stdout});
+const rl = createPrompt();
 
 console.log("");
 console.log("==================================================");
@@ -460,14 +460,14 @@ if (candidates.length > 0) {
   let pick = null;
   let manualPaste = false;
   try {
-    const ans = (await rl.question("유형 번호 (1/2/3/4, 엔터=1번): ")).trim();
+    const ans = (await rl.ask("유형 번호 (1/2/3/4, 엔터=1번): ")).trim();
     if (ans === "4") {
       manualPaste = true;
     } else {
       pick = candidates.find((c) => c.num === ans) || candidates[0];
-      const cnt = (await rl.question("장면 이미지를 몇 장 만들까요? (0~3, 엔터=3장): ")).trim();
+      const cnt = (await rl.ask("장면 이미지를 몇 장 만들까요? (0~3, 엔터=3장): ")).trim();
       autoImageCount = /^[0-3]$/.test(cnt) ? Number(cnt) : 3;
-      const th = (await rl.question("썸네일 배경도 만들까요? (y/n, 엔터=y): ")).trim().toLowerCase();
+      const th = (await rl.ask("썸네일 배경도 만들까요? (y/n, 엔터=y): ")).trim().toLowerCase();
       makeThumbnail = !(th === "n" || th === "no");
     }
   } catch {

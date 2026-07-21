@@ -12,7 +12,7 @@
 import {execFileSync, spawn} from "node:child_process";
 import {copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync} from "node:fs";
 import path from "node:path";
-import readline from "node:readline/promises";
+import {createPrompt} from "./lib/prompt.mjs";
 import {ensureNodeModules, hideInternalFolders, looksMojibake, projectRootFromScript, readTextSmart, resolveJobPaths, studentRoot, windowsLocalPath} from "./job-config.mjs";
 import {requireLicense} from "../../../scripts/lib/env.mjs";
 
@@ -534,7 +534,7 @@ console.log(` 영상 만들기 — 현재 작업: ${jobPaths.jobId}`);
 console.log("==================================================");
 console.log("");
 
-const rl = readline.createInterface({input: process.stdin, output: process.stdout});
+const rl = createPrompt();
 
 // 기획안 txt가 제품 폴더에 있으면 자동으로 읽어 "유형만" 고르게 한다. 없거나 인식이 안 되면 붙여넣기로 폴백.
 let pasted = null;
@@ -549,7 +549,7 @@ if (candidates.length > 0) {
   let manualPaste = false;
   try {
     const nums = candidates.map((c) => c.num).join("/");
-    const ans = (await rl.question(`유형 번호를 입력하세요 (${nums}/4, 엔터=${candidates[0].num}번): `)).trim();
+    const ans = (await rl.ask(`유형 번호를 입력하세요 (${nums}/4, 엔터=${candidates[0].num}번): `)).trim();
     if (ans === "4") {
       manualPaste = true;
     } else {
@@ -626,7 +626,7 @@ let ok = "";
 // reject되지 않는 Node 동작) 터미널일 때만 물어보고, 아니면 그대로 진행한다.
 if (process.stdin.isTTY) {
   try {
-    ok = (await rl.question("이대로 영상 만들까요? (맞으면 엔터 / 다시 붙여넣으려면 n): ")).trim().toLowerCase();
+    ok = (await rl.ask("이대로 영상 만들까요? (맞으면 엔터 / 다시 붙여넣으려면 n): ")).trim().toLowerCase();
   } catch {
     ok = "";
   }

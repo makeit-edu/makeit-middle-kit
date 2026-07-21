@@ -12,7 +12,7 @@
 import {execFileSync} from "node:child_process";
 import {copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync} from "node:fs";
 import path from "node:path";
-import readline from "node:readline/promises";
+import {createPrompt} from "./lib/prompt.mjs";
 import {VIDEO_INBOX_DIR, ensureNodeModules, projectRootFromScript, resolveJobPaths, studentRoot, windowsLocalPath} from "./job-config.mjs";
 import {requireLicense} from "../../../scripts/lib/env.mjs";
 
@@ -66,7 +66,7 @@ function listExistingTargets() {
   return found;
 }
 
-const rl = readline.createInterface({input: process.stdin, output: process.stdout});
+const rl = createPrompt();
 
 async function resolveTarget() {
   const positional = args.filter((value) => !value.startsWith("--"));
@@ -94,7 +94,7 @@ async function resolveTarget() {
   }
   console.log(`어떤 이미지를 ${RESTORE_MODE ? "되돌릴까요" : "바꿀까요"}?`);
   existing.forEach((target) => console.log(`  ${target.key}. ${target.label} (${target.file})`));
-  const answer = (await rl.question(`번호 또는 '썸네일' 입력 (엔터=${existing[0].key}): `)).trim();
+  const answer = (await rl.ask(`번호 또는 '썸네일' 입력 (엔터=${existing[0].key}): `)).trim();
   const target = answer ? targetFromKey(answer) : existing[0];
   if (!target) {
     console.error(`[안내] '${answer}' 은(는) 알 수 없는 대상입니다. 번호(1~3) 또는 '썸네일' 로 다시 실행해주세요.`);
@@ -174,7 +174,7 @@ async function pickStudentImage() {
   }
   console.log("\n사진이 여러 장 있습니다. 어떤 사진으로 바꿀까요?");
   images.forEach((image, index) => console.log(`  ${index + 1}. ${image.fileName}`));
-  const answer = (await rl.question("사진 번호 (엔터=1번): ")).trim();
+  const answer = (await rl.ask("사진 번호 (엔터=1번): ")).trim();
   const index = /^\d+$/.test(answer) ? Number(answer) - 1 : 0;
   return images[Math.max(0, Math.min(images.length - 1, index))];
 }
@@ -280,7 +280,7 @@ if (RESTORE_MODE) {
   if (isCustomImageApplied(target)) {
     console.log("");
     console.log("[확인] 이 장면은 편집기에서 바꾼 이미지가 적용 중입니다.");
-    const answer = (await rl.question("복원한 이미지로 덮을까요? (y/n, 엔터=y): ")).trim().toLowerCase();
+    const answer = (await rl.ask("복원한 이미지로 덮을까요? (y/n, 엔터=y): ")).trim().toLowerCase();
     if (answer === "n" || answer === "no") {
       console.log("복원을 취소했습니다. (아무것도 바뀌지 않았어요)");
       rl.close();
@@ -303,7 +303,7 @@ if (RESTORE_MODE) {
 if (isCustomImageApplied(target)) {
   console.log("");
   console.log("[확인] 이 장면은 편집기에서 바꾼 이미지가 적용 중입니다.");
-  const answer = (await rl.question("터미널 교체로 덮을까요? (y/n, 엔터=y): ")).trim().toLowerCase();
+  const answer = (await rl.ask("터미널 교체로 덮을까요? (y/n, 엔터=y): ")).trim().toLowerCase();
   if (answer === "n" || answer === "no") {
     console.log("교체를 취소했습니다. (아무것도 바뀌지 않았어요)");
     rl.close();
