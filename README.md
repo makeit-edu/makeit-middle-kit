@@ -71,17 +71,21 @@
 
 ### 내 작업방 만들기
 
-**9.** 키트 링크 열기
+**9.** **바로가기 링크** 열기 — 내 저장소 만드는 화면이 곧바로 열립니다
 
-   [github.com/makeit-edu/makeit-middle-kit](https://github.com/makeit-edu/makeit-middle-kit)
+   [github.com/new?template_name=makeit-middle-kit&template_owner=makeit-edu](https://github.com/new?template_name=makeit-middle-kit&template_owner=makeit-edu)
+
+> ✅ **이 링크로 들어왔다면** — **10·11번은 이미 끝난 상태**입니다. 곧장 **12번**으로 가세요.
 
 **10.** 오른쪽 위 초록색 `Use this template` 클릭
 
+   9번 바로가기로 들어왔다면 건너뛰세요. 키트 첫 화면이 열렸을 때만 하면 됩니다.
+
 **11.** 뜨는 메뉴에서 `Create a new repository` 선택
 
-   다음 화면 맨 위 **Start with a template** 에 `makeit-edu/makeit-middle-kit` 이 들어가 있으면 제대로 온 것입니다.
+   화면 맨 위 **Start with a template** 에 `makeit-edu/makeit-middle-kit` 이 들어가 있으면 제대로 온 것입니다.
 
-> 🚫 **바로 아래 “Open in a codespace”는 누르지 마세요** — 내 작업방 없이 임시 방이 열려서 나중에 **작업물이 통째로 사라집니다.**
+> 🚫 **키트 화면의 초록 Code 버튼은 누르지 마세요** — 거기서 작업방을 만들면 **내 것이 아니라 원본 키트**에 만들어집니다. 만들어지긴 하지만 **저장이 안 돼서 작업물이 나중에 전부 사라집니다.** 같은 이유로 **“Open in a codespace”** 도 누르면 안 됩니다.
 
 **12.** **Repository name** 칸에 내가 알아볼 이름 입력
 
@@ -502,6 +506,12 @@
 <details><summary><b>화면이 안 뜨고 계속 로딩만 해요</b></summary>
 
 처음 만들 때는 **3~10분** 걸립니다. 검은 창에 영어 글자가 흘러가는 동안은 정상입니다. 초록 줄과 함께 **“✅ 준 비 완 료”** 가 뜨면 끝난 것입니다. 10분이 넘도록 안 뜨면 새로고침(F5), 그래도 안 되면 **github.com/codespaces** 에서 해당 항목 오른쪽 **…** → Delete 후 15번부터 다시 하세요.
+
+</details>
+
+<details><summary><b>검은 창에 “여기서는 작업할 수 없어요” 라고 빨간 글씨가 떠요</b></summary>
+
+**원본 키트에 작업방을 만드신 겁니다.** 거기서는 저장이 안 돼서 작업물이 나중에 사라지기 때문에 미리 막아둔 것입니다. 안내서 **9번 바로가기**로 내 저장소를 먼저 만들고, **내 저장소에서** 작업방을 만드세요. 지금 작업방은 **github.com/codespaces** 에서 지우면 됩니다.
 
 </details>
 

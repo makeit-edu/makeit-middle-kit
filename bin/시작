@@ -7,6 +7,10 @@ PROGRAM_DIR="$ROOT/99_절대_건들지마세요_프로그램파일"
 CODEX_RUNTIME_DIR="$PROGRAM_DIR/runtime/codex"
 CODEX_BIN="$CODEX_RUNTIME_DIR/node_modules/.bin/codex"
 
+# 원본 키트에서 열었다면 여기서 멈춘다 (작업을 해봐야 저장이 안 된다)
+. "$(dirname "${BASH_SOURCE[0]}")/_공통.sh"
+guard_template_repo "$ROOT"
+
 echo "[시작] AI 비서(코덱스)를 켭니다..."
 
 # CODEX_HOME 은 devcontainer 가 워크스페이스 내부로 지정 (D6). 없으면 동일 규칙으로 보정.
