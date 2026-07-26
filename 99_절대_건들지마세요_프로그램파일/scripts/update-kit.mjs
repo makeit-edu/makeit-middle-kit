@@ -10,7 +10,8 @@ import path from "node:path";
 import {PROGRAM_ROOT, PROJECT_ROOT} from "./lib/env.mjs";
 
 // upstream에서 받아올 프로그램 영역 (수강생 작업 영역 01_/02_는 여기 절대 넣지 않는다)
-const SYNC_PATHS = ["99_절대_건들지마세요_프로그램파일", "bin", "AGENTS.md", ".devcontainer", ".gitignore"];
+// README.md 는 사용 안내서와 같은 내용이라 최신본이 계속 필요하다 (수강생이 고칠 파일이 아니다)
+const SYNC_PATHS = ["99_절대_건들지마세요_프로그램파일", "bin", "AGENTS.md", "README.md", ".devcontainer", ".gitignore"];
 
 function git(args, options = {}) {
   // core.quotePath=false: 한글 파일명이 \354... 형태로 깨져 보이지 않게 한다
@@ -158,8 +159,15 @@ console.log("==================================================");
 console.log(`[OK] 업데이트 완료! 파일 ${changedFiles.length}개가 최신 버전이 됐어요.`);
 if (changedFiles.some((file) => file.startsWith(".devcontainer"))) {
   console.log("");
-  console.log("[중요] 개발 환경 설정(.devcontainer)이 바뀌었어요.");
-  console.log("왼쪽 아래 파란 버튼(Codespaces) → 'Rebuild Container'를 눌러 환경을 새로 고쳐주세요.");
+  console.log("[중요] 개발 환경 설정이 바뀌었어요. 아래 중 하나를 해주세요.");
+  console.log("");
+  console.log("  방법 1 (간단)  왼쪽 아래 파란 버튼 → 'Rebuild Container'");
+  console.log("  방법 2 (확실)  이 작업방을 지우고 새로 만들기");
+  console.log("                 github.com/codespaces → 오른쪽 ... → Delete");
+  console.log("                 → 내 저장소에서 Code → Codespaces → Create");
+  console.log("");
+  console.log("  ※ 작업방을 지워도 '저장'해 둔 작업물은 그대로 남습니다.");
+  console.log("     첫 화면 구성처럼 만들 때 정해지는 설정은 방법 2 라야 확실히 바뀝니다.");
 }
 console.log("이어서 하던 작업을 그대로 진행하면 됩니다.");
 console.log("==================================================");
