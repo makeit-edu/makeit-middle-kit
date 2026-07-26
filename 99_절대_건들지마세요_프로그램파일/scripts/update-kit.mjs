@@ -154,20 +154,47 @@ try {
   // 커밋할 변경이 없거나(이미 반영) 사용자 설정 문제 — 적용 자체는 끝났으므로 계속 진행
 }
 
+// 커밋만 하고 끝내면 안 된다. 작업방(Codespace)을 지우면 올리지 않은 커밋은
+// 통째로 사라지므로, ".devcontainer 가 바뀌었으니 작업방을 새로 만드세요"라는
+// 바로 아래 안내를 따르는 순간 방금 받은 업데이트가 날아간다 (실측).
+let pushed = false;
+try {
+  const branch = gitQuiet(["rev-parse", "--abbrev-ref", "HEAD"]) || "main";
+  git(["push", "origin", branch], {stdio: ["ignore", "inherit", "inherit"]});
+  pushed = true;
+} catch {
+  pushed = false;
+}
+
 console.log("");
 console.log("==================================================");
 console.log(`[OK] 업데이트 완료! 파일 ${changedFiles.length}개가 최신 버전이 됐어요.`);
+
+if (!pushed) {
+  console.log("");
+  console.log("[주의] 받은 내용을 클라우드에 올리지 못했어요.");
+  console.log("       터미널에 '저장' 을 입력해 주세요.");
+  console.log("       (올리지 않은 채 작업방을 지우면 업데이트가 사라집니다)");
+}
+
 if (changedFiles.some((file) => file.startsWith(".devcontainer"))) {
   console.log("");
-  console.log("[중요] 개발 환경 설정이 바뀌었어요. 아래 중 하나를 해주세요.");
+  console.log("[중요] 개발 환경 설정이 바뀌었어요.");
+  console.log("       첫 화면 구성처럼 '작업방을 만들 때' 정해지는 설정이라,");
+  console.log("       지금 작업방에는 반영되지 않습니다. 아래 순서로 해주세요.");
   console.log("");
-  console.log("  방법 1 (간단)  왼쪽 아래 파란 버튼 → 'Rebuild Container'");
-  console.log("  방법 2 (확실)  이 작업방을 지우고 새로 만들기");
-  console.log("                 github.com/codespaces → 오른쪽 ... → Delete");
-  console.log("                 → 내 저장소에서 Code → Codespaces → Create");
+  if (!pushed) {
+    console.log("  1) 터미널에 '저장' 입력   ← 이걸 먼저 해야 합니다!");
+    console.log("  2) github.com/codespaces → 오른쪽 ... → Delete");
+    console.log("  3) 내 저장소에서 Code → Codespaces → Create");
+  } else {
+    console.log("  1) github.com/codespaces → 오른쪽 ... → Delete");
+    console.log("  2) 내 저장소에서 Code → Codespaces → Create");
+    console.log("");
+    console.log("  ※ 업데이트는 이미 클라우드에 올려뒀으니 안심하고 지우셔도 됩니다.");
+  }
   console.log("");
-  console.log("  ※ 작업방을 지워도 '저장'해 둔 작업물은 그대로 남습니다.");
-  console.log("     첫 화면 구성처럼 만들 때 정해지는 설정은 방법 2 라야 확실히 바뀝니다.");
+  console.log("  ※ 작업방을 새로 만들면 키설정과 코덱스 로그인은 다시 해야 해요 (5분).");
 }
 console.log("이어서 하던 작업을 그대로 진행하면 됩니다.");
 console.log("==================================================");
