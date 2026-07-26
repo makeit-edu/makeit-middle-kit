@@ -42,6 +42,18 @@ case "$LICENSE_VALUE" in
   *)                       FIRST_TIME=0 ;;
 esac
 
+# ── 원본 템플릿에서 열었는지 감지 ──────────────────────────────────────────
+#    템플릿은 Public 이라 수강생도 원본에 바로 작업방을 만들 수 있다. 만들어지긴
+#    하지만 쓰기 권한이 없어 '저장'이 거부되고, 30일 뒤 작업방이 사라질 때
+#    작업물이 통째로 없어진다. 본인은 잘 되는 줄 알고 몇 주를 쓰게 되므로
+#    첫 화면에서 크게 잡아 준다. (원본 주인인 운영진은 정상 작업이라 경고만 한다)
+TEMPLATE_REPO="makeit-edu/makeit-middle-kit"
+ORIGIN_URL="$(git -C "$ROOT" remote get-url origin 2>/dev/null)"
+case "$ORIGIN_URL" in
+  *"$TEMPLATE_REPO"*) ON_TEMPLATE=1 ;;
+  *)                  ON_TEMPLATE=0 ;;
+esac
+
 echo ""
 echo "  ${DIM}── 쓸 수 있는 한글 명령 ──────────────────${OFF}"
 echo "    ${B}시작${OFF}      AI 비서(코덱스) 켜기"
@@ -77,7 +89,26 @@ fi
 # 마지막 화면: 여기까지 왔으면 준비가 끝난 것이다. 크고 분명하게.
 # ══════════════════════════════════════════════════════════════════════════
 echo ""
-if [ $DOCTOR_OK -eq 0 ]; then
+if [ $ON_TEMPLATE -eq 1 ]; then
+  # 여기서 아무리 잘 만들어도 저장이 안 된다. 다른 안내보다 이게 먼저다.
+  echo "${RED}${LINE}${OFF}"
+  echo ""
+  echo "   ${NGBG}  ⚠️  여 기 서   작 업 하 면   안  됩 니 다  ${OFF}"
+  echo ""
+  echo "   지금 열린 곳은 ${B}원본 키트${OFF}예요. 내 작업방이 아닙니다."
+  echo "   여기서 만든 영상과 글은 ${B}저장되지 않고, 나중에 전부 사라집니다.${OFF}"
+  echo ""
+  echo "   ${B}지금 바로 이렇게 해주세요.${OFF}"
+  echo ""
+  echo "     ${CYAN}1)${OFF} 이 작업방을 닫고 ${B}github.com/codespaces${OFF} 에서 지우기"
+  echo "     ${CYAN}2)${OFF} 키트 링크에서 ${B}[Use this template]${OFF} → ${B}[Create a new repository]${OFF}"
+  echo "     ${CYAN}3)${OFF} 새로 만든 ${B}내 저장소${OFF}에서 작업방 만들기"
+  echo ""
+  echo "   ${DIM}안내서 9~14번 그대로입니다. (운영진이면 이 경고는 무시하세요)${OFF}"
+  echo ""
+  echo "${RED}${LINE}${OFF}"
+  echo ""
+elif [ $DOCTOR_OK -eq 0 ]; then
   echo "${GREEN}${LINE}${OFF}"
   echo ""
   echo "   ${OKBG}  ✅  준 비   완 료  ${OFF}   ${B}설치가 전부 끝났습니다${OFF}"
