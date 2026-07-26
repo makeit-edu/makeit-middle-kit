@@ -30,13 +30,21 @@
   },
 
   "customizations": {
+    // 생성 직후 README.md 미리보기가 자동으로 열리는 기본 동작을 끈다.
+    // 안내는 「메킷 키트 사용 안내서」 하나로 통일하고, 첫 화면에서는
+    // 수강생이 실제로 쓸 터미널만 보이게 한다 (문서가 두 개면 혼동).
+    "codespaces": {
+      "openFiles": []
+    },
     "vscode": {
       // D4: Codex는 CLI TUI가 기본 흐름, openai.chatgpt 확장은 보조.
       //     확장 단독 OAuth는 Codespaces에서 실패(#6403)하므로 로그인은 CLI로만 안내.
       "extensions": ["openai.chatgpt"],
-      // 초보 수강생의 Ctrl+S/Cmd+S 저장 실수 제거 목적 (PRD 5-2 [검증필요])
       "settings": {
-        "files.autoSave": "afterDelay"
+        // 초보 수강생의 Ctrl+S/Cmd+S 저장 실수 제거 목적 (PRD 5-2 [검증필요])
+        "files.autoSave": "afterDelay",
+        // 시작 화면(Welcome 탭)도 띄우지 않는다 — 위 openFiles 와 같은 이유.
+        "workbench.startupEditor": "none"
       }
     }
   },
