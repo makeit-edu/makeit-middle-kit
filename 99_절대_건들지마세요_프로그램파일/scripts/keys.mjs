@@ -126,25 +126,35 @@ async function askHidden(rl, question, currentValue) {
   }
 
   output.write(`${question}${suffix}: `);
+
+  // readline 이 살아 있으면 raw mode 로 바꿔도 readline 이 입력을 그대로 화면에
+  // 찍어 버린다 — 실제로 API 키가 터미널에 통째로 노출됐다. 반드시 멈춰 둔다.
+  if (rl) rl.pause();
   input.setRawMode(true);
   input.resume();
   input.setEncoding("utf8");
 
   let value = "";
+  let onData;
+  const finish = () => {
+    input.setRawMode(false);
+    input.off("data", onData);
+    // 몇 글자 들어갔는지만 알려 준다 (값 자체는 화면에 남기지 않는다)
+    output.write(value ? `${"\u2022".repeat(Math.min(value.length, 12))}\n` : "\n");
+    if (rl) rl.resume();
+  };
+
   return await new Promise((resolve) => {
-    const onData = (chunk) => {
+    onData = (chunk) => {
       for (const char of chunk) {
         if (char === "\u0003") {
-          input.setRawMode(false);
-          input.off("data", onData);
-          output.write("\n");
+          finish();
           process.exit(130);
         }
         if (char === "\r" || char === "\n") {
-          input.setRawMode(false);
-          input.off("data", onData);
-          output.write("\n");
-          resolve(value.trim() || String(currentValue || "").trim());
+          const answer = value.trim() || String(currentValue || "").trim();
+          finish();
+          resolve(answer);
           return;
         }
         if (char === "\u0008" || char === "\u007f") {
@@ -156,6 +166,16 @@ async function askHidden(rl, question, currentValue) {
     };
     input.on("data", onData);
   });
+}
+
+// 워드프레스 관리자 ID 는 영문·숫자 계열만 쓸 수 있다. 한글이 섞이면 거의 100%
+// 한/영 전환을 안 한 오입력이다 (실사용에서 실제로 터졌고 그대로 통과됐다).
+function checkUserId(user) {
+  if (!user) return "아이디가 비어 있어요.";
+  if (/[\u3131-\u318E\uAC00-\uD7A3]/.test(user)) return "한글이 섞여 있어요. 한/영 키로 영어로 바꾼 뒤 다시 입력해주세요.";
+  if (/[^\x20-\x7E]/.test(user)) return "쓸 수 없는 글자가 섞여 있어요. 영어와 숫자로만 입력해주세요.";
+  if (/\s/.test(user)) return "중간에 공백이 들어 있어요.";
+  return null;
 }
 
 // ===== 실제 인증 테스트 (저장 후 확인용 — 실패해도 저장은 유지) =====
@@ -196,13 +216,118 @@ async function testWordPress({url, user, appPassword}) {
       headers: {Authorization: `Basic ${credentials}`, Accept: "application/json"},
       signal: AbortSignal.timeout(15_000),
     });
-    if (!response.ok) {
-      return {ok: false, detail: `상태 코드 ${response.status}. 도메인, 관리자 ID, 애플리케이션 비밀번호를 확인해주세요.`};
+    if (response.status === 401 || response.status === 403) {
+      return {ok: false, detail: "관리자 ID 또는 애플리케이션 비밀번호가 맞지 않아요. 워드프레스 [사용자 → 프로필]에서 새로 발급해 보세요."};
     }
-    return {ok: true, detail: "워드프레스 연결 확인됨"};
+    if (!response.ok) {
+      return {ok: false, detail: `상태 코드 ${response.status}. 도메인이 맞는지 확인해주세요.`};
+    }
+    // 상태 코드만 보면 안 된다. 일부 사이트는 인증이 틀려도 200 을 돌려준다.
+    // context=edit 응답에는 반드시 사용자 id 가 들어 있어야 한다.
+    const me = await response.json().catch(() => null);
+    if (!me || typeof me.id !== "number") {
+      return {ok: false, detail: "로그인은 됐는데 응답이 이상해요. 도메인이 워드프레스 주소가 맞는지 확인해주세요."};
+    }
+    if (me.username && String(me.username).toLowerCase() !== String(user).toLowerCase()) {
+      return {ok: false, detail: `입력한 아이디(${user})와 실제 로그인된 계정(${me.username})이 달라요.`};
+    }
+    return {ok: true, detail: `워드프레스 연결 확인됨 (${me.name || me.username || "관리자"})`};
   } catch (error) {
     return {ok: false, detail: error instanceof Error ? error.message : String(error)};
   }
+}
+
+// ===== 입력 → 즉시 확인 → 안 되면 그 자리에서 다시 입력 =====
+//
+// 예전에는 전부 받아 저장한 뒤 맨 끝에서 한 번 확인만 했다. 그래서 아이디를 잘못
+// 넣어도 그냥 넘어갔고, 수강생은 한참 뒤 발행이 안 될 때에야 알았다.
+// 이제 한 항목을 받을 때마다 실제 인증까지 해보고, 안 되면 바로 다시 묻는다.
+
+async function askApiKeyUntilValid(rl, {label, current, looksWrong, test}) {
+  let value = String(current || "");
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const answer = await askHidden(rl, attempt === 1 ? label : `${label} (다시 입력)`, value);
+    if (!answer) {
+      console.log("  → 비워 두셨어요. 나중에 '키설정' 을 다시 실행해 넣어주세요.");
+      return "";
+    }
+    value = answer;
+
+    const hint = looksWrong ? looksWrong(value) : null;
+    if (hint) {
+      console.log(`  → ${hint}`);
+      if (attempt < 3) continue;
+    }
+
+    output.write("  확인 중...");
+    const result = await test(value);
+    if (result.ok) {
+      console.log(" 확인됐어요!");
+      return value;
+    }
+    console.log("");
+    console.log(`  → ${result.detail}`);
+    if (attempt === 3) {
+      console.log("  → 3번 모두 확인되지 않았어요. 입력한 값은 저장하지만, 나중에 '키설정' 으로 다시 넣어주세요.");
+    }
+  }
+  return value;
+}
+
+async function askWordPressUntilValid(rl, {label, current}) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const first = attempt === 1;
+    const url = await askVisible(
+      rl,
+      `${label} 도메인 (예: https://example.com)`,
+      first && ready("URL", current.url) ? current.url : "",
+      {normalize: normalizeUrl},
+    );
+    if (!url) return null;
+
+    let user = "";
+    for (let tries = 1; tries <= 3; tries++) {
+      const answer = await askVisible(
+        rl,
+        `${label} 관리자 ID`,
+        first && tries === 1 && ready("USER", current.user) ? current.user : "",
+      );
+      const bad = checkUserId(answer);
+      if (!bad) {
+        user = answer;
+        break;
+      }
+      console.log(`  → ${bad}`);
+    }
+    if (!user) {
+      console.log("  → 아이디 확인이 안 돼서 이 사이트는 건너뜁니다.");
+      return null;
+    }
+
+    const appPassword = await askHidden(
+      rl,
+      `${label} 애플리케이션 비밀번호`,
+      first && ready("APP_PASSWORD", current.appPassword) ? current.appPassword : "",
+    );
+    if (!appPassword) {
+      console.log("  → 애플리케이션 비밀번호가 비어 있어요. 다시 받을게요.");
+      continue;
+    }
+
+    output.write("  확인 중...");
+    const result = await testWordPress({url, user, appPassword});
+    if (result.ok) {
+      console.log(` ${result.detail}`);
+      return {url, user, appPassword};
+    }
+    console.log("");
+    console.log(`  → ${result.detail}`);
+    if (attempt < 3) {
+      console.log("  → 도메인부터 다시 입력할게요. (이 사이트를 건너뛰려면 도메인에서 엔터)");
+    }
+  }
+  console.log("  → 3번 모두 연결되지 않아 이 사이트는 저장하지 않습니다. 나중에 '키설정' 으로 다시 넣어주세요.");
+  return null;
 }
 
 // ===== 본 흐름 =====
@@ -262,15 +387,12 @@ const doWeek2 = weekAnswer === "" || weekAnswer === "2";
 console.log("");
 
 // 3) OpenAI API 키 (1·2주차 공통) — sk- 접두 형식 검증 (예시값은 "기존 값"으로 치지 않는다)
-let openAiKey = await askHidden(rl, "OpenAI API 키를 입력해주세요", ready("OPENAI_API_KEY", values.OPENAI_API_KEY) ? values.OPENAI_API_KEY : "");
-if (openAiKey && !openAiKey.startsWith("sk-")) {
-  console.log("  → OpenAI 키는 보통 sk- 로 시작해요. 복사할 때 앞뒤가 잘리지 않았는지 확인해주세요.");
-  openAiKey = await askHidden(rl, "OpenAI API 키를 다시 입력해주세요 (지금 값을 그대로 쓰려면 엔터)", openAiKey);
-  if (openAiKey && !openAiKey.startsWith("sk-")) {
-    console.log("  → 형식이 조금 다르지만 입력하신 값을 그대로 저장할게요.");
-  }
-}
-updates.OPENAI_API_KEY = openAiKey;
+updates.OPENAI_API_KEY = await askApiKeyUntilValid(rl, {
+  label: "OpenAI API 키를 입력해주세요",
+  current: ready("OPENAI_API_KEY", values.OPENAI_API_KEY) ? values.OPENAI_API_KEY : "",
+  looksWrong: (key) => (key.startsWith("sk-") ? null : "OpenAI 키는 보통 sk- 로 시작해요. 앞뒤가 잘리지 않았는지 확인해주세요."),
+  test: testOpenAi,
+});
 
 // 4) 1주차 — 애드센스 사이트 1~3 워드프레스 정보
 if (doWeek1) {
@@ -280,18 +402,21 @@ if (doWeek1) {
   for (const n of [1, 2, 3]) {
     const prefix = `ADSENSE_SITE_${String(n).padStart(2, "0")}`;
     console.log("");
-    const url = await askVisible(rl, `사이트${n} 도메인 (예: https://example.com)`, ready("URL", values[`${prefix}_URL`]) ? values[`${prefix}_URL`] : "", {
-      normalize: normalizeUrl,
+    const site = await askWordPressUntilValid(rl, {
+      label: `사이트${n}`,
+      current: {
+        url: values[`${prefix}_URL`],
+        user: values[`${prefix}_USER`],
+        appPassword: values[`${prefix}_APP_PASSWORD`],
+      },
     });
-    if (!url) {
+    if (!site) {
       console.log(`  → 사이트${n}은 건너뛸게요.`);
       continue;
     }
-    const user = await askVisible(rl, `사이트${n} 워드프레스 관리자 ID`, ready("USER", values[`${prefix}_USER`]) ? values[`${prefix}_USER`] : "");
-    const appPassword = await askHidden(rl, `사이트${n} 애플리케이션 비밀번호`, ready("APP_PASSWORD", values[`${prefix}_APP_PASSWORD`]) ? values[`${prefix}_APP_PASSWORD`] : "");
-    updates[`${prefix}_URL`] = url;
-    updates[`${prefix}_USER`] = user;
-    updates[`${prefix}_APP_PASSWORD`] = appPassword;
+    updates[`${prefix}_URL`] = site.url;
+    updates[`${prefix}_USER`] = site.user;
+    updates[`${prefix}_APP_PASSWORD`] = site.appPassword;
   }
 }
 
@@ -299,22 +424,26 @@ if (doWeek1) {
 if (doWeek2) {
   console.log("");
   console.log("----- 2주차: 쇼핑숏폼(영상) 정보 -----");
-  let elevenKey = await askHidden(rl, "ElevenLabs API 키를 입력해주세요", ready("ELEVENLABS_API_KEY", values.ELEVENLABS_API_KEY) ? values.ELEVENLABS_API_KEY : "");
-  if (elevenKey && elevenKey.length < 20) {
-    console.log("  → ElevenLabs 키치고는 길이가 짧아요. 복사가 잘 됐는지 확인해주세요.");
-    elevenKey = await askHidden(rl, "ElevenLabs API 키를 다시 입력해주세요 (지금 값을 그대로 쓰려면 엔터)", elevenKey);
-  }
-  updates.ELEVENLABS_API_KEY = elevenKey;
-
-  const hubUrl = await askVisible(rl, "쇼핑숏폼 워드프레스 도메인 (예: https://example.com)", ready("URL", values.HUB_WORDPRESS_URL) ? values.HUB_WORDPRESS_URL : "", {
-    normalize: normalizeUrl,
+  updates.ELEVENLABS_API_KEY = await askApiKeyUntilValid(rl, {
+    label: "ElevenLabs API 키를 입력해주세요",
+    current: ready("ELEVENLABS_API_KEY", values.ELEVENLABS_API_KEY) ? values.ELEVENLABS_API_KEY : "",
+    looksWrong: (key) => (key.length >= 20 ? null : "ElevenLabs 키치고 길이가 짧아요. 복사가 잘 됐는지 확인해주세요."),
+    test: testElevenLabs,
   });
-  if (hubUrl) {
-    const hubUser = await askVisible(rl, "쇼핑숏폼 워드프레스 관리자 ID", ready("USER", values.HUB_WORDPRESS_USER) ? values.HUB_WORDPRESS_USER : "");
-    const hubPassword = await askHidden(rl, "쇼핑숏폼 워드프레스 애플리케이션 비밀번호", ready("APP_PASSWORD", values.HUB_WORDPRESS_APP_PASSWORD) ? values.HUB_WORDPRESS_APP_PASSWORD : "");
-    updates.HUB_WORDPRESS_URL = hubUrl;
-    updates.HUB_WORDPRESS_USER = hubUser;
-    updates.HUB_WORDPRESS_APP_PASSWORD = hubPassword;
+
+  console.log("");
+  const hub = await askWordPressUntilValid(rl, {
+    label: "쇼핑숏폼 워드프레스",
+    current: {
+      url: values.HUB_WORDPRESS_URL,
+      user: values.HUB_WORDPRESS_USER,
+      appPassword: values.HUB_WORDPRESS_APP_PASSWORD,
+    },
+  });
+  if (hub) {
+    updates.HUB_WORDPRESS_URL = hub.url;
+    updates.HUB_WORDPRESS_USER = hub.user;
+    updates.HUB_WORDPRESS_APP_PASSWORD = hub.appPassword;
   } else {
     console.log("  → 쇼핑숏폼 워드프레스는 건너뛸게요.");
   }
