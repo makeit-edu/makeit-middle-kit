@@ -31,11 +31,16 @@ DOCTOR_OUT="$(cd "$PROGRAM_DIR" 2>/dev/null && node scripts/doctor.mjs 2>/dev/nu
 DOCTOR_OK=$?
 
 # ── 키설정 완료 여부(수강 코드 입력 흔적)로 다음 할 일을 가른다 ─────────────
-if grep -qE '^MAKEIT_MIDDLE_LICENSE=..+' "$PROGRAM_DIR/.env.local" 2>/dev/null; then
-  FIRST_TIME=0
-else
-  FIRST_TIME=1
-fi
+#    주의: setup.sh 가 깔아두는 .env.local 템플릿에는
+#          MAKEIT_MIDDLE_LICENSE=your-course-code 라는 플레이스홀더가 이미 들어 있다.
+#          "값이 있으면 입력 완료"로 보면 첫 수강생에게 키설정 안내가 안 나가므로,
+#          플레이스홀더는 미입력으로 취급한다. (keys.mjs 의 판정 규칙과 동일)
+LICENSE_VALUE="$(grep -E '^MAKEIT_MIDDLE_LICENSE=' "$PROGRAM_DIR/.env.local" 2>/dev/null \
+  | head -1 | cut -d= -f2- | tr -d '"'"'"' \t\r\n')"
+case "$LICENSE_VALUE" in
+  ""|your-*|*placeholder*) FIRST_TIME=1 ;;
+  *)                       FIRST_TIME=0 ;;
+esac
 
 echo ""
 echo "  ${DIM}── 쓸 수 있는 한글 명령 ──────────────────${OFF}"
