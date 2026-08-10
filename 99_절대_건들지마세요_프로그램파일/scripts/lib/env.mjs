@@ -18,7 +18,9 @@ export const ENV_EXAMPLE_PATH = path.join(PROGRAM_ROOT, ".env.example");
 // [주의] 편집기 서버(video-workspace/remotion-ui/scripts/editor-server.mjs)는 이 목록을 import하지만,
 //        편집기 UI(video-workspace/remotion-ui/editor/src/main.tsx의 LICENSE_CODE)는 하드코딩이다.
 //        코드 로테이션 시 main.tsx도 반드시 함께 교체할 것 — 누락되면 키설정은 통과하는데 편집기가 거부된다.
-export const VALID_LICENSE_CODES = ["weolbumakeitmiddle1"];
+// 공지에 나가는 코드는 weolbumakeitmiddle. 뒤의 값은 배포 전 테스트용 구코드로,
+// 이미 입력해 둔 작업방이 깨지지 않도록 당분간 함께 인정한다.
+export const VALID_LICENSE_CODES = ["weolbumakeitmiddle", "weolbumakeitmiddle1"];
 
 // .env 형식 텍스트를 {키: 값} 객체로 해석한다. (따옴표는 벗겨서 저장)
 export function parseEnvText(text) {

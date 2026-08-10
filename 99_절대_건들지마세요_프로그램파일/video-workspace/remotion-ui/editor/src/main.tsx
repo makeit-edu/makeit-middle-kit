@@ -182,7 +182,7 @@ type FriendlyError = {
   onAction?: () => void;
 };
 
-const LICENSE_CODE = "weolbumakeitmiddle1";
+const LICENSE_CODE = "weolbumakeitmiddle";
 const LICENSE_STORAGE_KEY = "makeit-middle-editor-license";
 const defaultStatus = "쇼핑숏폼 작업을 불러오는 중입니다.";
 const PREVIEW_SCALE_MIN = 70;
