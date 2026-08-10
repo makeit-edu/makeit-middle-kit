@@ -11,7 +11,7 @@ import {PROGRAM_ROOT, PROJECT_ROOT} from "./lib/env.mjs";
 
 // upstream에서 받아올 프로그램 영역 (수강생 작업 영역 01_/02_는 여기 절대 넣지 않는다)
 // README.md 는 사용 안내서와 같은 내용이라 최신본이 계속 필요하다 (수강생이 고칠 파일이 아니다)
-const SYNC_PATHS = ["99_절대_건들지마세요_프로그램파일", "bin", "AGENTS.md", "README.md", "시작하기.md", ".devcontainer", ".gitignore"];
+const SYNC_PATHS = ["99_절대_건들지마세요_프로그램파일", "bin", "AGENTS.md", "README.md", "시작하기.md", "docs", ".devcontainer", ".gitignore"];
 
 function git(args, options = {}) {
   // core.quotePath=false: 한글 파일명이 \354... 형태로 깨져 보이지 않게 한다

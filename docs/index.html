@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>메킷 키트 사용 안내서 — 월부월백 중급반</title>
+<style>
+/* ═══════════════════════════════════════════════════════════
+   토큰 — 사인 시스템 팔레트
+   ═══════════════════════════════════════════════════════════ */
+:root{
+  --ink:#12161c;
+  --ink-2:#4a5462;
+  --ink-3:#79838f;
+  --ground:#ffffff;
+  --surface:#f3f5f8;
+  --surface-2:#e8ecf1;
+  --line:#dfe4ea;
+  --line-2:#c6cdd6;
+
+  --sig:#1155cc;
+  --sig-soft:#e8f0fe;
+  --sig-ink:#0b3f99;
+
+  --go:#0f7b4f;
+  --go-soft:#e6f4ed;
+
+  --care:#b46b00;
+  --care-soft:#fdf3e2;
+
+  --stop:#c62828;
+  --stop-soft:#fdeceb;
+
+  --font-sans:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Segoe UI",system-ui,sans-serif;
+  --font-mono:ui-monospace,"SF Mono","Cascadia Mono","JetBrains Mono",Menlo,Consolas,monospace;
+
+  --rail:252px;
+  --radius:8px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#e6eaef; --ink-2:#a8b2be; --ink-3:#77828f;
+    --ground:#0e1116; --surface:#171b22; --surface-2:#1f242d;
+    --line:#272d37; --line-2:#38404c;
+    --sig:#7aa7ff; --sig-soft:#152238; --sig-ink:#a8c5ff;
+    --go:#4bbd88; --go-soft:#0f2119;
+    --care:#e0a54a; --care-soft:#241c0e;
+    --stop:#f0736b; --stop-soft:#2a1513;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e6eaef; --ink-2:#a8b2be; --ink-3:#77828f;
+  --ground:#0e1116; --surface:#171b22; --surface-2:#1f242d;
+  --line:#272d37; --line-2:#38404c;
+  --sig:#7aa7ff; --sig-soft:#152238; --sig-ink:#a8c5ff;
+  --go:#4bbd88; --go-soft:#0f2119;
+  --care:#e0a54a; --care-soft:#241c0e;
+  --stop:#f0736b; --stop-soft:#2a1513;
+}
+:root[data-theme="light"]{
+  --ink:#12161c; --ink-2:#4a5462; --ink-3:#79838f;
+  --ground:#ffffff; --surface:#f3f5f8; --surface-2:#e8ecf1;
+  --line:#dfe4ea; --line-2:#c6cdd6;
+  --sig:#1155cc; --sig-soft:#e8f0fe; --sig-ink:#0b3f99;
+  --go:#0f7b4f; --go-soft:#e6f4ed;
+  --care:#b46b00; --care-soft:#fdf3e2;
+  --stop:#c62828; --stop-soft:#fdeceb;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+body{
+  margin:0;background:var(--ground);color:var(--ink);
+  font-family:var(--font-sans);font-size:16px;line-height:1.7;
+  word-break:keep-all;-webkit-font-smoothing:antialiased;
+}
+:focus-visible{outline:2px solid var(--sig);outline-offset:2px;border-radius:3px}
+
+/* ═══ 레이아웃 ═══ */
+.app{display:flex;min-height:100vh}
+
+/* ═══ 좌측 레일 — 세로 노선도 ═══ */
+.rail{
+  width:var(--rail);flex:0 0 var(--rail);
+  border-right:1px solid var(--line);
+  background:var(--surface);
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  padding:26px 0 30px;
+}
+.brand{padding:0 22px 20px}
+.brand .eyebrow{
+  font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;
+  color:var(--ink-3);text-transform:uppercase;margin:0 0 6px;
+}
+.brand h1{font-size:17px;line-height:1.35;margin:0;font-weight:800;letter-spacing:-.02em}
+
+.progress{padding:0 22px 22px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.progress .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
+.progress .lbl{font-size:11px;color:var(--ink-3);letter-spacing:.04em}
+.progress .val{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--sig);font-variant-numeric:tabular-nums}
+.bar{height:5px;background:var(--surface-2);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--sig);border-radius:99px;transition:width .35s ease}
+
+.rail-nav{list-style:none;margin:0;padding:10px 0 0}
+.rail-nav li{position:relative}
+/* 노선 */
+.rail-nav li::before{
+  content:"";position:absolute;left:31px;top:0;bottom:0;width:2px;background:var(--line-2);
+}
+.rail-nav li:first-child::before{top:50%}
+.rail-nav li:last-child::before{bottom:50%}
+.rail-nav button{
+  position:relative;z-index:1;
+  display:flex;align-items:center;gap:12px;width:100%;
+  background:none;border:0;padding:9px 20px 9px 22px;
+  font-family:var(--font-sans);font-size:13.5px;color:var(--ink-2);
+  text-align:left;cursor:pointer;line-height:1.35;
+}
+.rail-nav .dot{
+  flex:0 0 auto;width:11px;height:11px;border-radius:50%;
+  background:var(--ground);border:2px solid var(--line-2);
+  margin-left:2px;transition:background .2s,border-color .2s,transform .2s;
+}
+.rail-nav button:hover{color:var(--ink)}
+.rail-nav button:hover .dot{border-color:var(--sig)}
+.rail-nav button[aria-current="true"]{color:var(--ink);font-weight:700}
+.rail-nav button[aria-current="true"] .dot{
+  background:var(--sig);border-color:var(--sig);transform:scale(1.25);
+}
+.rail-nav li.done .dot{background:var(--go);border-color:var(--go)}
+.rail-nav .cnt{
+  margin-left:auto;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3);
+  font-variant-numeric:tabular-nums;
+}
+.rail-foot{padding:18px 22px 0;margin-top:10px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-3)}
+.rail-foot a{color:var(--sig);word-break:break-word;line-height:1.5;display:inline-block;margin-top:3px}
+
+/* ═══ 본문 ═══ */
+main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 32px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:var(--ground);z-index:20;
+}
+.topbar .crumb{font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase}
+.topbar .spacer{flex:1}
+.iconbtn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  height:32px;padding:0 11px;border:1px solid var(--line-2);border-radius:6px;
+  background:var(--ground);color:var(--ink-2);cursor:pointer;
+  font-family:var(--font-sans);font-size:12px;
+}
+.iconbtn:hover{border-color:var(--ink-3);color:var(--ink)}
+.iconbtn svg{width:15px;height:15px}
+
+.pane{padding:34px 32px 90px;max-width:820px}
+.chapter{display:none;animation:fade .25s ease}
+.chapter.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+.chead{margin:0 0 28px}
+.chead .idx{
+  display:inline-block;font-family:var(--font-mono);font-size:11px;font-weight:700;
+  letter-spacing:.1em;color:var(--sig);background:var(--sig-soft);
+  padding:3px 9px;border-radius:4px;margin-bottom:12px;
+}
+.chead h2{font-size:29px;line-height:1.25;margin:0 0 10px;font-weight:800;letter-spacing:-.03em;text-wrap:balance}
+.chead p{margin:0;color:var(--ink-2);font-size:15.5px;max-width:62ch}
+
+.groupname{
+  display:flex;align-items:center;gap:12px;
+  margin:38px 0 16px;font-size:12px;font-weight:700;
+  letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase;
+  font-family:var(--font-mono);
+}
+.groupname::after{content:"";flex:1;height:1px;background:var(--line)}
+.groupname:first-of-type{margin-top:0}
+
+/* ═══ 단계 ═══ */
+ol.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.step{display:flex;gap:14px;padding:11px 12px 11px 8px;border-radius:var(--radius);transition:background .15s}
+.step:hover{background:var(--surface)}
+.tick{
+  flex:0 0 auto;width:34px;height:34px;margin-top:1px;
+  border:1.5px solid var(--line-2);border-radius:50%;background:var(--ground);
+  color:var(--ink-2);cursor:pointer;padding:0;
+  font-family:var(--font-mono);font-size:13px;font-weight:700;
+  font-variant-numeric:tabular-nums;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .18s,border-color .18s,color .18s;
+}
+.tick:hover{border-color:var(--sig);color:var(--sig)}
+.tick svg{width:17px;height:17px;display:none}
+.step.done .tick{background:var(--go);border-color:var(--go);color:#fff}
+.step.done .tick span{display:none}
+.step.done .tick svg{display:block}
+.step.done .do{color:var(--ink-3)}
+.step.done .do b{color:var(--ink-3);font-weight:600}
+.step.done .hint{opacity:.5}
+.step.done .note{opacity:.45}
+.step.done .cmd{background:var(--ink-3)}
+.sbody{flex:1;min-width:0;padding-top:3px}
+.do{margin:0;font-size:16px;line-height:1.55;font-weight:600;letter-spacing:-.01em}
+.do b{font-weight:800}
+.hint{margin:5px 0 0;font-size:14px;color:var(--ink-2);line-height:1.6;font-weight:400}
+
+/* ═══ 알림 3종 ═══ */
+.note{
+  display:flex;gap:9px;margin:11px 0 0;padding:10px 13px;
+  border-radius:6px;font-size:14px;line-height:1.6;
+}
+.note svg{flex:0 0 auto;width:17px;height:17px;margin-top:2px}
+.note .nt{display:block;font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px;font-family:var(--font-mono)}
+.note.go{background:var(--go-soft);color:var(--ink)}
+.note.go svg,.note.go .nt{color:var(--go)}
+.note.care{background:var(--care-soft);color:var(--ink)}
+.note.care svg,.note.care .nt{color:var(--care)}
+.note.stop{background:var(--stop-soft);color:var(--ink)}
+.note.stop svg,.note.stop .nt{color:var(--stop)}
+
+/* ═══ 터미널 화면 모사 — 실제로 보게 될 화면을 그대로 ═══
+   실제 터미널은 언제나 어두우므로 라이트/다크 공통으로 단일 색을 쓴다. */
+.term{
+  font-family:var(--font-mono);font-size:12.5px;line-height:1.55;
+  background:#0e1116;color:#cdd4dc;border:1px solid #2a313b;
+  border-radius:6px;padding:12px 14px;margin:10px 0;
+  overflow-x:auto;white-space:nowrap;
+}
+.term .hi{background:#22c55e;color:#062712;font-weight:700;padding:1px 7px;border-radius:3px}
+
+/* ═══ 명령 칩 ═══ */
+.cmd{
+  display:inline-flex;align-items:center;gap:6px;vertical-align:baseline;
+  font-family:var(--font-mono);font-size:13.5px;font-weight:700;
+  background:var(--ink);color:var(--ground);
+  border:0;border-radius:5px;padding:3px 8px;cursor:pointer;
+  letter-spacing:-.01em;line-height:1.5;
+}
+.cmd:hover{background:var(--sig)}
+.cmd svg{width:12px;height:12px;opacity:.55}
+.cmd:hover svg{opacity:.9}
+kbd{
+  font-family:var(--font-mono);font-size:12.5px;font-weight:600;
+  border:1px solid var(--line-2);border-bottom-width:2px;border-radius:4px;
+  padding:1px 6px;background:var(--surface);white-space:nowrap;color:var(--ink-2);
+}
+.path{
+  font-family:var(--font-mono);font-size:13px;
+  background:var(--surface-2);color:var(--ink-2);
+  padding:1px 6px;border-radius:4px;white-space:nowrap;
+}
+.ui{
+  font-weight:700;border:1px solid var(--line-2);border-radius:5px;
+  padding:1px 7px;font-size:14px;background:var(--surface);white-space:nowrap;
+}
+
+/* ═══ 카드 ═══ */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin:0 0 26px}
+.card{border:1px solid var(--line);border-radius:var(--radius);padding:16px 17px;background:var(--ground)}
+.card h4{margin:0 0 9px;font-size:14.5px;font-weight:800;letter-spacing:-.01em}
+.card ul{margin:0;padding:0;list-style:none;font-size:14px;color:var(--ink-2)}
+.card li{padding:3px 0 3px 20px;position:relative;line-height:1.55}
+.card li::before{
+  content:"";position:absolute;left:2px;top:11px;width:6px;height:6px;
+  border-radius:50%;background:var(--line-2);
+}
+.card.no li::before{background:none;content:"×";left:3px;top:2px;color:var(--ink-3);font-size:14px;font-weight:700}
+.card.yes li::before{background:var(--sig)}
+
+/* ═══ 세 층 구조 — 레일 노선도와 같은 시각 언어(점+선)로 위계를 보여준다 ═══ */
+.layers{border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin:0 0 24px}
+.layers h4{margin:0 0 10px;font-size:14.5px;font-weight:800;letter-spacing:-.01em}
+.layers ol{list-style:none;margin:0;padding:0}
+.layers li{position:relative;padding:8px 0 8px 28px;font-size:14.5px;color:var(--ink-2);line-height:1.6}
+.layers li::before{
+  content:"";position:absolute;left:5px;top:15px;width:9px;height:9px;
+  border-radius:50%;border:2px solid var(--line-2);background:var(--ground);
+}
+.layers li:not(:last-child)::after{
+  content:"";position:absolute;left:9px;top:26px;bottom:-4px;width:2px;background:var(--line-2);
+}
+.layers li.no::before{border-color:var(--stop)}
+.layers li.yes::before{background:var(--sig);border-color:var(--sig)}
+.layers .lname{display:inline-block;min-width:76px;font-weight:800;color:var(--ink)}
+.layers li.no .lname{color:var(--stop)}
+
+/* ═══ 표 ═══ */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);margin:0 0 22px}
+table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:400px}
+th,td{padding:11px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+th{
+  font-family:var(--font-mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-3);background:var(--surface);
+}
+td:first-child{white-space:nowrap}
+td b{font-weight:700}
+
+/* ═══ FAQ ═══ */
+details.faq{border:1px solid var(--line);border-radius:var(--radius);margin:0 0 8px;background:var(--ground);overflow:hidden}
+details.faq[open]{border-color:var(--line-2)}
+details.faq summary{
+  cursor:pointer;list-style:none;padding:13px 16px;
+  font-size:15px;font-weight:700;letter-spacing:-.01em;
+  display:flex;align-items:center;gap:11px;
+}
+details.faq summary::-webkit-details-marker{display:none}
+details.faq summary .chev{
+  flex:0 0 auto;margin-left:auto;width:16px;height:16px;color:var(--ink-3);
+  display:block;transform-origin:50% 50%;transition:transform .2s;
+}
+details.faq[open] summary .chev{transform:rotate(180deg)}
+details.faq summary:hover{background:var(--surface)}
+details.faq .ans{padding:0 16px 15px 44px;font-size:14.5px;color:var(--ink-2);line-height:1.7}
+details.faq .qmark{
+  flex:0 0 auto;width:22px;height:22px;border-radius:5px;background:var(--surface-2);
+  color:var(--ink-2);font-family:var(--font-mono);font-size:12px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* ═══ 챕터 하단 이동 ═══ */
+.chapnav{display:flex;gap:10px;margin-top:44px;padding-top:22px;border-top:1px solid var(--line)}
+.chapnav button{
+  flex:1;text-align:left;background:var(--ground);border:1px solid var(--line-2);
+  border-radius:var(--radius);padding:13px 16px;cursor:pointer;font-family:var(--font-sans);
+  color:var(--ink);min-width:0;
+}
+.chapnav button:hover{border-color:var(--sig);background:var(--surface)}
+.chapnav .dir{display:block;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase;margin-bottom:3px}
+.chapnav .ttl{display:block;font-size:14.5px;font-weight:700;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chapnav button.next{text-align:right}
+.chapnav button:disabled{opacity:.35;cursor:default}
+
+/* ═══ 토스트 ═══ */
+#toast{
+  position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);
+  background:var(--ink);color:var(--ground);
+  padding:9px 16px;border-radius:99px;font-size:13.5px;font-weight:600;
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:99;
+}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ═══ 반응형 ═══ */
+@media (max-width:900px){
+  .app{display:block}
+  .rail{
+    width:auto;height:auto;position:static;border-right:0;border-bottom:1px solid var(--line);
+    padding:18px 0 0;
+  }
+  .brand{padding:0 18px 14px}
+  .progress{padding:0 18px 14px}
+  .rail-nav{
+    display:flex;overflow-x:auto;padding:12px 18px 14px;gap:8px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+  }
+  .rail-nav::-webkit-scrollbar{display:none}
+  .rail-nav li::before{display:none}
+  .rail-nav li{flex:0 0 auto}
+  .rail-nav button{
+    padding:7px 13px;border:1px solid var(--line-2);border-radius:99px;
+    background:var(--ground);white-space:nowrap;font-size:13px;gap:8px;
+  }
+  .rail-nav button[aria-current="true"]{background:var(--sig);border-color:var(--sig);color:#fff}
+  .rail-nav button[aria-current="true"] .dot{background:#fff;border-color:#fff;transform:none}
+  .rail-nav .cnt{display:none}
+  .rail-foot{display:none}
+  .topbar{padding:12px 18px}
+  .pane{padding:26px 18px 70px}
+  .chead h2{font-size:24px}
+}
+@media (max-width:520px){
+  .step{gap:11px;padding:10px 6px}
+  .tick{width:30px;height:30px;font-size:12px}
+  .do{font-size:15.5px}
+  .chapnav{flex-direction:column}
+}
+
+/* ═══ 인쇄 ═══ */
+@media print{
+  .rail,.topbar,.chapnav,#toast,.iconbtn{display:none !important}
+  .app{display:block}
+  .chapter{display:block !important;page-break-before:always}
+  .chapter:first-of-type{page-break-before:auto}
+  .pane{padding:0;max-width:none}
+  body{font-size:11pt;background:#fff;color:#000}
+  .step{page-break-inside:avoid}
+  .chead h2{page-break-after:avoid}
+  .cmd{background:#eee;color:#000;border:1px solid #999}
+  details.faq{page-break-inside:avoid}
+  details.faq .ans{display:block !important}
+}
+</style>
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+  <symbol id="i-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8.5 12.2 11 14.7 15.8 9.5"/></symbol>
+  <symbol id="i-care" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 22 20H2z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="6" y1="18" x2="18" y2="6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><rect x="6" y="15" width="12" height="6"/></symbol>
+</svg>
+
+<noscript><style>.chapter{display:block !important}.rail-nav,.chapnav,.progress{display:none}.tick{pointer-events:none}</style></noscript>
+
+<div class="app">
+
+<!-- ══════════ 레일 ══════════ -->
+<aside class="rail">
+  <div class="brand">
+    <p class="eyebrow">월부월백 중급반</p>
+    <h1>메킷 키트<br>사용 안내서</h1>
+  </div>
+
+  <div class="progress">
+    <div class="row">
+      <span class="lbl">진행률</span>
+      <span class="val" id="pval">0 / 84</span>
+    </div>
+    <div class="bar"><i id="pbar"></i></div>
+  </div>
+
+  <ul class="rail-nav" id="nav"></ul>
+
+  <div class="rail-foot">
+    키트 링크<br>
+    <a href="https://github.com/makeit-edu/makeit-middle-kit">github.com/makeit-edu/makeit-middle-kit</a>
+  </div>
+</aside>
+
+<!-- ══════════ 본문 ══════════ -->
+<main>
+  <div class="topbar">
+    <span class="crumb" id="crumb">준비</span>
+    <span class="spacer"></span>
+    <button class="iconbtn" id="themeBtn" type="button" title="화면 밝기 바꾸기"><svg><use href="#i-sun"/></svg></button>
+    <button class="iconbtn" id="printBtn" type="button"><svg><use href="#i-print"/></svg>인쇄</button>
+  </div>
+
+  <div class="pane">
+
+  <!-- ═══════════ CH 0 ═══════════ -->
+  <section class="chapter active" id="ch0" data-title="시작 전에">
+    <div class="chead">
+      <span class="idx">시작 전에</span>
+      <h2>내 컴퓨터에는 아무것도 설치하지 않습니다</h2>
+      <p>프로그램은 인터넷 저편의 컴퓨터에서 돌아갑니다. 그래서 윈도우든 맥이든 화면도, 순서도, 결과도 똑같습니다. 크롬 브라우저만 있으면 됩니다.</p>
+    </div>
+
+    <div class="cards">
+      <div class="card no">
+        <h4>안 해도 되는 것</h4>
+        <ul>
+          <li>백신 끄기</li>
+          <li>압축 풀기</li>
+          <li>프로그램 설치</li>
+          <li>보안 경고 씨름</li>
+        </ul>
+      </div>
+      <div class="card yes">
+        <h4>미리 챙길 것</h4>
+        <ul>
+          <li>크롬이 깔린 컴퓨터</li>
+          <li>ChatGPT Plus 계정</li>
+          <li>OpenAI · ElevenLabs API 키</li>
+          <li>수강 코드 (자료실 공지)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="layers">
+      <h4>키트는 세 층으로 되어 있어요</h4>
+      <ol>
+        <li class="no"><span class="lname">원본 키트</span>모두가 함께 쓰는 원본입니다. <b>여기서 작업하면 안 됩니다.</b></li>
+        <li class="yes"><span class="lname">내 저장소</span>원본을 복사해 만든 <b>내 것</b>입니다. 처음 딱 한 번 만듭니다.</li>
+        <li class="yes"><span class="lname">작업방</span>실제로 일하는 화면입니다. <b>내 저장소 안에서</b> 엽니다.</li>
+      </ol>
+    </div>
+
+    <div class="note stop"><svg><use href="#i-stop"/></svg><div><span class="nt">반드시 컴퓨터에서</span>태블릿·휴대폰으로는 사용할 수 없습니다. 노트북이나 데스크톱의 크롬에서 여세요.</div></div>
+
+    <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">이 안내서 쓰는 법</span>
+      번호를 <b>클릭하면 완료 표시</b>가 되고 왼쪽 진행률이 찹니다. 중간에 덮어도 기억합니다.<br>
+      <b>검은 창</b> = 화면 아래쪽 명령 입력창.
+      <button class="cmd" data-copy="이런 칩"><span>이런 칩</span><svg><use href="#i-copy"/></svg></button> 은 <b>클릭하면 복사</b>되니 검은 창에 붙여넣고 엔터를 누르면 됩니다.</div></div>
+
+    <div class="note care"><svg><use href="#i-care"/></svg><div><span class="nt">얼마나 걸리나</span><b>다음 장(1~23번)만 처음 딱 한 번</b> 하면 됩니다. 순조로우면 20분, 천천히 해도 40분. 그 뒤로는 다시 할 일이 없습니다.</div></div>
+  </section>
+
+  <!-- ═══════════ CH 1 ═══════════ -->
+  <section class="chapter" id="ch1" data-title="처음 딱 한 번">
+    <div class="chead">
+      <span class="idx">1 · 1~23번</span>
+      <h2>처음 딱 한 번만 하는 준비</h2>
+      <p>여기까지가 제일 낯섭니다. 한 번 끝내면 다시는 할 필요 없습니다.</p>
+    </div>
+
+    <div class="groupname">ChatGPT 스위치 하나 켜기</div>
+    <ol class="steps">
+      <li class="step" data-n="1"><button class="tick" type="button"><span>1</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">크롬에서 <b>chatgpt.com</b> 에 로그인</p>
+        <p class="hint">평소 쓰는 본인 계정이어야 합니다.</p></div></li>
+
+      <li class="step" data-n="2"><button class="tick" type="button"><span>2</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">왼쪽 아래 <b>내 이름</b> 클릭 → <span class="ui">설정</span></p></div></li>
+
+      <li class="step" data-n="3"><button class="tick" type="button"><span>3</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><span class="ui">보안 및 로그인</span> 메뉴 클릭</p></div></li>
+
+      <li class="step" data-n="4"><button class="tick" type="button"><span>4</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">화면을 <b>맨 아래까지</b> 스크롤</p></div></li>
+
+      <li class="step" data-n="5"><button class="tick" type="button"><span>5</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>“Codex용 장치 코드 인증 활성화”</b> 스위치 켜기</p>
+        <div class="note stop"><svg><use href="#i-stop"/></svg><div><span class="nt">이거 안 켜면 로그인이 안 됩니다</span>여기서 로그인한 계정과 나중에 승인할 계정이 <b>같아야</b> 합니다. 가족 공용·회사 계정으로 켜지 않도록 주의하세요.</div></div>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">성공 확인</span>스위치가 초록색이면 됩니다.</div></div></div></li>
+    </ol>
+
+    <div class="groupname">깃허브 가입하기</div>
+    <ol class="steps">
+      <li class="step" data-n="6"><button class="tick" type="button"><span>6</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>github.com/signup</b> 접속</p></div></li>
+
+      <li class="step" data-n="7"><button class="tick" type="button"><span>7</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">맨 위 <span class="ui">Continue with Google</span> 클릭 → 평소 쓰는 구글 계정 선택</p>
+        <p class="hint">이메일·비밀번호를 새로 만들 필요가 없습니다. 무료이고 카드 등록도 없습니다.</p></div></li>
+
+      <li class="step" data-n="8"><button class="tick" type="button"><span>8</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>Username</b> 에 내가 알아볼 이름을 넣고 <span class="ui">Create account</span> 클릭</p>
+        <p class="hint">영문·숫자·하이픈만 됩니다. 이미 쓰는 사람이 있으면 뒤에 숫자를 붙이세요. 나머지 칸은 그대로 둬도 됩니다.</p>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">성공 확인</span>오른쪽 위에 동그란 프로필 아이콘이 보이면 가입 완료.</div></div></div></li>
+    </ol>
+
+    <div class="groupname">내 작업방 만들기</div>
+    <ol class="steps">
+      <li class="step" data-n="9"><button class="tick" type="button"><span>9</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>바로가기 링크</b> 열기 — 내 저장소 만드는 화면이 곧바로 열립니다</p>
+        <p class="hint"><a href="https://github.com/new?template_name=makeit-middle-kit&amp;template_owner=makeit-edu">github.com/new?template_name=makeit-middle-kit&amp;template_owner=makeit-edu</a></p>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">이 링크로 들어왔다면</span><b>10·11번은 이미 끝난 상태</b>입니다. 곧장 <b>12번</b>으로 가세요.</div></div></div></li>
+
+      <li class="step" data-n="10"><button class="tick" type="button"><span>10</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">오른쪽 위 초록색 <span class="ui">Use this template</span> 클릭</p>
+        <p class="hint">9번 바로가기로 들어왔다면 건너뛰세요. 키트 첫 화면이 열렸을 때만 하면 됩니다.</p></div></li>
+
+      <li class="step" data-n="11"><button class="tick" type="button"><span>11</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">뜨는 메뉴에서 <span class="ui">Create a new repository</span> 선택</p>
+        <p class="hint">화면 맨 위 <b>Start with a template</b> 에 <span class="path">makeit-edu/makeit-middle-kit</span> 이 들어가 있으면 제대로 온 것입니다.</p>
+        <div class="note stop"><svg><use href="#i-stop"/></svg><div><span class="nt">키트 화면의 초록 Code 버튼은 누르지 마세요</span>거기서 작업방을 만들면 <b>내 것이 아니라 원본 키트</b>에 만들어집니다. 만들어지긴 하지만 <b>저장이 안 돼서 작업물이 나중에 전부 사라집니다.</b> 같은 이유로 <b>“Open in a codespace”</b> 도 누르면 안 됩니다.</div></div></div></li>
+
+      <li class="step" data-n="12"><button class="tick" type="button"><span>12</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>Repository name</b> 칸에 내가 알아볼 이름 입력</p>
+        <p class="hint">영문·숫자·하이픈만 됩니다. 초록색 <b>is available</b> 이 뜨면 쓸 수 있는 이름입니다. <b>Description 칸은 비워두세요.</b></p></div></li>
+
+      <li class="step" data-n="13"><button class="tick" type="button"><span>13</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">아래 <b>Choose visibility</b> 가 <span class="ui">Private</span> 인지 확인</p>
+        <p class="hint">보통 처음부터 Private으로 되어 있습니다. 그대로 두면 됩니다.</p></div></li>
+
+      <li class="step" data-n="14"><button class="tick" type="button"><span>14</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">초록색 <span class="ui">Create repository</span> 클릭</p>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">성공 확인</span>주소창에 <span class="path">내아이디/내가지은이름</span> 이 보이면 성공.</div></div>
+        <div class="note care"><svg><use href="#i-care"/></svg><div><span class="nt">Codespaces 탭이 없고 Clone만 보인다면</span>깃허브 로그인이 안 된 상태입니다. 오른쪽 위 <span class="ui">Sign in</span> 으로 로그인한 뒤 다시 하세요. 크롬 프로필을 여러 개 쓴다면 가입했던 그 프로필인지도 확인.</div></div></div></li>
+    </ol>
+
+    <div class="groupname">작업방 처음 열기</div>
+    <ol class="steps">
+      <li class="step" data-n="15"><button class="tick" type="button"><span>15</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">내 작업방에서 초록색 <span class="ui">&lt;&gt; Code</span> 버튼 클릭</p></div></li>
+
+      <li class="step" data-n="16"><button class="tick" type="button"><span>16</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><span class="ui">Codespaces</span> 탭 클릭</p>
+        <p class="hint">Local 탭이 아닙니다.</p></div></li>
+
+      <li class="step" data-n="17"><button class="tick" type="button"><span>17</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">초록색 <span class="ui">Create codespace on main</span> 클릭</p></div></li>
+
+      <li class="step" data-n="18"><button class="tick" type="button"><span>18</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>3~10분 기다리기</b></p>
+        <p class="hint">검은 창에 영어 글자가 빠르게 흘러갑니다. <b>멈춘 게 아닙니다.</b> 이 시간에 프로그램이 알아서 다 설치됩니다. 커피 한 모금 하고 오세요.</p>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">이 화면이 나와야 끝난 것입니다</span>
+          검은 창 맨 아래에 <b>초록색 가로줄 두 개</b>가 그어지고, 그 사이에 이렇게 뜹니다.
+          <div class="term">━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>&nbsp;&nbsp;<span class="hi">✅ 준 비 &nbsp;완 료</span>&nbsp;&nbsp;설치가 전부 끝났습니다<br><br>&nbsp;&nbsp;이제 이 검은 창에 아래 순서대로 입력하세요.<br><br>&nbsp;&nbsp;&nbsp;&nbsp;1) 키설정<br>&nbsp;&nbsp;&nbsp;&nbsp;2) 시작<br><br>━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+          <b>이게 보이기 전까지는 아직 설치 중</b>입니다. 아무것도 누르지 말고 기다리세요.</div></div>
+        <div class="note care"><svg><use href="#i-care"/></svg><div><span class="nt">가운데에 「시작하기」 카드 한 장만 열립니다</span>한 화면짜리 짧은 안내예요. <b>읽고 닫으셔도 됩니다.</b> 작업은 전부 <b>검은 창</b>에서 이뤄집니다. 긴 설명서가 열린다면 옛 버전이니 <b>막혔을 때</b> 장을 보세요.</div></div>
+        <div class="note stop"><svg><use href="#i-stop"/></svg><div><span class="nt">10분이 넘어도 이 화면이 안 뜬다면</span>브라우저를 새로고침(F5) 해보세요. 그래도 안 되면 <b>막혔을 때</b> 장의 첫 번째 항목을 보세요.</div></div></div></li>
+    </ol>
+
+    <div class="groupname">열쇠(키) 넣기</div>
+    <ol class="steps">
+      <li class="step" data-n="19"><button class="tick" type="button"><span>19</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">화면 아래 <b>검은 창</b>을 마우스로 한 번 클릭</p></div></li>
+
+      <li class="step" data-n="20"><button class="tick" type="button"><span>20</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="키설정"><span>키설정</span><svg><use href="#i-copy"/></svg></button> 치고 엔터</p></div></li>
+
+      <li class="step" data-n="21"><button class="tick" type="button"><span>21</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">물어보는 순서대로 붙여넣기</p>
+        <p class="hint">수강 코드 → 주차 선택(엔터 = 전부) → OpenAI 키 → 워드프레스 정보 → ElevenLabs 키 순서입니다.</p>
+        <div class="note care"><svg><use href="#i-care"/></svg><div><span class="nt">화면에 안 보이는 게 정상입니다</span>보안 때문입니다. 한 번만 붙여넣고 엔터. 붙여넣기는 <kbd>Ctrl</kbd>+<kbd>V</kbd> (맥 <kbd>Cmd</kbd>+<kbd>V</kbd>).</div></div>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">아직 없는 항목은 그냥 엔터</span>건너뛰어도 됩니다. 나중에 <button class="cmd" data-copy="키설정"><span>키설정</span><svg><use href="#i-copy"/></svg></button> 을 다시 실행해 그 값만 넣으면 됩니다.</div></div></div></li>
+    </ol>
+
+    <div class="groupname">AI 비서(코덱스) 켜기</div>
+    <ol class="steps">
+      <li class="step" data-n="22"><button class="tick" type="button"><span>22</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="시작"><span>시작</span><svg><use href="#i-copy"/></svg></button> 치고 엔터</p>
+        <p class="hint">영어 주소와 알파벳 코드가 나옵니다. 예: WNXQ-XVJIT</p></div></li>
+
+      <li class="step" data-n="23"><button class="tick" type="button"><span>23</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">코드 복사 → 주소를 <kbd>Ctrl</kbd>(맥 <kbd>Cmd</kbd>) 누른 채 클릭 → 코드 붙여넣고 승인</p>
+        <div class="note stop"><svg><use href="#i-stop"/></svg><div><span class="nt">검은 창에서는 Ctrl+C 가 복사가 아닙니다</span>마우스로 <b>드래그 → 우클릭 → 복사</b> 하세요.</div></div>
+        <div class="note care"><svg><use href="#i-care"/></svg><div><span class="nt">영어 팝업이 뜨면 Allow(허용)</span>실수로 Block을 눌렀다면 주소창 자물쇠 → 클립보드 → 허용 → 새로고침.</div></div>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">성공 확인</span>검은 창에 코덱스 대화 화면이 뜨면 준비 완료. 이제 다시 할 일 없습니다.</div></div></div></li>
+    </ol>
+  </section>
+
+  <!-- ═══════════ CH 2 ═══════════ -->
+  <section class="chapter" id="ch2" data-title="매번 여닫기">
+    <div class="chead">
+      <span class="idx">2 · 24~28번</span>
+      <h2>작업방 열고 닫기</h2>
+      <p>두 번째부터는 이 다섯 단계가 전부입니다.</p>
+    </div>
+
+    <ol class="steps">
+      <li class="step" data-n="24"><button class="tick" type="button"><span>24</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>github.com/codespaces</b> → 내 작업방 클릭</p>
+        <p class="hint">즐겨찾기 해두면 편합니다. 1~23번은 다시 하지 않습니다.</p></div></li>
+
+      <li class="step" data-n="25"><button class="tick" type="button"><span>25</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">1분쯤 기다리면 하던 그대로 열립니다</p>
+        <p class="hint">두 번째부터는 설치가 끝나 있어서 훨씬 빠릅니다.</p>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">성공 확인</span>검은 창에 초록 줄과 함께 <b>“✅ 준 비 완 료”</b> 가 뜨고, 그 아래에 <b>“이제 이 검은 창에 시작 을 입력하면 바로 작업할 수 있어요”</b> 가 보이면 됩니다.</div></div></div></li>
+
+      <li class="step" data-n="26"><button class="tick" type="button"><span>26</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">작업이 끝나면 <button class="cmd" data-copy="저장"><span>저장</span><svg><use href="#i-copy"/></svg></button> 치고 엔터</p></div></li>
+
+      <li class="step" data-n="27"><button class="tick" type="button"><span>27</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">브라우저 탭을 그냥 닫으면 끝</p></div></li>
+
+      <li class="step" data-n="28"><button class="tick" type="button"><span>28</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">30분 동안 안 쓰면 자동으로 잠듭니다</p>
+        <p class="hint">고장이 아닙니다. 작업물은 그대로 있습니다.</p>
+        <div class="note care"><svg><use href="#i-care"/></svg><div><span class="nt">30일 동안 한 번도 안 들어오면 작업방이 삭제됩니다</span><button class="cmd" data-copy="저장"><span>저장</span><svg><use href="#i-copy"/></svg></button> 해둔 것은 새 작업방을 만들면 되살아납니다. <b>작업이 끝날 때마다 저장을 습관으로.</b></div></div></div></li>
+    </ol>
+  </section>
+
+  <!-- ═══════════ CH 3 ═══════════ -->
+  <section class="chapter" id="ch3" data-title="1주차 · 승인글">
+    <div class="chead">
+      <span class="idx">3 · 29~36번</span>
+      <h2>1주차 — 애드센스 승인글</h2>
+      <p>뽑아둔 제목을 붙여넣고, 코덱스에게 말 한마디 걸면 끝입니다.</p>
+    </div>
+
+    <ol class="steps">
+      <li class="step" data-n="29"><button class="tick" type="button"><span>29</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">왼쪽 목록에서 <span class="path">01_1주차_애드센스승인</span> 펼치기</p></div></li>
+
+      <li class="step" data-n="30"><button class="tick" type="button"><span>30</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><span class="path">01_제목넣는곳</span> → <span class="path">사이트1_제목200개.txt</span> 클릭</p></div></li>
+
+      <li class="step" data-n="31"><button class="tick" type="button"><span>31</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">준비한 제목 붙여넣기</p>
+        <p class="hint">한 줄에 제목 하나씩이 가장 좋습니다. “1. 제목” 처럼 번호가 붙어 있어도 알아서 처리됩니다.</p></div></li>
+
+      <li class="step" data-n="32"><button class="tick" type="button"><span>32</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><kbd>Ctrl</kbd>+<kbd>S</kbd> (맥 <kbd>Cmd</kbd>+<kbd>S</kbd>) 로 저장</p>
+        <div class="note stop"><svg><use href="#i-stop"/></svg><div><span class="nt">이 파일에 넣으면 안 되는 것</span>사이트 주소, 아이디, 비밀번호, API 키. <b>제목만</b> 넣으세요.</div></div></div></li>
+
+      <li class="step" data-n="33"><button class="tick" type="button"><span>33</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="시작"><span>시작</span><svg><use href="#i-copy"/></svg></button> 으로 코덱스를 켜고 <button class="cmd" data-copy="애드센스 승인글 자동화 시작해줘"><span>애드센스 승인글 자동화 시작해줘</span><svg><use href="#i-copy"/></svg></button> 입력</p></div></li>
+
+      <li class="step" data-n="34"><button class="tick" type="button"><span>34</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">몇 개 만들지 물어보면 <b>처음에는 반드시 1개만</b></p>
+        <p class="hint">1개 확인 → 괜찮으면 5개 → 그다음 20개씩 늘리세요.</p></div></li>
+
+      <li class="step" data-n="35"><button class="tick" type="button"><span>35</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">워드프레스 관리자에서 <b>임시글</b>과 대표이미지 확인</p>
+        <p class="hint">승인글은 임시글로만 저장됩니다. 공개 발행되지 않습니다.</p>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">성공 확인</span><span class="path">02_생성결과_확인용</span> 폴더에 오늘 날짜 파일이 생기면 완료.</div></div></div></li>
+
+      <li class="step" data-n="36"><button class="tick" type="button"><span>36</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">인증샷 제출 → <button class="cmd" data-copy="저장"><span>저장</span><svg><use href="#i-copy"/></svg></button></p>
+        <div class="note stop"><svg><use href="#i-stop"/></svg><div><span class="nt">인증샷은 결과 폴더 화면만</span>검은 창이나 키설정 화면은 절대 포함하면 안 됩니다. 키가 노출됩니다.</div></div>
+        <div class="note care"><svg><use href="#i-care"/></svg><div><span class="nt">목표</span>사이트 1개당 임시글 <b>100개 이상</b>을 채운 뒤 애드센스를 신청하세요.</div></div></div></li>
+    </ol>
+  </section>
+
+  <!-- ═══════════ CH 4 ═══════════ -->
+  <section class="chapter" id="ch4" data-title="2주차 · 영상">
+    <div class="chead">
+      <span class="idx">4 · 37~56번</span>
+      <h2>2주차 — 쇼핑 숏폼 영상</h2>
+      <p>내가 찍은 영상 → 기획안 → 이미지 → 완성 영상. 순서만 지키면 됩니다.</p>
+    </div>
+
+    <div class="groupname">① 재료 올리기</div>
+    <ol class="steps">
+      <li class="step" data-n="37"><button class="tick" type="button"><span>37</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">휴대폰 영상을 컴퓨터로 먼저 옮기기</p>
+        <p class="hint">카톡 “나에게 보내기” → PC 카톡에서 저장이 가장 쉽습니다. 파일명은 <span class="path">1.mp4, 2.mp4…</span> 로 바꿔두면 편합니다.</p></div></li>
+
+      <li class="step" data-n="38"><button class="tick" type="button"><span>38</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><span class="path">02_2주차_쇼핑숏폼자동화</span> → <span class="path">영상넣는곳</span> 우클릭 → <span class="ui">새 폴더</span></p></div></li>
+
+      <li class="step" data-n="39"><button class="tick" type="button"><span>39</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">폴더 이름은 <b>번호 + 제품명</b></p>
+        <p class="hint">예: <span class="path">005_에어팟맥스</span></p></div></li>
+
+      <li class="step" data-n="40"><button class="tick" type="button"><span>40</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">그 폴더 안으로 영상 파일을 <b>마우스로 끌어다 놓기</b></p>
+        <p class="hint">여러 개를 한 번에 놓아도 됩니다. 크기에 따라 1~5분 걸리고 진행률이 표시됩니다.</p>
+        <div class="note care"><svg><use href="#i-care"/></svg><div><span class="nt">업로드 중에는 탭을 닫지 마세요</span>진행률이 100%가 될 때까지 기다립니다.</div></div></div></li>
+
+      <li class="step" data-n="41"><button class="tick" type="button"><span>41</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">같은 폴더에 우클릭 → <span class="ui">새 파일</span> → <span class="path">상품정보.txt</span></p></div></li>
+
+      <li class="step" data-n="42"><button class="tick" type="button"><span>42</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">3줄 쓰고 <kbd>Ctrl</kbd>+<kbd>S</kbd> 로 저장</p>
+        <p class="hint">1. 005번 &nbsp;·&nbsp; 2. 에어팟맥스 &nbsp;·&nbsp; 3. 쿠팡파트너스 링크</p></div></li>
+    </ol>
+
+    <div class="groupname">② 작업 만들기</div>
+    <ol class="steps">
+      <li class="step" data-n="43"><button class="tick" type="button"><span>43</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">코덱스가 켜져 있으면 <button class="cmd" data-copy="/quit"><span>/quit</span><svg><use href="#i-copy"/></svg></button> 으로 끄기</p>
+        <p class="hint">한글 명령은 코덱스 안이 아니라 <b>검은 창</b>에서 칩니다.</p></div></li>
+
+      <li class="step" data-n="44"><button class="tick" type="button"><span>44</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="새상품 5"><span>새상품 5</span><svg><use href="#i-copy"/></svg></button> 치고 엔터</p>
+        <p class="hint">5는 내 폴더 번호(005)의 숫자입니다. 1번 상품이면 <span class="path">새상품 1</span>.</p>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">성공 확인</span>올린 영상들이 하나로 합쳐지고 작업 폴더가 만들어집니다.</div></div></div></li>
+    </ol>
+
+    <div class="groupname">③ 기획안 만들기</div>
+    <ol class="steps">
+      <li class="step" data-n="45"><button class="tick" type="button"><span>45</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">워드프레스 <span class="ui">메킷허브</span> → <span class="ui">프롬프트 메뉴</span> 에서 내 상품 프롬프트 복사</p></div></li>
+
+      <li class="step" data-n="46"><button class="tick" type="button"><span>46</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="시작"><span>시작</span><svg><use href="#i-copy"/></svg></button> 으로 코덱스를 켜고 프롬프트 붙여넣기</p></div></li>
+
+      <li class="step" data-n="47"><button class="tick" type="button"><span>47</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">1~2분 뒤 제품 폴더에 <b>기획안 파일</b>이 생기면 성공</p>
+        <p class="hint">클릭해서 읽어보세요. 마음에 안 들면 코덱스에게 바로 수정을 요청하면 됩니다.</p></div></li>
+    </ol>
+
+    <div class="groupname">④ 이미지와 영상 만들기</div>
+    <ol class="steps">
+      <li class="step" data-n="48"><button class="tick" type="button"><span>48</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">코덱스를 <button class="cmd" data-copy="/quit"><span>/quit</span><svg><use href="#i-copy"/></svg></button> 으로 끄기</p></div></li>
+
+      <li class="step" data-n="49"><button class="tick" type="button"><span>49</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="이미지만들기"><span>이미지만들기</span><svg><use href="#i-copy"/></svg></button> → 유형을 물어보면 <b>1</b> 누르고 엔터</p></div></li>
+
+      <li class="step" data-n="50"><button class="tick" type="button"><span>50</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="영상만들기"><span>영상만들기</span><svg><use href="#i-copy"/></svg></button> → 똑같이 유형 고르기</p></div></li>
+
+      <li class="step" data-n="51"><button class="tick" type="button"><span>51</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">자막이 쭉 나옵니다. 맞으면 엔터</p>
+        <p class="hint">여기서도 고칠 수 있지만, 편집기(다음 장)에서 고치는 편이 훨씬 편합니다.</p></div></li>
+
+      <li class="step" data-n="52"><button class="tick" type="button"><span>52</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>5~10분 기다리기</b></p>
+        <p class="hint">음성을 만들고 영상을 그리는 중입니다. 진행 표시가 움직이면 정상입니다.</p></div></li>
+
+      <li class="step" data-n="53"><button class="tick" type="button"><span>53</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><span class="path">완성영상</span> 폴더에 영상 <b>2개</b>가 생기면 성공</p>
+        <p class="hint">005_에어팟맥스_쿠팡_완성영상.mp4 · 005_에어팟맥스_네이버_완성영상.mp4</p></div></li>
+
+      <li class="step" data-n="54"><button class="tick" type="button"><span>54</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">영상 파일을 클릭하면 <b>브라우저에서 바로 재생</b>됩니다</p>
+        <p class="hint">내려받지 않아도 확인할 수 있습니다.</p></div></li>
+
+      <li class="step" data-n="55"><button class="tick" type="button"><span>55</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">마음에 들면 → <b>7장(78번)</b> 으로 가서 내려받기</p></div></li>
+
+      <li class="step" data-n="56"><button class="tick" type="button"><span>56</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">고칠 데가 있으면 → <b>다음 장 편집기</b>로</p></div></li>
+    </ol>
+  </section>
+
+  <!-- ═══════════ CH 5 ═══════════ -->
+  <section class="chapter" id="ch5" data-title="편집기">
+    <div class="chead">
+      <span class="idx">5 · 57~69번 · 선택</span>
+      <h2>영상 편집기로 다듬기</h2>
+      <p>자막이 어색하거나, 장면을 빼고 싶거나, 이미지를 내 사진으로 바꾸고 싶을 때만 씁니다. <b>안 써도 됩니다.</b> 앞 장까지만 해도 영상은 완성입니다.</p>
+    </div>
+
+    <div class="groupname">편집기 켜기</div>
+    <ol class="steps">
+      <li class="step" data-n="57"><button class="tick" type="button"><span>57</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="편집기"><span>편집기</span><svg><use href="#i-copy"/></svg></button> 치고 엔터</p>
+        <p class="hint">“포트 4321” 알림이 뜨거나, 화면 안에 미리보기 창이 저절로 열립니다.</p></div></li>
+
+      <li class="step" data-n="58"><button class="tick" type="button"><span>58</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">알림이 뜨면 <span class="ui">브라우저에서 열기</span> 클릭</p>
+        <div class="note care"><svg><use href="#i-care"/></svg><div><span class="nt">알림을 놓쳤다면</span>화면 아래쪽 <span class="ui">포트 / PORTS</span> 탭 → 4321 줄의 지구본 아이콘을 클릭하면 열립니다.</div></div></div></li>
+
+      <li class="step" data-n="59"><button class="tick" type="button"><span>59</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">“라이센스 코드” 를 물어보면 <b>수강 코드</b> 입력</p>
+        <p class="hint">20번에서 넣었던 그 코드입니다.</p></div></li>
+
+      <li class="step" data-n="60"><button class="tick" type="button"><span>60</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">방금 만든 작업이 자동으로 열립니다</p>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">성공 확인</span>왼쪽에 영상 미리보기, 아래에 타임라인, 오른쪽에 설정 패널이 보이면 준비 끝.</div></div></div></li>
+    </ol>
+
+    <div class="groupname">고치기</div>
+    <ol class="steps">
+      <li class="step" data-n="61"><button class="tick" type="button"><span>61</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>자막 고치기</b> — 오른쪽 <span class="ui">나레이션 문장</span> 에서 직접 고쳐 쓰기</p>
+        <p class="hint">오타를 잡거나 문장을 더 짧게 다듬을 때.</p></div></li>
+
+      <li class="step" data-n="62"><button class="tick" type="button"><span>62</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>이미지 바꾸기</b> — 장면 클릭 → <span class="ui">내 이미지로 바꾸기</span> → 사진 선택</p>
+        <p class="hint">jpg · png 만 됩니다. 사진이 너무 크면 조금 작은 걸로 다시 시도하세요.</p></div></li>
+
+      <li class="step" data-n="63"><button class="tick" type="button"><span>63</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>구간 자르기 · 삭제</b> — 타임라인에서 블록의 <b>가운데</b>를 클릭해 자르기</p>
+        <p class="hint">너무 끝쪽은 잘리지 않습니다. 삭제하면 뒤 블록이 자동으로 당겨집니다.</p></div></li>
+
+      <li class="step" data-n="64"><button class="tick" type="button"><span>64</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>자막 모양 · 화면 움직임</b> — 오른쪽에서 글씨 크기, 자막 색, 화면 효과 고르기</p>
+        <p class="hint">자막 색은 기본 흰색 · 노란 강조 · 검정 박스. 화면 효과는 천천히 확대 · 살짝 확대 · 움직임 없음 등.</p></div></li>
+
+      <li class="step" data-n="65"><button class="tick" type="button"><span>65</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><b>되돌리기</b> — <kbd>Ctrl</kbd>+<kbd>Z</kbd> (맥 <kbd>Cmd</kbd>+<kbd>Z</kbd>) 로 한 단계씩</p>
+        <p class="hint">완전히 처음으로 돌리려면 <span class="ui">원본 복구</span> 버튼.</p></div></li>
+    </ol>
+
+    <div class="groupname">다시 만들기</div>
+    <ol class="steps">
+      <li class="step" data-n="66"><button class="tick" type="button"><span>66</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">다 고쳤으면 <span class="ui">수정한 영상 다시 제작하기</span> 클릭</p></div></li>
+
+      <li class="step" data-n="67"><button class="tick" type="button"><span>67</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">“음성도 새로 만들까요?” 라고 물으면 → <b>예</b></p>
+        <div class="note stop"><svg><use href="#i-stop"/></svg><div><span class="nt">자막을 고쳤는데 음성을 안 만들면</span>영상 목소리는 <b>옛날 문장 그대로</b> 나옵니다. 자막을 건드렸다면 반드시 “예”.</div></div></div></li>
+
+      <li class="step" data-n="68"><button class="tick" type="button"><span>68</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">확인만 할 거면 <span class="ui">빠른 제작</span>, 업로드할 거면 <span class="ui">고화질 제작</span></p>
+        <p class="hint">빠른 제작은 화질이 조금 낮은 대신 금방 끝납니다. 여러 번 고칠 때 쓰세요.</p></div></li>
+
+      <li class="step" data-n="69"><button class="tick" type="button"><span>69</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">진행률 100% → <span class="ui">완성 영상 보관함</span> 에 새 영상이 추가됩니다</p>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">성공 확인</span>보관함에서 바로 재생해 확인한 뒤, 마음에 들면 다음다음 장으로.</div></div></div></li>
+    </ol>
+  </section>
+
+  <!-- ═══════════ CH 6 ═══════════ -->
+  <section class="chapter" id="ch6" data-title="선택 기능">
+    <div class="chead">
+      <span class="idx">6 · 70~77번 · 선택</span>
+      <h2>더 좋게 만드는 선택 기능</h2>
+      <p><b>안 써도 됩니다.</b> 지금까지 순서만 그대로 쓰셔도 결과는 똑같이 나옵니다. “이게 좀 아쉬운데” 싶을 때만 골라 쓰세요.</p>
+    </div>
+
+    <ol class="steps">
+      <li class="step" data-n="70"><button class="tick" type="button"><span>70</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="닮은이미지만들기"><span>닮은이미지만들기</span><svg><use href="#i-copy"/></svg></button> — 내 영상을 참고해 <b>내 제품과 닮은</b> 이미지 생성</p>
+        <p class="hint">AI 이미지가 내 제품이랑 너무 다르게 나올 때.</p></div></li>
+
+      <li class="step" data-n="71"><button class="tick" type="button"><span>71</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="썸네일후보보기"><span>썸네일후보보기</span><svg><use href="#i-copy"/></svg></button> — 내 영상에서 <b>선명한 장면 10장</b> 뽑기</p>
+        <p class="hint">AI 썸네일보다 실제 제품 사진을 쓰고 싶을 때.</p></div></li>
+
+      <li class="step" data-n="72"><button class="tick" type="button"><span>72</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">뽑힌 후보는 <span class="path">썸네일후보</span> 폴더에서 눈으로 고르기</p></div></li>
+
+      <li class="step" data-n="73"><button class="tick" type="button"><span>73</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="이미지바꾸기"><span>이미지바꾸기</span><svg><use href="#i-copy"/></svg></button> — 장면·썸네일을 <b>내 사진</b>으로 교체</p>
+        <p class="hint">편집기를 안 켜고도 바로 바꿀 수 있습니다.</p></div></li>
+
+      <li class="step" data-n="74"><button class="tick" type="button"><span>74</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="이미지되돌리기"><span>이미지되돌리기</span><svg><use href="#i-copy"/></svg></button> — 바꾼 이미지를 원래대로</p>
+        <p class="hint">원본은 지워지지 않고 보관됩니다.</p></div></li>
+
+      <li class="step" data-n="75"><button class="tick" type="button"><span>75</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="음성미리듣기"><span>음성미리듣기</span><svg><use href="#i-copy"/></svg></button> — 자막 고친 뒤 <b>음성만 먼저</b> 듣기</p>
+        <p class="hint">영상은 5~10분 걸리니, 발음·억양만 먼저 확인하고 싶을 때.</p></div></li>
+
+      <li class="step" data-n="76"><button class="tick" type="button"><span>76</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">이미지를 바꿨다면 <button class="cmd" data-copy="영상만들기"><span>영상만들기</span><svg><use href="#i-copy"/></svg></button> 를 다시 해야 반영됩니다</p></div></li>
+
+      <li class="step" data-n="77"><button class="tick" type="button"><span>77</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">공지에 “업데이트 하세요” 가 뜨면 <button class="cmd" data-copy="업데이트"><span>업데이트</span><svg><use href="#i-copy"/></svg></button></p>
+        <p class="hint">새 기능과 오류 수정이 들어옵니다. <b>내 작업물(01·02 폴더)과 키 설정은 그대로</b>이고, 받은 내용은 클라우드에 자동으로 올라갑니다.</p>
+        <div class="note care"><svg><use href="#i-care"/></svg><div><span class="nt">“작업방을 새로 만들어 주세요” 가 나오면</span>
+          작업방을 <b>만들 때</b> 정해지는 설정이 바뀐 경우입니다. 화면에 나온 순서대로 하시면 됩니다.<br>
+          ① <b>github.com/codespaces</b> → 오른쪽 <b>…</b> → <b>Delete</b> &nbsp;→&nbsp; ② 내 저장소에서 <b>Code → Codespaces → Create</b><br>
+          작업물은 이미 올라가 있으니 안심하고 지우셔도 됩니다. 다만 <b>키설정과 코덱스 로그인은 다시</b> 해야 해요 (5분).</div></div></div></li>
+    </ol>
+  </section>
+
+  <!-- ═══════════ CH 7 ═══════════ -->
+  <section class="chapter" id="ch7" data-title="내려받고 마무리">
+    <div class="chead">
+      <span class="idx">7 · 78~83번</span>
+      <h2>완성본 내려받고 마무리</h2>
+      <p>여기까지 하면 오늘 작업 끝입니다.</p>
+    </div>
+
+    <ol class="steps">
+      <li class="step" data-n="78"><button class="tick" type="button"><span>78</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="내보내기"><span>내보내기</span><svg><use href="#i-copy"/></svg></button> 치고 엔터</p>
+        <p class="hint">완성 영상들이 압축파일 하나로 묶입니다.</p></div></li>
+
+      <li class="step" data-n="79"><button class="tick" type="button"><span>79</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">그 압축파일을 <b>우클릭 → Download</b></p>
+        <p class="hint">영상 1개만 받을 거면 그 영상 파일을 바로 우클릭 → Download 해도 됩니다.</p></div></li>
+
+      <li class="step" data-n="80"><button class="tick" type="button"><span>80</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">내 컴퓨터 <b>다운로드 폴더</b>에서 압축 풀고 확인</p>
+        <p class="hint">크롬 오른쪽 위 화살표 → “폴더에서 보기” 로 찾을 수 있습니다.</p></div></li>
+
+      <li class="step" data-n="81"><button class="tick" type="button"><span>81</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="정리"><span>정리</span><svg><use href="#i-copy"/></svg></button> 치고 엔터</p>
+        <p class="hint">중간 파일을 지워 공간을 확보합니다. 완성 영상은 지워지지 않습니다.</p>
+        <div class="note care"><svg><use href="#i-care"/></svg><div><span class="nt">완성 영상을 여기 쌓아두지 마세요</span>이곳은 <b>작업대</b>이지 보관함이 아닙니다. 만들면 바로 내려받아 내 컴퓨터에 두세요.</div></div></div></li>
+
+      <li class="step" data-n="82"><button class="tick" type="button"><span>82</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do"><button class="cmd" data-copy="저장"><span>저장</span><svg><use href="#i-copy"/></svg></button> 치고 엔터</p></div></li>
+
+      <li class="step" data-n="83"><button class="tick" type="button"><span>83</span><svg><use href="#i-check"/></svg></button><div class="sbody">
+        <p class="do">브라우저 탭 닫기 — 끝!</p>
+        <div class="note go"><svg><use href="#i-go"/></svg><div><span class="nt">다음에 할 때는</span>24번(github.com/codespaces)부터 시작하면 됩니다.</div></div></div></li>
+    </ol>
+  </section>
+
+  <!-- ═══════════ CH 8 ═══════════ -->
+  <section class="chapter" id="ch8" data-title="명령어 사전">
+    <div class="chead">
+      <span class="idx">참고</span>
+      <h2>명령어 사전</h2>
+      <p>전부 <b>검은 창</b>에 치는 한 단어입니다. 코덱스 대화창 안이 아닙니다. 눌러서 복사하세요.</p>
+    </div>
+
+    <div class="groupname">항상 쓰는 것</div>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>명령</th><th>하는 일</th><th>이럴 때</th></tr></thead>
+      <tbody>
+        <tr><td><button class="cmd" data-copy="시작"><span>시작</span><svg><use href="#i-copy"/></svg></button></td><td>AI 비서(코덱스) 켜기</td><td>오늘 작업을 시작할 때</td></tr>
+        <tr><td><button class="cmd" data-copy="진단"><span>진단</span><svg><use href="#i-copy"/></svg></button></td><td>환경 점검 결과 보기</td><td><b>뭔가 이상할 때 제일 먼저</b></td></tr>
+        <tr><td><button class="cmd" data-copy="키설정"><span>키설정</span><svg><use href="#i-copy"/></svg></button></td><td>API 키·수강 코드 입력·변경</td><td>처음 1회, 키를 바꿨을 때</td></tr>
+        <tr><td><button class="cmd" data-copy="저장"><span>저장</span><svg><use href="#i-copy"/></svg></button></td><td>작업물 클라우드에 보관</td><td>하루 작업을 마칠 때마다</td></tr>
+        <tr><td><button class="cmd" data-copy="정리"><span>정리</span><svg><use href="#i-copy"/></svg></button></td><td>중간 파일 지워 공간 확보</td><td>공간이 부족할 때</td></tr>
+        <tr><td><button class="cmd" data-copy="업데이트"><span>업데이트</span><svg><use href="#i-copy"/></svg></button></td><td>프로그램 최신판 받기</td><td>공지에서 안내할 때</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="groupname">2주차 영상 전용</div>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>명령</th><th>하는 일</th></tr></thead>
+      <tbody>
+        <tr><td><button class="cmd" data-copy="새상품 5"><span>새상품 5</span><svg><use href="#i-copy"/></svg></button></td><td>상품 작업 만들기 <b>(숫자는 내 폴더 번호)</b></td></tr>
+        <tr><td><button class="cmd" data-copy="이미지만들기"><span>이미지만들기</span><svg><use href="#i-copy"/></svg></button></td><td>기획안 기준으로 이미지 만들기</td></tr>
+        <tr><td><button class="cmd" data-copy="영상만들기"><span>영상만들기</span><svg><use href="#i-copy"/></svg></button></td><td>음성 만들고 영상 렌더링</td></tr>
+        <tr><td><button class="cmd" data-copy="편집기"><span>편집기</span><svg><use href="#i-copy"/></svg></button></td><td>영상 편집기 켜기 (포트 4321)</td></tr>
+        <tr><td><button class="cmd" data-copy="내보내기"><span>내보내기</span><svg><use href="#i-copy"/></svg></button></td><td>완성 영상을 압축파일로 묶기</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="groupname">선택 — 안 써도 되는 것</div>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>명령</th><th>하는 일</th></tr></thead>
+      <tbody>
+        <tr><td><button class="cmd" data-copy="닮은이미지만들기"><span>닮은이미지만들기</span><svg><use href="#i-copy"/></svg></button></td><td>내 영상을 참조해 닮은 이미지 생성</td></tr>
+        <tr><td><button class="cmd" data-copy="썸네일후보보기"><span>썸네일후보보기</span><svg><use href="#i-copy"/></svg></button></td><td>내 영상 장면에서 썸네일 후보 뽑기</td></tr>
+        <tr><td><button class="cmd" data-copy="이미지바꾸기"><span>이미지바꾸기</span><svg><use href="#i-copy"/></svg></button></td><td>장면·썸네일을 내 사진으로 교체</td></tr>
+        <tr><td><button class="cmd" data-copy="이미지되돌리기"><span>이미지되돌리기</span><svg><use href="#i-copy"/></svg></button></td><td>교체한 이미지를 원래대로 복원</td></tr>
+        <tr><td><button class="cmd" data-copy="음성미리듣기"><span>음성미리듣기</span><svg><use href="#i-copy"/></svg></button></td><td>자막 고친 뒤 음성만 먼저 확인</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="groupname">맥과 윈도우의 차이 — 이것뿐입니다</div>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th></th><th>맥</th><th>윈도우</th></tr></thead>
+      <tbody>
+        <tr><td>복사</td><td><kbd>Cmd</kbd>+<kbd>C</kbd></td><td><kbd>Ctrl</kbd>+<kbd>C</kbd></td></tr>
+        <tr><td>붙여넣기</td><td><kbd>Cmd</kbd>+<kbd>V</kbd></td><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td></tr>
+        <tr><td>저장</td><td><kbd>Cmd</kbd>+<kbd>S</kbd></td><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note stop"><svg><use href="#i-stop"/></svg><div><span class="nt">검은 창에서만은 맥도 윈도우도 똑같습니다</span><b>드래그 → 우클릭 → 복사.</b> 검은 창에서는 <kbd>Ctrl</kbd>+<kbd>C</kbd> 가 복사가 아닙니다.</div></div>
+  </section>
+
+  <!-- ═══════════ CH 9 ═══════════ -->
+  <section class="chapter" id="ch9" data-title="막혔을 때">
+    <div class="chead">
+      <span class="idx">참고</span>
+      <h2>막혔을 때</h2>
+      <p>대부분 여기서 풀립니다. 그래도 안 되면 <button class="cmd" data-copy="진단"><span>진단</span><svg><use href="#i-copy"/></svg></button> 결과를 통째로 복사해 문의 채널에 올려주세요.</p>
+    </div>
+
+    <details class="faq"><summary><span class="qmark">Q</span>화면이 안 뜨고 계속 로딩만 해요<svg class="chev"><use href="#i-chev"/></svg></summary>
+      <div class="ans">처음 만들 때는 <b>3~10분</b> 걸립니다. 검은 창에 영어 글자가 흘러가는 동안은 정상입니다. 초록 줄과 함께 <b>“✅ 준 비 완 료”</b> 가 뜨면 끝난 것입니다. 10분이 넘도록 안 뜨면 새로고침(F5), 그래도 안 되면 <b>github.com/codespaces</b> 에서 해당 항목 오른쪽 <b>…</b> → Delete 후 15번부터 다시 하세요.</div></details>
+
+    <details class="faq"><summary><span class="qmark">Q</span>검은 창에 “여기서는 작업할 수 없어요” 라고 빨간 글씨가 떠요<svg class="chev"><use href="#i-chev"/></svg></summary>
+      <div class="ans"><b>원본 키트에 작업방을 만드신 겁니다.</b> 거기서는 저장이 안 돼서 작업물이 나중에 사라지기 때문에 미리 막아둔 것입니다. 안내서 <b>9번 바로가기</b>로 내 저장소를 먼저 만들고, <b>내 저장소에서</b> 작업방을 만드세요. 지금 작업방은 <b>github.com/codespaces</b> 에서 지우면 됩니다.</div></details>
+
+    <details class="faq"><summary><span class="qmark">Q</span>갑자기 화면이 멈췄어요 / 꺼졌어요<svg class="chev"><use href="#i-chev"/></svg></summary>
+      <div class="ans">고장이 아닙니다. 30분 동안 아무것도 안 하면 자동으로 잠듭니다. 작업방을 다시 열면 하던 작업 그대로 있습니다.</div></details>
+
+    <details class="faq"><summary><span class="qmark">Q</span>명령어를 쳤는데 “command not found” 라고 나와요<svg class="chev"><use href="#i-chev"/></svg></summary>
+      <div class="ans">검은 창 위쪽의 <b>[+]</b> 버튼으로 터미널을 새로 열고 다시 해보세요. 앞뒤 공백 없이 입력했는지도 확인하세요.</div></details>
+
+    <details class="faq"><summary><span class="qmark">Q</span>로그인 코드를 승인했는데 안 돼요<svg class="chev"><use href="#i-chev"/></svg></summary>
+      <div class="ans">1~5번(ChatGPT 스위치 켜기)을 다시 확인하세요. 그리고 <b>로그인한 ChatGPT 계정과 스위치를 켠 계정이 같은지</b> 보세요.</div></details>
+
+    <details class="faq"><summary><span class="qmark">Q</span>키를 붙여넣었는데 화면에 아무것도 안 보여요<svg class="chev"><use href="#i-chev"/></svg></summary>
+      <div class="ans">원래 안 보입니다(보안). 한 번만 붙여넣고 엔터를 누르세요.</div></details>
+
+    <details class="faq"><summary><span class="qmark">Q</span>붙여넣기 자체가 안 돼요<svg class="chev"><use href="#i-chev"/></svg></summary>
+      <div class="ans">처음 뜬 영어 팝업에서 Block을 누른 것입니다. 주소창 자물쇠 아이콘 → 클립보드 → 허용 → 새로고침.</div></details>
+
+    <details class="faq"><summary><span class="qmark">Q</span>편집기가 안 열려요<svg class="chev"><use href="#i-chev"/></svg></summary>
+      <div class="ans">화면 아래 <b>포트 / PORTS</b> 탭에서 4321 줄의 지구본 아이콘을 클릭하세요. 그래도 없으면 검은 창에서 <kbd>Ctrl</kbd>+<kbd>C</kbd> 로 끄고 <b>편집기</b> 를 다시 실행하세요.</div></details>
+
+    <details class="faq"><summary><span class="qmark">Q</span>영상 자막이 네모(□)로 나와요<svg class="chev"><use href="#i-chev"/></svg></summary>
+      <div class="ans">옛날 버전입니다. 검은 창에 <b>업데이트</b> 를 치고 엔터 → 끝나면 <b>영상만들기</b> 를 다시 하세요.</div></details>
+
+    <details class="faq"><summary><span class="qmark">Q</span>돈이 나가나요?<svg class="chev"><use href="#i-chev"/></svg></summary>
+      <div class="ans">작업방(깃허브)은 <b>무료</b>입니다. 카드를 등록하지 않으면 요금이 청구되는 일 자체가 없습니다. 무료 사용 시간은 월 약 60시간이며 주 5시간 실습 기준으로 넉넉합니다. ChatGPT Plus와 API 키 비용만 기존과 똑같이 나갑니다.</div></details>
+
+    <details class="faq"><summary><span class="qmark">Q</span>작업물이 사라질까 봐 걱정돼요<svg class="chev"><use href="#i-chev"/></svg></summary>
+      <div class="ans">작업이 끝날 때마다 <b>저장</b> 만 눌러두면 됩니다. 30일 넘게 접속하지 않아 작업방이 삭제돼도, 저장한 내용은 새 작업방을 만들면 그대로 되살아납니다.</div></details>
+
+    <details class="faq"><summary><span class="qmark">Q</span>진행률 체크는 어디에 저장되나요?<svg class="chev"><use href="#i-chev"/></svg></summary>
+      <div class="ans">이 안내서를 연 <b>내 브라우저에만</b> 저장됩니다. 어디로도 전송되지 않습니다. 다른 컴퓨터에서 열면 처음부터 시작합니다.</div></details>
+  </section>
+
+  </div>
+</main>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  "use strict";
+  var KEY = "makeit-kit-progress-v1";
+  var THEME = "makeit-kit-theme";
+  var chapters = Array.prototype.slice.call(document.querySelectorAll(".chapter"));
+  var nav = document.getElementById("nav");
+  var crumb = document.getElementById("crumb");
+  var pbar = document.getElementById("pbar");
+  var pval = document.getElementById("pval");
+  var steps = Array.prototype.slice.call(document.querySelectorAll(".step"));
+  var total = steps.length;
+
+  /* ── 저장 ── */
+  function load(){
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+    catch(e){ return {}; }
+  }
+  function save(state){
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){}
+  }
+  var state = load();
+
+  /* ── 레일 만들기 ── */
+  chapters.forEach(function(ch, i){
+    var li = document.createElement("li");
+    var b = document.createElement("button");
+    b.type = "button";
+    b.innerHTML = '<span class="dot"></span><span class="lb"></span><span class="cnt"></span>';
+    b.querySelector(".lb").textContent = ch.dataset.title;
+    var n = ch.querySelectorAll(".step").length;
+    b.querySelector(".cnt").textContent = n ? n : "";
+    b.addEventListener("click", function(){ go(i); });
+    li.appendChild(b);
+    nav.appendChild(li);
+  });
+  var navBtns = Array.prototype.slice.call(nav.querySelectorAll("button"));
+  var navLis = Array.prototype.slice.call(nav.querySelectorAll("li"));
+
+  /* ── 챕터 이동 ── */
+  var cur = 0;
+  function go(i, keepScroll){
+    if(i < 0 || i >= chapters.length) return;
+    cur = i;
+    chapters.forEach(function(c, k){ c.classList.toggle("active", k === i); });
+    navBtns.forEach(function(b, k){ b.setAttribute("aria-current", k === i ? "true" : "false"); });
+    crumb.textContent = chapters[i].dataset.title;
+    buildChapNav(i);
+    if(!keepScroll) window.scrollTo({top:0, behavior:"instant" in window ? "instant" : "auto"});
+    try { history.replaceState(null, "", "#" + chapters[i].id); } catch(e){}
+    if(navBtns[i] && navBtns[i].scrollIntoView) {
+      navBtns[i].scrollIntoView({block:"nearest", inline:"nearest"});
+    }
+  }
+
+  /* ── 이전/다음 ── */
+  function buildChapNav(i){
+    chapters.forEach(function(c){
+      var old = c.querySelector(".chapnav");
+      if(old) old.remove();
+    });
+    var wrap = document.createElement("div");
+    wrap.className = "chapnav";
+    var prev = document.createElement("button");
+    prev.type = "button"; prev.className = "prev";
+    if(i > 0){
+      prev.innerHTML = '<span class="dir">← 이전</span><span class="ttl"></span>';
+      prev.querySelector(".ttl").textContent = chapters[i-1].dataset.title;
+      prev.addEventListener("click", function(){ go(i-1); });
+    } else { prev.innerHTML = '<span class="dir">처음</span><span class="ttl">시작 지점입니다</span>'; prev.disabled = true; }
+    var next = document.createElement("button");
+    next.type = "button"; next.className = "next";
+    if(i < chapters.length - 1){
+      next.innerHTML = '<span class="dir">다음 →</span><span class="ttl"></span>';
+      next.querySelector(".ttl").textContent = chapters[i+1].dataset.title;
+      next.addEventListener("click", function(){ go(i+1); });
+    } else { next.innerHTML = '<span class="dir">끝</span><span class="ttl">마지막 장입니다</span>'; next.disabled = true; }
+    wrap.appendChild(prev); wrap.appendChild(next);
+    chapters[i].appendChild(wrap);
+  }
+
+  /* ── 체크 ── */
+  function paint(){
+    var done = 0;
+    steps.forEach(function(s){
+      var n = s.dataset.n;
+      var on = !!state[n];
+      s.classList.toggle("done", on);
+      s.querySelector(".tick").setAttribute("aria-pressed", on ? "true" : "false");
+      if(on) done++;
+    });
+    pval.textContent = done + " / " + total;
+    pbar.style.width = (total ? (done/total*100) : 0) + "%";
+    chapters.forEach(function(ch, i){
+      var ss = ch.querySelectorAll(".step");
+      var all = ss.length > 0;
+      for(var k=0;k<ss.length;k++){ if(!state[ss[k].dataset.n]){ all = false; break; } }
+      navLis[i].classList.toggle("done", all);
+    });
+  }
+  steps.forEach(function(s){
+    var btn = s.querySelector(".tick");
+    btn.setAttribute("aria-label", s.dataset.n + "번 완료 표시");
+    btn.addEventListener("click", function(){
+      var n = s.dataset.n;
+      if(state[n]) delete state[n]; else state[n] = 1;
+      save(state); paint();
+    });
+  });
+
+  /* ── 명령 복사 ── */
+  var toast = document.getElementById("toast");
+  var tmr;
+  function say(msg){
+    toast.textContent = msg;
+    toast.classList.add("on");
+    clearTimeout(tmr);
+    tmr = setTimeout(function(){ toast.classList.remove("on"); }, 1600);
+  }
+  document.addEventListener("click", function(e){
+    var c = e.target.closest ? e.target.closest(".cmd") : null;
+    if(!c) return;
+    var txt = c.getAttribute("data-copy");
+    var ok = function(){ say("복사했어요 — 검은 창에 붙여넣으세요"); };
+    /* 어떤 이유로든 자동 복사가 막히면(파일로 직접 연 경우 등)
+       명령 글자를 대신 선택해 준다. 그러면 Ctrl+C 한 번이면 끝. */
+    var no = function(){
+      if(selectText(c.querySelector("span"))) say("글자를 골라뒀어요 — Ctrl+C (맥 Cmd+C) 로 복사하세요");
+      else say("복사가 안 돼요 — 명령을 직접 입력해 주세요: " + txt);
+    };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(ok, function(){ fallback(txt) ? ok() : no(); });
+    } else {
+      fallback(txt) ? ok() : no();
+    }
+  });
+  function fallback(txt){
+    try{
+      var ta = document.createElement("textarea");
+      ta.value = txt;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      if(ta.setSelectionRange) ta.setSelectionRange(0, txt.length);
+      var r = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return r;
+    } catch(e){ return false; }
+  }
+  function selectText(el){
+    try{
+      if(!el) return false;
+      var sel = window.getSelection();
+      var range = document.createRange();
+      range.selectNodeContents(el);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return true;
+    } catch(e){ return false; }
+  }
+
+  /* ── 테마 ── */
+  var tbtn = document.getElementById("themeBtn");
+  function applyTheme(t){
+    document.documentElement.setAttribute("data-theme", t);
+    try { localStorage.setItem(THEME, t); } catch(e){}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem(THEME); } catch(e){}
+  if(saved){ applyTheme(saved); }
+  else {
+    var sysDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", sysDark ? "dark" : "light");
+  }
+  tbtn.addEventListener("click", function(){
+    applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+  });
+
+  document.getElementById("printBtn").addEventListener("click", function(){ window.print(); });
+
+  /* ── 키보드 ← → ── */
+  document.addEventListener("keydown", function(e){
+    if(e.target.matches && e.target.matches("input,textarea")) return;
+    if(e.key === "ArrowRight") go(cur+1);
+    if(e.key === "ArrowLeft") go(cur-1);
+  });
+
+  /* ── 시작 ── */
+  var idx = 0;
+  if(location.hash){
+    chapters.forEach(function(c, i){ if("#"+c.id === location.hash) idx = i; });
+  }
+  go(idx, true);
+  paint();
+})();
+</script>
+</body>
+</html>
