@@ -145,8 +145,18 @@ const baseChecks = [
   {
     code: "E07",
     name: "디스크 사용량",
-    ok: !disk || parseInt(disk.percent, 10) < 90,
-    detail: disk ? `${disk.usedGb}GB / ${disk.totalGb}GB 사용 (${disk.percent})${parseInt(disk.percent, 10) >= 90 ? " — 터미널에 '정리' 를 입력해 공간을 확보하세요" : ""}` : "확인 안 됨 (치명적이지 않음)",
+    // 디스크는 32GB 지만 무료 스토리지 한도는 15GB-month 라, 디스크가 한참 남았는데도
+    // 무료 한도가 먼저 소진돼 다음 달까지 작업방이 멈출 수 있다. 그래서 퍼센트가 아니라
+    // 절대 용량으로 미리 경고한다 (영상 작업 1건이 대략 1GB 안팎).
+    ok: !disk || (parseInt(disk.percent, 10) < 90 && Number(disk.usedGb) < 12),
+    detail: disk
+      ? `${disk.usedGb}GB / ${disk.totalGb}GB 사용 (${disk.percent})` +
+        (Number(disk.usedGb) >= 12
+          ? " — 무료 사용량(월 15GB)에 가까워졌어요. 완성영상을 내려받은 뒤 '정리' 를 입력해 주세요"
+          : parseInt(disk.percent, 10) >= 90
+            ? " — 터미널에 '정리' 를 입력해 공간을 확보하세요"
+            : "")
+      : "확인 안 됨 (치명적이지 않음)",
   },
   {
     code: "E08",
