@@ -2,8 +2,8 @@
 {
   "name": "월부 중급반 키트",
 
-  // D3: Node 22 + Debian bookworm — Remotion 공식 Docker 가이드와 동일 조합.
-  //     Node 20은 2026-04 EOL로 태그 동결, universal 이미지는 수 GB로 과중.
+  // Node 22 + Debian bookworm. Node 20은 2026-04 EOL 로 태그 동결,
+  // universal 이미지는 수 GB 로 과중해서 쓰지 않는다.
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
 
   // D6: CODEX_HOME을 워크스페이스 내부로 고정 — rebuild 시 홈 디렉토리는 소멸하지만
@@ -53,8 +53,8 @@
   // 접속할 때마다: 환영 안내 + 미커밋 작업물 경고 (PRD 4-4, 8-R3)
   "postAttachCommand": "bash .devcontainer/welcome.sh",
 
-  // D10: 2코어 8GB 기본 — 4코어는 렌더 2배 빠르지만 무료 core-hour도 2배 속도로 소진.
-  //      렌더가 답답한 수강생만 개별로 4코어 변경 안내.
+  // 2코어 8GB 기본. 4코어는 무료 core-hour 도 2배 속도로 소진되므로,
+  // 속도가 답답하다는 수강생만 개별로 올리도록 안내한다.
   "hostRequirements": {
     "cpus": 2,
     "memory": "8gb"

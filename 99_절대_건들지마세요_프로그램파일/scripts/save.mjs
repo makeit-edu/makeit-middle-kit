@@ -95,7 +95,7 @@ const targets = candidates.filter(({filePath}) => {
 
 if (targets.length === 0) {
   console.log("");
-  console.log("저장할 새 작업물이 없어요. (제목 파일·기획안 등 텍스트 작업물이 바뀌면 저장됩니다)");
+  console.log("저장할 새 작업물이 없어요. (제목 파일 등 텍스트 작업물이 바뀌면 저장됩니다)");
   if (skipped.length > 0) {
     console.log("");
     console.log("아래 파일은 대용량 파일이라 저장 대상이 아니에요.");
@@ -123,8 +123,8 @@ for (const code of VALID_LICENSE_CODES) sensitiveExact.push({key: "수강 코드
 
 const secretPatterns = [
   {label: "OpenAI API 키 형식(sk-...)", regex: /sk-[A-Za-z0-9_-]{20,}/},
-  {label: "ElevenLabs API 키 형식(sk_...)", regex: /sk_[A-Za-z0-9]{20,}/},
-  {label: "ElevenLabs 키 사용 흔적(xi-api-key)", regex: /xi-api-key\s*[:=]\s*['"]?[A-Za-z0-9_-]{16,}/i},
+  {label: "API 키 형식(sk_...)", regex: /sk_[A-Za-z0-9]{20,}/},
+  {label: "API 키 사용 흔적(xi-api-key)", regex: /xi-api-key\s*[:=]\s*['"]?[A-Za-z0-9_-]{16,}/i},
 ];
 
 const stagedFiles = git(["diff", "--cached", "--name-only", "-z"]).split("\0").filter(Boolean);
