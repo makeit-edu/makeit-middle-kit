@@ -18,19 +18,8 @@
     "ghcr.io/devcontainers/features/sshd:1": {}
   },
 
-  // D13: 편집기 서버는 4321 포트·127.0.0.1 바인딩 유지 —
-  //      Codespaces 포워더가 컨테이너 loopback에 접속하므로 바인딩 변경 불필요.
-  //      openPreview(임베디드 프리뷰)로 팝업 차단 리스크 회피.
-  "forwardPorts": [4321],
-  "portsAttributes": {
-    "4321": {
-      "label": "영상편집기",
-      "onAutoForward": "openPreview"
-    }
-  },
-
   "customizations": {
-    // 생성 직후 README.md 전문(83단계)이 미리보기로 열려 안내서와 혼동을 준다.
+    // 생성 직후 README.md 가 미리보기로 열려 안내서와 혼동을 준다.
     // openFiles 는 "파일 하나 이상"을 요구해서 빈 배열([])로는 끌 수 없다 —
     // 빈 배열은 무시되고 README 를 여는 기본 동작으로 되돌아간다(실측).
     // 그래서 '아무것도 안 열기'는 포기하고, 대신 한 화면에 들어오는

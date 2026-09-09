@@ -460,6 +460,43 @@ function wordpressCredentials(username, appPassword) {
   return Buffer.from(`${String(username || "").trim()}:${String(appPassword || "").trim()}`).toString("base64");
 }
 
+// 워드프레스에 이미 올라가 있는 글 제목을 통째로 가져온다 (임시글·비공개 포함).
+//
+// 왜 필요한가: 다른 기수에서 이미 쓴 글은 이 키트의 로컬 기록(draft-history.json)에 없다.
+// 그래서 제목별 중복 확인만 있으면 "5개 만들어줘"가 앞의 5개를 뽑아 놓고 그중 3개를
+// 건너뛰어 2개만 만들게 된다. 시작 전에 한 번 훑어 두면 처음부터 새 제목 5개를 고를 수 있다.
+async function fetchAllPostTitles({siteUrl, username, appPassword}) {
+  const credentials = wordpressCredentials(username, appPassword);
+  const base = wordpressBaseUrl(siteUrl);
+  const perPage = 100;
+  const titles = [];
+  for (let page = 1; page <= 30; page += 1) {
+    const url = `${base}/wp-json/wp/v2/posts?context=edit&status=draft,pending,future,publish,private&per_page=${perPage}&page=${page}&orderby=id&order=asc&_fields=title`;
+    let response;
+    try {
+      response = await fetch(url, {headers: {Authorization: `Basic ${credentials}`, Accept: "application/json"}});
+    } catch (error) {
+      return {titles, complete: false, reason: error instanceof Error ? error.message : String(error)};
+    }
+    // 마지막 페이지를 넘어서면 워드프레스가 400을 준다 — 정상 종료로 본다
+    if (response.status === 400) break;
+    if (!response.ok) return {titles, complete: false, reason: `상태 코드 ${response.status}`};
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      return {titles, complete: false, reason: "응답을 해석하지 못함"};
+    }
+    if (!Array.isArray(data) || data.length === 0) break;
+    for (const post of data) {
+      const raw = stripTags(post?.title?.raw || post?.title?.rendered || "");
+      if (raw) titles.push(raw);
+    }
+    if (data.length < perPage) break;
+  }
+  return {titles, complete: true};
+}
+
 async function findExistingPostByTitle({siteUrl, username, appPassword, title}) {
   const credentials = wordpressCredentials(username, appPassword);
   const url = `${wordpressBaseUrl(siteUrl)}/wp-json/wp/v2/posts?context=edit&status=draft,pending,future,publish&search=${encodeURIComponent(title)}&per_page=50&_fields=id,title,status`;
@@ -1209,7 +1246,7 @@ const titlesPath = resolveTitleFile(projectRoot, site, argValue("titles", ""));
 const outputDir = join(programRoot, "makeit-adsense", "outputs", `site-${String(site).padStart(2, "0")}`);
 const visibleOutputDir = join(
   projectRoot,
-  "01_1주차_애드센스승인",
+  "애드센스 승인글",
   "02_생성결과_확인용",
   `site-${String(site).padStart(2, "0")}`,
 );
@@ -1235,15 +1272,32 @@ if (!dryRun && (!ready(siteUrl, ["example.com", "example-"]) || !ready(username,
 const titleCatalog = readTitleEntries(titlesPath);
 const allTitleEntries = titleCatalog.entries;
 const previousDraftHistory = readDraftHistory(outputDir, visibleOutputDir);
-const usedTitleKeys = new Set(previousDraftHistory.map((entry) => titleKey(entry.title)));
+
+// 이미 쓴 글 걸러내기 ① 이 키트로 만든 기록  ② 워드프레스에 실제로 올라가 있는 글
+const existingOnWordPress = includeUsedTitles
+  ? {titles: [], complete: true}
+  : await fetchAllPostTitles({siteUrl, username, appPassword});
+if (!includeUsedTitles) {
+  if (existingOnWordPress.complete) {
+    console.log(`워드프레스에 이미 있는 글 ${existingOnWordPress.titles.length}개 확인 — 같은 제목은 빼고 진행합니다.`);
+  } else {
+    console.log(`(주의: 워드프레스 글 목록을 다 못 읽었어요 - ${existingOnWordPress.reason} / 글마다 발행 직전에 다시 확인합니다)`);
+  }
+}
+
+const usedTitleKeys = new Set([
+  ...previousDraftHistory.map((entry) => titleKey(entry.title)),
+  ...existingOnWordPress.titles.map((title) => titleKey(title)),
+]);
 const availableTitleEntries = includeUsedTitles
   ? allTitleEntries
   : allTitleEntries.filter((entry) => !usedTitleKeys.has(titleKey(entry.title)));
 const titleEntries = limit > 0 ? availableTitleEntries.slice(0, limit) : availableTitleEntries;
 const titles = titleEntries.map((entry) => entry.title);
 if (titles.length === 0) {
-  if (allTitleEntries.length > 0 && previousDraftHistory.length > 0 && !includeUsedTitles) {
-    console.error("새로 만들 제목이 없음. 이전에 성공한 제목은 자동으로 건너뜀. 다시 만들려면 --include-used=1을 붙이면 됨.");
+  if (allTitleEntries.length > 0 && usedTitleKeys.size > 0 && !includeUsedTitles) {
+    console.error(`새로 만들 제목이 없어요. 제목 파일 ${allTitleEntries.length}개가 이미 전부 사용됐습니다.`);
+    console.error("제목 파일에 새 제목을 더 넣어주세요. 이미 쓴 글을 일부러 다시 만들려면 --include-used=1 을 붙이면 됩니다.");
   } else {
     console.error("제목 목록이 비어 있음. titles.txt에 제목을 한 줄에 하나씩 넣어야 함.");
   }
@@ -1267,7 +1321,7 @@ console.log(`애드센스 사이트 ${site}번 임시글 생성 시작`);
 console.log(`제목 파일: ${titlesPath}`);
 console.log(`제목 ${titles.length}개 선택 / 전체 ${allTitleEntries.length}개 / 이전 성공 ${previousDraftHistory.length}개 자동 제외 / 모델 ${model} / 본문 ${minChars}자 이상 목표`);
 if (limit > 0) {
-  console.log(`요청 개수: ${limit}개 / 사용된 제목은 건너뛰고 다음 제목부터 진행`);
+  console.log(`제목 ${allTitleEntries.length}개 중 아직 안 쓴 제목 ${availableTitleEntries.length}개 / 이번에 ${titles.length}개를 만듭니다.`);
 }
 if (titleCatalog.categories.length > 0) {
   console.log(`제목 파일 카테고리 매핑: 대표 ${titleCatalog.categories.length}개 / 세부 ${titleCatalog.categories.reduce((sum, category) => sum + category.children.length, 0)}개`);

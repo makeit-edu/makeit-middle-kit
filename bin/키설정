@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 키설정 — API 키 2개(OpenAI·ElevenLabs)와 수강 코드 1개를 입력합니다. (D8·D9, PRD 5-5)
+# 키설정 — OpenAI API 키 + 워드프레스 정보 + 수강 코드를 입력합니다.
 set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

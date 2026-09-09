@@ -1,4 +1,4 @@
-// 1주차 키트 상태 점검 스크립트.
+// 키트 상태 점검 스크립트.
 // 결과를 통째로 복사해서 Codex에 붙여넣으면 도움을 받을 수 있는 형식으로 출력한다.
 import {existsSync, readFileSync} from "node:fs";
 import os from "node:os";
@@ -93,7 +93,7 @@ for (const number of [1, 2, 3]) {
 
 const body = lines.map((line) => `  ${line}`).join("\n");
 console.log("");
-console.log("================ 1주차 키트 점검 리포트 ================");
+console.log("================ 키트 점검 리포트 ================");
 console.log(body);
 console.log("======================================================");
 console.log("");

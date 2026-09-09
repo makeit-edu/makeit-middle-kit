@@ -1,11 +1,11 @@
 import {existsSync, readdirSync, readFileSync, statSync} from "node:fs";
 import {extname, join} from "node:path";
 
-const TITLE_FOLDER_PARTS = ["01_1주차_애드센스승인", "01_제목넣는곳"];
+const TITLE_FOLDER_PARTS = ["애드센스 승인글", "01_제목넣는곳"];
 const CANONICAL_TITLE_FILE_NAMES = {
-  1: "사이트1_제목200개.txt",
-  2: "사이트2_제목200개.txt",
-  3: "사이트3_제목200개.txt",
+  1: "사이트1제목.txt",
+  2: "사이트2제목.txt",
+  3: "사이트3제목.txt",
 };
 const ALIASES = {
   1: ["사이트1", "사이트01", "site1", "site01", "1번", "1번째", "첫번째", "첫번째사이트", "사이트첫번째", "첫째"],

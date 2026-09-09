@@ -1,4 +1,4 @@
-// 1주차 메킷애센 기본 세팅
+// 메킷애센 기본 세팅
 // Codex와 애드센스 승인글 자동화에 필요한 최소 준비만 한다.
 import {execSync} from "node:child_process";
 import {copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync} from "node:fs";
@@ -8,7 +8,7 @@ import {requireLicense} from "./lib/env.mjs";
 
 // 설치 게이트: 예전 01 런처의 코드 입력(runtime/.license_ok 파일 마커)을 폐지하고
 // MAKEIT_MIDDLE_LICENSE 환경변수 검증으로 통일 (PRD D9·5-4)
-requireLicense({scriptLabel: "1주차 기본 세팅"});
+requireLicense({scriptLabel: "기본 세팅"});
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const projectRoot = path.resolve(rootDir, "..");
@@ -41,8 +41,8 @@ function ensureProjectGitignore() {
     "99_절대_건들지마세요_프로그램파일/runtime/",
     "99_절대_건들지마세요_프로그램파일/node_modules/",
     "99_절대_건들지마세요_프로그램파일/makeit-adsense/outputs/",
-    "01_1주차_애드센스승인/02_생성결과_확인용/*",
-    "!01_1주차_애드센스승인/02_생성결과_확인용/.gitkeep",
+    "애드센스 승인글/02_생성결과_확인용/*",
+    "!애드센스 승인글/02_생성결과_확인용/.gitkeep",
     "",
   ].join("\n");
   if (!existsSync(gitignorePath)) {
@@ -56,7 +56,7 @@ function ensureProjectGitignore() {
 }
 
 console.log("");
-console.log("1주차 메킷애센 기본 세팅을 시작합니다.");
+console.log("메킷애센 기본 세팅을 시작합니다.");
 console.log("이번 단계에서는 애드센스 승인글 자동화에 필요한 것만 준비합니다.");
 
 divider("1/4 개인 설정 파일 준비");
@@ -72,7 +72,7 @@ if (existsSync(envLocalPath)) {
 }
 
 divider("2/4 애드센스 제목 파일 준비");
-const titlesDir = path.join(projectRoot, "01_1주차_애드센스승인", "01_제목넣는곳");
+const titlesDir = path.join(projectRoot, "애드센스 승인글", "01_제목넣는곳");
 try {
   mkdirSync(titlesDir, {recursive: true});
   for (const n of [1, 2, 3]) {
@@ -106,7 +106,7 @@ try {
     );
     record("Codex", true, `설치 완료 (버전 ${codexPkg.version})`);
   } else {
-    record("Codex", false, "설치 파일을 찾지 못했습니다. 1주차 설치를 다시 실행해주세요.");
+    record("Codex", false, "설치 파일을 찾지 못했습니다. 설치를 다시 실행해주세요.");
   }
 } catch {
   record("Codex", false, "설치 실패. 인터넷 연결을 확인하고 다시 실행해주세요.");
@@ -128,7 +128,7 @@ const failed = results.filter((item) => !item.ok);
 console.log("");
 console.log("==========================================");
 if (failed.length === 0) {
-  console.log("1주차 기본 세팅이 끝났습니다.");
+  console.log("기본 세팅이 끝났습니다.");
   console.log("");
   console.log("다음 단계:");
   console.log("  1. 터미널에 '키설정' 을 입력해 OpenAI API 키와 워드프레스 정보 넣기");

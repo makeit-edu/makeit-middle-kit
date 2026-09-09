@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // 키설정 (npm run keys) — 수강 코드 + API 키 + 워드프레스 정보를 대화형으로 입력받아 .env.local에 저장한다.
-// (PRD D8·D9·5-5: 키 2개(OpenAI·ElevenLabs) + 수강 코드 1개, trim + 형식 검증 + 실제 인증 테스트 + 마스킹 출력)
+// (OpenAI 키 1개 + 워드프레스 사이트 정보 + 수강 코드 — 입력 즉시 인증 확인, 값은 화면에 남기지 않음)
 // 입력한 값은 .env.local 파일에만 저장되고, 화면에 다시 출력하지 않습니다.
 import {copyFileSync, existsSync, readFileSync, writeFileSync} from "node:fs";
 import {stdin as input, stdout as output} from "node:process";
@@ -16,7 +16,6 @@ import {
 const placeholders = {
   MAKEIT_MIDDLE_LICENSE: ["your-", "placeholder"],
   OPENAI_API_KEY: ["sk-your", "your-openai", "placeholder"],
-  ELEVENLABS_API_KEY: ["your-elevenlabs", "placeholder"],
   URL: ["example.com", "example-"],
   USER: ["your-admin-id", "your-admin"],
   APP_PASSWORD: ["xxxx", "placeholder"],
@@ -194,20 +193,6 @@ async function testOpenAi(key) {
   }
 }
 
-async function testElevenLabs(key) {
-  try {
-    const response = await fetch("https://api.elevenlabs.io/v1/user", {
-      headers: {"xi-api-key": key},
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (response.status === 401) return {ok: false, detail: "키가 올바르지 않습니다 (401). 복사가 잘못되지 않았는지 확인해주세요."};
-    if (!response.ok) return {ok: false, detail: `상태 코드 ${response.status}. 잠시 후 다시 확인해주세요.`};
-    return {ok: true, detail: "인증 확인됨"};
-  } catch {
-    return {ok: false, detail: "연결 실패 — 인터넷 연결을 확인하고 나중에 다시 실행해주세요."};
-  }
-}
-
 async function testWordPress({url, user, appPassword}) {
   if (!url || !user || !appPassword) return {ok: false, detail: "주소·아이디·애플리케이션 비밀번호가 모두 필요합니다."};
   const credentials = Buffer.from(`${user}:${appPassword}`).toString("base64");
@@ -348,7 +333,6 @@ console.log("");
 console.log("현재 상태");
 console.log(`- 수강 코드: ${VALID_LICENSE_CODES.includes(String(values.MAKEIT_MIDDLE_LICENSE || "").trim()) ? "입력됨" : "미입력"}`);
 console.log(`- OpenAI API 키: ${ready("OPENAI_API_KEY", values.OPENAI_API_KEY) ? `입력됨 ${maskValue(values.OPENAI_API_KEY)}` : "미입력"}`);
-console.log(`- ElevenLabs API 키: ${ready("ELEVENLABS_API_KEY", values.ELEVENLABS_API_KEY) ? `입력됨 ${maskValue(values.ELEVENLABS_API_KEY)}` : "미입력"}`);
 console.log("");
 
 // 파이프 입력이면 stdin 전체를 먼저 줄 큐로 읽어둔다 (질문 사이 유실 방지 — 위 입력 계층 주석 참고)
@@ -380,13 +364,7 @@ updates.MAKEIT_MIDDLE_LICENSE = licenseCode;
 console.log("  → 수강 코드 확인 완료!");
 console.log("");
 
-// 2) 주차 선택
-const weekAnswer = (await ask(rl, "어느 주차 키를 설정할까요? [1] 1주차(애드센스)  [2] 2주차(쇼핑숏폼)  [엔터] 전부: ")).trim();
-const doWeek1 = weekAnswer === "" || weekAnswer === "1";
-const doWeek2 = weekAnswer === "" || weekAnswer === "2";
-console.log("");
-
-// 3) OpenAI API 키 (1·2주차 공통) — sk- 접두 형식 검증 (예시값은 "기존 값"으로 치지 않는다)
+// 2) OpenAI API 키 — 형식 확인 + 실제 인증까지 통과해야 넘어간다
 updates.OPENAI_API_KEY = await askApiKeyUntilValid(rl, {
   label: "OpenAI API 키를 입력해주세요",
   current: ready("OPENAI_API_KEY", values.OPENAI_API_KEY) ? values.OPENAI_API_KEY : "",
@@ -394,10 +372,10 @@ updates.OPENAI_API_KEY = await askApiKeyUntilValid(rl, {
   test: testOpenAi,
 });
 
-// 4) 1주차 — 애드센스 사이트 1~3 워드프레스 정보
-if (doWeek1) {
+// 3) 승인글을 올릴 워드프레스 사이트 1~3
+{
   console.log("");
-  console.log("----- 1주차: 애드센스 사이트 워드프레스 정보 -----");
+  console.log("----- 승인글을 올릴 워드프레스 사이트 정보 -----");
   console.log("(아직 준비 안 된 사이트는 엔터로 건너뛰면 됩니다)");
   for (const n of [1, 2, 3]) {
     const prefix = `ADSENSE_SITE_${String(n).padStart(2, "0")}`;
@@ -420,35 +398,6 @@ if (doWeek1) {
   }
 }
 
-// 5) 2주차 — ElevenLabs 키 + 쇼핑숏폼 워드프레스
-if (doWeek2) {
-  console.log("");
-  console.log("----- 2주차: 쇼핑숏폼(영상) 정보 -----");
-  updates.ELEVENLABS_API_KEY = await askApiKeyUntilValid(rl, {
-    label: "ElevenLabs API 키를 입력해주세요",
-    current: ready("ELEVENLABS_API_KEY", values.ELEVENLABS_API_KEY) ? values.ELEVENLABS_API_KEY : "",
-    looksWrong: (key) => (key.length >= 20 ? null : "ElevenLabs 키치고 길이가 짧아요. 복사가 잘 됐는지 확인해주세요."),
-    test: testElevenLabs,
-  });
-
-  console.log("");
-  const hub = await askWordPressUntilValid(rl, {
-    label: "쇼핑숏폼 워드프레스",
-    current: {
-      url: values.HUB_WORDPRESS_URL,
-      user: values.HUB_WORDPRESS_USER,
-      appPassword: values.HUB_WORDPRESS_APP_PASSWORD,
-    },
-  });
-  if (hub) {
-    updates.HUB_WORDPRESS_URL = hub.url;
-    updates.HUB_WORDPRESS_USER = hub.user;
-    updates.HUB_WORDPRESS_APP_PASSWORD = hub.appPassword;
-  } else {
-    console.log("  → 쇼핑숏폼 워드프레스는 건너뛸게요.");
-  }
-}
-
 if (rl) rl.close();
 
 // 6) 저장
@@ -458,7 +407,7 @@ console.log("[OK] .env.local 저장 완료 (값은 다시 출력하지 않습니
 
 // 7) 실제 인증 테스트 — 입력된 값만 확인한다
 console.log("");
-console.log("입력한 키가 실제로 동작하는지 확인해볼게요. (글이나 영상을 만들지는 않아요)");
+console.log("입력한 키가 실제로 동작하는지 확인해볼게요. (글을 만들지는 않아요)");
 let needsRecheck = false;
 
 if (ready("OPENAI_API_KEY", updates.OPENAI_API_KEY)) {
@@ -470,13 +419,7 @@ if (ready("OPENAI_API_KEY", updates.OPENAI_API_KEY)) {
   needsRecheck = true;
 }
 
-if (doWeek2 && ready("ELEVENLABS_API_KEY", updates.ELEVENLABS_API_KEY)) {
-  const result = await testElevenLabs(updates.ELEVENLABS_API_KEY);
-  console.log(`${result.ok ? "[OK]" : "[확인 필요]"} ElevenLabs ${maskValue(updates.ELEVENLABS_API_KEY)}: ${result.detail}`);
-  if (!result.ok) needsRecheck = true;
-}
-
-if (doWeek1) {
+{
   for (const n of [1, 2, 3]) {
     const prefix = `ADSENSE_SITE_${String(n).padStart(2, "0")}`;
     if (!updates[`${prefix}_URL`]) continue;
@@ -490,21 +433,11 @@ if (doWeek1) {
   }
 }
 
-if (doWeek2 && updates.HUB_WORDPRESS_URL) {
-  const result = await testWordPress({
-    url: updates.HUB_WORDPRESS_URL,
-    user: updates.HUB_WORDPRESS_USER,
-    appPassword: updates.HUB_WORDPRESS_APP_PASSWORD,
-  });
-  console.log(`${result.ok ? "[OK]" : "[확인 필요]"} 쇼핑숏폼 워드프레스: ${result.detail}`);
-  if (!result.ok) needsRecheck = true;
-}
-
 console.log("");
 if (needsRecheck) {
   console.log("[확인 필요] 위에 표시된 항목을 다시 확인한 뒤, 터미널에 '키설정' 을 다시 입력하면 그 값만 고칠 수 있어요.");
   process.exitCode = 1;
 } else {
-  // "3개 모두 정상 확인"은 README·키발급 가이드·코치 플레이북이 안내하는 성공 확인 문구 — 바꾸면 문서도 함께 수정할 것
-  console.log("3개 모두 정상 확인! 모든 값이 정상 확인됐습니다. 이제 작업을 시작할 준비가 끝났어요.");
+  // 이 문구는 안내서·키발급 가이드가 안내하는 성공 확인 문구 — 바꾸면 문서도 함께 수정할 것
+  console.log("모두 정상 확인! 이제 작업을 시작할 준비가 끝났어요.");
 }

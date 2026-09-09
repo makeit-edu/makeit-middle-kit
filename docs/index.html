@@ -179,14 +179,14 @@ footer a{font-weight:600}
   <ul>
     <li><b>크롬이 깔린 컴퓨터</b> (노트북·데스크톱)</li>
     <li><b>ChatGPT Plus</b> 계정</li>
-    <li><b>OpenAI · ElevenLabs API 키</b> — 자료실 「키 발급 가이드」</li>
+    <li><b>OpenAI API 키</b> — 자료실 「키 발급 가이드」</li>
+    <li><b>워드프레스 정보</b> — 주소 · 관리자 ID · 애플리케이션 비밀번호</li>
     <li><b>수강 코드</b> — 자료실 공지</li>
   </ul>
 </div>
 <p class="tiny">휴대폰·태블릿으로는 작업할 수 없습니다. 이 안내서는 휴대폰으로 봐도 됩니다.</p>
 
 
-<!-- ─────────── 1 ─────────── -->
 <div class="step">
   <div class="num">1</div>
   <div class="body">
@@ -199,7 +199,6 @@ footer a{font-weight:600}
   </div>
 </div>
 
-<!-- ─────────── 2 ─────────── -->
 <div class="step">
   <div class="num">2</div>
   <div class="body">
@@ -212,7 +211,6 @@ footer a{font-weight:600}
   </div>
 </div>
 
-<!-- ─────────── 3 ─────────── -->
 <div class="step">
   <div class="num">3</div>
   <div class="body">
@@ -227,7 +225,6 @@ footer a{font-weight:600}
   </div>
 </div>
 
-<!-- ─────────── 4 ─────────── -->
 <div class="step">
   <div class="num">4</div>
   <div class="body">
@@ -239,13 +236,11 @@ footer a{font-weight:600}
   </div>
 </div>
 
-<!-- ─────────── 5 ─────────── -->
 <div class="step">
   <div class="num">5</div>
   <div class="body">
-    <h3>3~10분 기다리기</h3>
-    <p>검은 창에 영어 글자가 빠르게 흘러갑니다. <b>멈춘 게 아닙니다.</b>
-    커피 한 모금 하고 오세요.</p>
+    <h3>1~3분 기다리기</h3>
+    <p>검은 창에 영어 글자가 빠르게 흘러갑니다. <b>멈춘 게 아닙니다.</b></p>
     <p>아래 화면이 나오면 끝난 것입니다.</p>
     <div class="term">━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -260,20 +255,20 @@ footer a{font-weight:600}
   </div>
 </div>
 
-<!-- ─────────── 6 ─────────── -->
 <div class="step">
   <div class="num">6</div>
   <div class="body">
     <h3>열쇠(키) 넣기</h3>
     <p>검은 창을 한 번 클릭하고 <span class="type">키설정</span> 치고 엔터.</p>
-    <p>수강 코드 → 주차 선택 → API 키 2개 → 워드프레스 정보 순서로 물어봅니다.
+    <p>수강 코드 → OpenAI 키 → 워드프레스 사이트 정보 순서로 물어봅니다.
     <b>아직 없는 건 엔터로 건너뛰면 됩니다.</b></p>
     <div class="note ok"><b>화면에 점(••••)만 보이는 게 정상</b>
     키는 비밀번호라 가려집니다. 한 번만 붙여넣고 엔터.</div>
+    <div class="note warn"><b>워드프레스는 세 가지가 다 맞아야 넘어갑니다</b>
+    주소 · 관리자 ID · <b>애플리케이션 비밀번호</b>. 실제로 접속해 보고 안 되면 그 자리에서 다시 물어봅니다.</div>
   </div>
 </div>
 
-<!-- ─────────── 7 ─────────── -->
 <div class="step">
   <div class="num">7</div>
   <div class="body">
@@ -286,44 +281,43 @@ footer a{font-weight:600}
   </div>
 </div>
 
-<!-- ─────────── 8 ─────────── -->
 <div class="step">
   <div class="num">8</div>
   <div class="body">
-    <h3>작업 시작하기</h3>
-    <p><b>1주차 — 애드센스 승인글</b><br>
-    제목 파일에 제목을 붙여넣고, 코덱스에
-    <span class="path">애드센스 승인글 자동화 시작해줘</span> 라고 입력.</p>
-    <p style="margin-top:18px"><b>2주차 — 쇼핑 숏폼 영상</b><br>
-    왼쪽 <span class="path">영상넣는곳</span> 에 폴더를 만들어(예: <span class="path">005_에어팟맥스</span>)
-    영상을 끌어다 놓고, 코덱스에 이렇게 입력하세요.</p>
-    <p style="text-align:center;margin:14px 0"><span class="type" style="font-size:22px;padding:8px 18px">영상 자동화 시작해</span></p>
-    <div class="note ok"><b>물어보는 건 두 가지뿐</b>
-    ① 상품 번호 &nbsp;② 메킷허브 프롬프트<br>
-    답하면 <b>영상 병합 → 기획안 → 이미지 → 완성 영상</b>까지 알아서 만들어 줍니다. (10~15분)</div>
+    <h3>제목 넣기</h3>
+    <p>왼쪽 탐색기에서
+    <span class="path">애드센스 승인글</span> → <span class="path">01_제목넣는곳</span> →
+    <span class="path">사이트1제목.txt</span> 를 클릭해 엽니다.</p>
+    <p>준비한 제목을 붙여넣고 <b>Ctrl+S</b>(맥 <b>Cmd+S</b>)로 저장하세요.
+    <b>한 줄에 제목 하나씩</b>이 가장 좋습니다.</p>
+    <div class="note stop"><b>이 파일에는 제목만</b>
+    사이트 주소·아이디·비밀번호·API 키는 절대 넣지 마세요.</div>
   </div>
 </div>
 
-<!-- ─────────── 9 ─────────── -->
 <div class="step">
   <div class="num">9</div>
   <div class="body">
-    <h3>끝나면 저장하기</h3>
-    <p>검은 창에 <span class="type">저장</span> 치고 엔터. 그다음 탭을 그냥 닫으면 됩니다.</p>
-    <div class="note warn"><b>저장은 습관으로</b>
-    30일 동안 한 번도 안 들어오면 작업방이 삭제됩니다.
-    저장해 둔 것은 되살릴 수 있습니다.</div>
+    <h3>승인글 만들기</h3>
+    <p>검은 창에 <span class="type">시작</span> 으로 코덱스를 켜고 이렇게 말하세요.</p>
+    <p style="text-align:center;margin:14px 0"><span class="type" style="font-size:22px;padding:8px 18px">승인글 자동화 시작해</span></p>
+    <p>처음에는 <b>1개만</b> 만들어 확인하고, 괜찮으면 5개 → 20개씩 늘리세요.
+    글은 <b>임시글</b>로만 저장되고 공개 발행되지 않습니다.</p>
+    <div class="note ok"><b>이미 쓴 글은 알아서 빠집니다</b>
+    워드프레스에 이미 있는 제목(임시글 포함)은 건너뜁니다.
+    다른 기수에서 쓴 글도 마찬가지예요. <b>제목 파일은 그대로 두시면 됩니다.</b></div>
   </div>
 </div>
 
-<!-- ─────────── 10 ─────────── -->
 <div class="step">
   <div class="num">10</div>
   <div class="body">
-    <h3>다음부터는 여기로</h3>
+    <h3>끝나면 저장하기</h3>
+    <p>검은 창에 <span class="type">저장</span> 치고 엔터. 그다음 탭을 그냥 닫으면 됩니다.</p>
+    <p>다음부터는 아래 주소에서 만들어둔 작업방을 클릭하면 1분 만에 열립니다.</p>
     <a class="linkbig" href="https://github.com/codespaces">github.com/codespaces</a>
-    <p>만들어둔 작업방을 클릭하면 1분 만에 하던 그대로 열립니다.
-    <b>1~7번은 다시 하지 않습니다.</b></p>
+    <div class="note warn"><b>저장은 습관으로</b>
+    30일 동안 한 번도 안 들어오면 작업방이 삭제됩니다. 저장해 둔 것은 되살릴 수 있습니다.</div>
   </div>
 </div>
 
@@ -333,15 +327,9 @@ footer a{font-weight:600}
   <div class="cmds">
     <div class="cmd"><div class="k">시작</div><div class="v">AI 비서(코덱스) 켜기</div></div>
     <div class="cmd"><div class="k">진단</div><div class="v">뭔가 이상할 때 제일 먼저</div></div>
-    <div class="cmd"><div class="k">키설정</div><div class="v">API 키·수강 코드 입력·변경</div></div>
+    <div class="cmd"><div class="k">키설정</div><div class="v">API 키·워드프레스 정보·수강 코드 입력</div></div>
     <div class="cmd"><div class="k">저장</div><div class="v">작업물 보관하기</div></div>
-    <div class="cmd"><div class="k">정리</div><div class="v">공간 부족할 때</div></div>
     <div class="cmd"><div class="k">업데이트</div><div class="v">프로그램 최신판 받기</div></div>
-    <div class="cmd"><div class="k">새상품 1</div><div class="v">상품 작업 만들기 (숫자는 폴더 번호)</div></div>
-    <div class="cmd"><div class="k">이미지만들기</div><div class="v">기획안 기준으로 이미지 만들기</div></div>
-    <div class="cmd"><div class="k">영상만들기</div><div class="v">음성 만들고 영상 렌더링</div></div>
-    <div class="cmd"><div class="k">편집기</div><div class="v">영상 편집기 켜기</div></div>
-    <div class="cmd"><div class="k">내보내기</div><div class="v">완성 영상 압축파일로 묶기</div></div>
   </div>
 
   <h2>막혔을 때</h2>
@@ -353,7 +341,6 @@ footer a{font-weight:600}
 </div>
 
 <footer>
-  더 자세한 설명이 필요하면 → <a href="full.html">전체 안내서 (83단계)</a><br>
   키트 저장소 → <a href="https://github.com/makeit-edu/makeit-middle-kit">github.com/makeit-edu/makeit-middle-kit</a>
 </footer>
 

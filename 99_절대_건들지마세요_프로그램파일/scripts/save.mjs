@@ -10,9 +10,9 @@ import path from "node:path";
 import {PROJECT_ROOT, VALID_LICENSE_CODES, readEnvFile} from "./lib/env.mjs";
 
 // ===== 저장 대상 화이트리스트 =====
-// 텍스트 산출물 폴더만 커밋한다. 영상(mp4)·시크릿·프로그램 파일은 대상이 아니다.
-const WHITELIST_DIRS = ["01_1주차_애드센스승인", "02_2주차_쇼핑숏폼자동화"];
-// 이중 방어: 폴더가 맞아도 텍스트 계열 확장자만 허용한다 (영상·압축 파일 커밋 방지)
+// 텍스트 산출물 폴더만 커밋한다. 시크릿·프로그램 파일은 대상이 아니다.
+const WHITELIST_DIRS = ["애드센스 승인글"];
+// 이중 방어: 폴더가 맞아도 텍스트 계열 확장자만 허용한다 (대용량 파일 커밋 방지)
 const TEXT_EXTENSIONS = new Set([".txt", ".md", ".json", ".csv", ".html", ".gitkeep"]);
 
 function git(args, options = {}) {
@@ -98,7 +98,7 @@ if (targets.length === 0) {
   console.log("저장할 새 작업물이 없어요. (제목 파일·기획안 등 텍스트 작업물이 바뀌면 저장됩니다)");
   if (skipped.length > 0) {
     console.log("");
-    console.log("아래 파일은 영상 등 대용량 파일이라 저장 대상이 아니에요. (완성영상은 다운로드해서 보관해주세요)");
+    console.log("아래 파일은 대용량 파일이라 저장 대상이 아니에요.");
     for (const file of skipped.slice(0, 10)) console.log(`  - ${file}`);
   }
   process.exit(0);
@@ -164,14 +164,12 @@ if (violations.length > 0) {
 }
 
 // ===== 4. 커밋 + push =====
-const changedWeek1 = targets.filter(({filePath}) => filePath.startsWith("01_")).length;
-const changedWeek2 = targets.filter(({filePath}) => filePath.startsWith("02_")).length;
+const changedCount = targets.length;
 const now = new Date();
 const pad = (n) => String(n).padStart(2, "0");
 const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 const summaryParts = [];
-if (changedWeek1 > 0) summaryParts.push(`1주차 ${changedWeek1}개`);
-if (changedWeek2 > 0) summaryParts.push(`2주차 ${changedWeek2}개`);
+if (changedCount > 0) summaryParts.push(`${changedCount}개`);
 const message = `저장: ${stamp} — ${summaryParts.join(", ")} 파일 갱신`;
 
 try {
@@ -188,7 +186,7 @@ console.log("");
 console.log(`[OK] 커밋 완료 — ${message}`);
 if (skipped.length > 0) {
   console.log("");
-  console.log("아래 파일은 영상 등 대용량 파일이라 커밋하지 않았어요. (완성영상은 다운로드해서 보관해주세요)");
+  console.log("아래 파일은 대용량 파일이라 커밋하지 않았어요.");
   for (const file of skipped.slice(0, 10)) console.log(`  - ${file}`);
 }
 
