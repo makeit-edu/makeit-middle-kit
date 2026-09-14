@@ -109,13 +109,14 @@ a{color:var(--blue);font-weight:600}
 .note{
   margin:14px 0 0;padding:15px 18px;border-radius:12px;font-size:17.5px;line-height:1.65;
 }
-.note b{display:block;margin-bottom:3px;font-weight:800}
+.note b{font-weight:700}
+.note>b:first-child{display:block;margin-bottom:3px;font-weight:800}
 .note.stop{background:var(--stop-bg);color:var(--ink)}
-.note.stop b{color:var(--stop)}
+.note.stop>b:first-child{color:var(--stop)}
 .note.warn{background:var(--warn-bg);color:var(--ink)}
-.note.warn b{color:var(--warn)}
+.note.warn>b:first-child{color:var(--warn)}
 .note.ok{background:var(--ok-bg);color:var(--ink)}
-.note.ok b{color:var(--ok)}
+.note.ok>b:first-child{color:var(--ok)}
 
 /* 터미널 */
 .term{
@@ -125,6 +126,54 @@ a{color:var(--blue);font-weight:600}
   overflow-x:auto;white-space:pre;
 }
 .term .hi{background:#22c55e;color:#06240f;font-weight:700;padding:1px 7px;border-radius:4px}
+
+/* 브라우저 화면 재현 (ChatGPT 로그인 절차) */
+.web{
+  margin:14px 0 0;border:1px solid var(--line);border-radius:12px;
+  background:var(--box);overflow:hidden;
+}
+.web .bar{display:flex;gap:6px;align-items:center;padding:9px 13px;border-bottom:1px solid var(--line)}
+.web .bar i{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var(--ink-3);opacity:.35}
+.web .bar span{
+  margin-left:7px;font-family:var(--mono);font-size:13px;color:var(--ink-3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.web .scr{padding:24px 20px;text-align:center;background:var(--bg)}
+.web .scr h4{font-size:20px;margin:0 0 7px;font-weight:800;line-height:1.35;letter-spacing:-.02em}
+.web .scr p{font-size:16.5px;margin:0;color:var(--ink-3);line-height:1.55}
+.web .acct{
+  display:flex;align-items:center;gap:11px;
+  margin:17px auto 0;max-width:330px;padding:11px 16px;
+  border:1px solid var(--line);border-radius:99px;text-align:left;
+}
+.web .acct i{
+  flex:0 0 auto;width:32px;height:32px;border-radius:50%;
+  background:var(--blue-bg);color:var(--blue);
+  font-size:13.5px;font-weight:800;font-style:normal;
+  display:flex;align-items:center;justify-content:center;
+}
+.web .acct em{display:block;font-style:normal;font-size:16px;font-weight:700;line-height:1.4}
+.web .acct small{display:block;font-size:14px;color:var(--ink-3);line-height:1.4;word-break:break-all}
+.web .btn{
+  display:inline-block;margin:17px 0 0;padding:10px 44px;border-radius:99px;
+  background:var(--ink);color:var(--bg);font-size:16.5px;font-weight:700;
+}
+.web .code9{display:flex;gap:6px;justify-content:center;margin:18px 0 0;flex-wrap:wrap}
+.web .code9 u{
+  width:33px;height:44px;border:1.5px solid var(--line);border-radius:9px;
+  display:flex;align-items:center;justify-content:center;text-decoration:none;
+  font-family:var(--mono);font-size:18px;font-weight:700;color:var(--ink-3);
+}
+.web .code9 u.gap{border:none;width:10px}
+.web .cap{
+  padding:12px 17px;font-size:16.5px;color:var(--ink-2);line-height:1.6;
+  border-top:1px solid var(--line);background:var(--box);
+}
+.web .cap b{color:var(--ink);font-weight:700}
+.scrnum{
+  margin:26px 0 0;font-size:16px;font-weight:800;color:var(--blue);letter-spacing:.02em;
+}
+
 
 /* 마무리 */
 .tail{margin-top:56px;padding-top:36px;border-top:2px solid var(--ink)}
@@ -155,6 +204,12 @@ footer a{font-weight:600}
   .body p{font-size:17.5px}
   .cmd{flex-direction:column;gap:2px}
   .cmd .k{flex:none}
+  /* 코드 9칸이 두 줄로 쪼개지지 않게 — 실제 화면처럼 한 줄로 */
+  .web .code9{gap:5px;flex-wrap:nowrap}
+  .web .code9 u{width:25px;height:38px;font-size:16px;border-radius:7px}
+  .web .code9 u.gap{width:8px}
+  .web .scr{padding:20px 14px}
+  .web .scr h4{font-size:18px}
 }
 @media print{
   body{font-size:11.5pt;background:#fff;color:#000}
@@ -283,20 +338,72 @@ footer a{font-weight:600}
   <div class="body">
     <h3>AI 비서 켜기 (ChatGPT 연결)</h3>
     <p>검은 창에 <span class="type">시작</span> 치고 엔터.</p>
-    <p><b>처음 한 번만</b> ChatGPT 로그인을 합니다. 아래 화면이 나와요.</p>
+    <p><b>처음 한 번만</b> ChatGPT 로그인을 합니다. 검은 창에 이런 게 나와요.</p>
     <div class="term">1. Open this link in your browser and sign in to your account
    <span style="color:#7cadff">https://auth.openai.com/codex/device</span>
 
 2. Enter this one-time code (expires in 15 minutes)
    <span class="hi"> C7X3-SMNLZ </span>   ← 사람마다 다릅니다</div>
     <p style="margin-top:14px"><b>① 코드</b>를 마우스로 드래그 → <b>우클릭 → 복사</b><br>
-    <b>② 주소</b>를 <b>Ctrl</b>(맥 <b>Cmd</b>) 누른 채 클릭 → 새 탭에서 열기<br>
-    <b>③</b> 코드를 붙여넣고 <b>ChatGPT 계정으로 승인</b></p>
+    <b>② 주소</b>를 <b>Ctrl</b>(맥 <b>Cmd</b>) 누른 채 클릭 → 새 탭에서 열기</p>
     <div class="note stop"><b>검은 창에서는 Ctrl+C 가 복사가 아닙니다</b>
-    꼭 마우스로 드래그한 뒤 우클릭 → 복사하세요.</div>
+    꼭 마우스로 드래그한 뒤 우클릭 → 복사를 누르세요.</div>
+
+    <p style="margin-top:22px"><b>그다음은 브라우저에서 이 순서대로 진행됩니다.</b></p>
+
+    <div class="scrnum">화면 ① — 주소 입력</div>
+    <div class="web">
+      <div class="bar"><i></i><i></i><i></i><span>https://auth.openai.com/codex/device</span></div>
+      <div class="cap">주소를 붙여넣고 엔터. (위 ②에서 Ctrl 누르고 클릭했다면 이미 열려 있어요)</div>
+    </div>
+
+    <div class="scrnum">화면 ② — 내 계정 고르기</div>
+    <div class="web">
+      <div class="scr">
+        <h4>다시 오신 걸 환영합니다</h4>
+        <p>Codex에서 계속하려면 계정을 선택하세요</p>
+        <div class="acct"><i>나</i><em>내 이름</em><small>내메일@gmail.com</small></div>
+      </div>
+      <div class="cap"><b>반드시 Plus 결제된 계정을 고르세요.</b>
+      다른 계정이 뜨면 <b>[다른 계정으로 로그인하기]</b> 를 누르세요.</div>
+    </div>
+
+    <div class="scrnum">화면 ③ — 계속 누르기</div>
+    <div class="web">
+      <div class="scr">
+        <div class="acct" style="max-width:300px"><i>☺</i><em style="font-size:15px">내메일@gmail.com</em></div>
+        <div class="btn">계속</div>
+      </div>
+      <div class="cap">검은색 <b>[계속]</b> 버튼을 누르면 됩니다.</div>
+    </div>
+
+    <div class="scrnum">화면 ④ — 코드 9자리 붙여넣기</div>
+    <div class="web">
+      <div class="scr">
+        <h4>장치 코드를 사용해 Codex CLI에<br>액세스를 부여하세요</h4>
+        <p>터미널에 표시된 9자 코드를 입력하세요</p>
+        <div class="code9"><u>C</u><u>7</u><u>X</u><u>3</u><u class="gap">-</u><u>S</u><u>M</u><u>N</u><u>L</u><u>Z</u></div>
+        <div class="btn">계속</div>
+      </div>
+      <div class="cap">첫 칸을 클릭한 뒤 <b>붙여넣기(Ctrl+V / Cmd+V)</b> 하면 칸이 한 번에 채워집니다.<br>
+      주황색 ‘보안 경고’ 문구는 정상입니다 — 내가 직접 시작한 로그인이니 <b>[계속]</b>.</div>
+    </div>
+
+    <div class="scrnum">화면 ⑤ — 끝</div>
+    <div class="web">
+      <div class="scr">
+        <h4>Codex에 로그인됨</h4>
+        <p>이제 이 페이지를 닫아도 좋습니다</p>
+      </div>
+      <div class="cap">이 문구가 나오면 성공입니다. <b>탭을 닫고 검은 창으로 돌아오세요.</b></div>
+    </div>
+
     <div class="note warn"><b>15분 안에 하세요</b>
     코드는 15분이 지나면 만료됩니다. 늦었으면 <span class="type">시작</span> 을 다시 쳐서
     새 코드를 받으면 됩니다.</div>
+    <div class="note stop"><b>승인이 거절되거나 화면 ②에서 막힐 때</b>
+    무료(Free) 계정이면 여기서 막힙니다. <b>ChatGPT Plus 이상</b>인지 확인하세요.<br>
+    Plus가 맞는데도 안 되면 1번 단계의 ‘장치 코드 인증’ 스위치가 꺼져 있는 겁니다.</div>
     <div class="note ok"><b>승인이 끝나면</b>
     검은 창에 코덱스 대화 화면이 열립니다. 이 로그인은 <b>처음 한 번만</b> 하면 돼요.</div>
   </div>
