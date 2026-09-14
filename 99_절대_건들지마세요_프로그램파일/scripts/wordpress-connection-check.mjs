@@ -2,6 +2,7 @@
 
 import {hasEnvLocal, keysGuideMessage, requireLicense} from "./lib/env.mjs";
 import {siteNumbers, sitePrefix} from "./lib/sites.mjs";
+import {wpFetch} from "./lib/wp.mjs";
 
 function ready(value, placeholders = []) {
   if (!value) return false;
@@ -38,7 +39,7 @@ async function checkSite(site, {required = true} = {}) {
   const credentials = Buffer.from(`${String(site.user || "").trim()}:${String(site.appPassword || "").trim()}`).toString("base64");
 
   try {
-    const response = await fetch(`${wordpressUrl}/wp-json/wp/v2/users/me?context=edit`, {
+    const response = await wpFetch(`${wordpressUrl}/wp-json/wp/v2/users/me?context=edit`, {
       headers: {
         Authorization: `Basic ${credentials}`,
         Accept: "application/json",

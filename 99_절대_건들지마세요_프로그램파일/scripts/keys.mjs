@@ -14,6 +14,7 @@ import {
 } from "./lib/env.mjs";
 import {MAX_SITES, sitePrefix} from "./lib/sites.mjs";
 import {STOP_WORDS, isStopWord, stripPasteNoise} from "./lib/paste.mjs";
+import {wpFetch} from "./lib/wp.mjs";
 
 const placeholders = {
   MAKEIT_MIDDLE_LICENSE: ["your-", "placeholder"],
@@ -219,13 +220,9 @@ async function testWordPress({url, user, appPassword}) {
   if (!url || !user || !appPassword) return {ok: false, detail: "주소·아이디·애플리케이션 비밀번호가 모두 필요합니다."};
   const credentials = Buffer.from(`${user}:${appPassword}`).toString("base64");
   try {
-    const response = await fetch(`${url}/wp-json/wp/v2/users/me?context=edit`, {
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        Accept: "application/json",
-        // 일부 보안 플러그인은 User-Agent 없는 요청을 막는다
-        "User-Agent": "makeit-middle-kit",
-      },
+    // wpFetch: 브라우저 헤더 + 막힐 때 ?rest_route= 자동 재시도 (lib/wp.mjs)
+    const response = await wpFetch(`${url}/wp-json/wp/v2/users/me?context=edit`, {
+      headers: {Authorization: `Basic ${credentials}`},
       signal: AbortSignal.timeout(15_000),
     });
     if (response.status === 401 || response.status === 403) {
@@ -264,17 +261,14 @@ async function testWordPress({url, user, appPassword}) {
         // 작업방은 데이터센터에서 돌아간다. Cloudflare 는 그런 IP 를 기본적으로
         // 봇으로 보고 403 을 돌려준다. 집 컴퓨터에선 잘 되는데 여기서만 안 되는
         // 전형적인 이유라, 비밀번호를 아무리 새로 발급해도 소용이 없다.
-        head = "사이트 앞에 있는 Cloudflare 가 접속을 막았어요.";
+        head = "사이트 앞의 Cloudflare 가 두 가지 길을 모두 막았어요.";
         tail =
           "    비밀번호 문제가 아닙니다. 새로 발급해도 똑같이 막힙니다.\n" +
-          "    이 작업방은 개인 컴퓨터가 아니라 서버에서 돌아가기 때문에\n" +
-          "    Cloudflare 가 '프로그램이 접근한다'고 보고 차단한 겁니다.\n" +
+          "    (프로그램이 우회 경로로 한 번 더 시도했지만 그것도 막혔습니다)\n" +
           "\n" +
-          "    Cloudflare(cloudflare.com)에 로그인해서 풀어주세요.\n" +
-          "    1) 내 도메인 선택 → 왼쪽 Security → Bots\n" +
-          "    2) 'Bot Fight Mode' 를 끕니다  ← 대부분 이것만으로 해결\n" +
-          "    3) 그래도 막히면 Security → WAF → 사용자 지정 규칙에서\n" +
-          "       URI 경로가 /wp-json/ 으로 시작하면 Skip(건너뛰기) 규칙을 추가";
+          "    이럴 때만 Cloudflare 설정을 한 번 손보면 됩니다.\n" +
+          "    cloudflare.com 로그인 → 내 도메인 → Security → Bots\n" +
+          "    → 'Bot Fight Mode' 끄기";
       } else if (blockedLooking) {
         head = "사이트가 접속을 잠시 막았어요.";
         tail =
@@ -327,8 +321,8 @@ async function diagnoseWordPress({url, user, appPassword}) {
   const lines = [];
   const ask = async (label, headers) => {
     try {
-      const response = await fetch(`${url}/wp-json/wp/v2/users/me?context=edit`, {
-        headers: {Accept: "application/json", ...headers},
+      const response = await wpFetch(`${url}/wp-json/wp/v2/users/me?context=edit`, {
+        headers,
         signal: AbortSignal.timeout(15_000),
       });
       const body = await response.text().catch(() => "");
@@ -367,7 +361,7 @@ async function diagnoseWordPress({url, user, appPassword}) {
   console.log("");
   if (cloudflareBlocked) {
     console.log("  → Cloudflare 가 이 작업방을 막고 있어요. (비밀번호 문제 아님)");
-    console.log("     cloudflare.com → 내 도메인 → Security → Bots → 'Bot Fight Mode' 끕기");
+    console.log("     cloudflare.com → 내 도메인 → Security → Bots → 'Bot Fight Mode' 끄기");
     console.log("     그래도 막히면 WAF 사용자 지정 규칙에서 /wp-json/ 을 Skip 처리하세요.");
   } else if (noAuth.status === 0) {
     console.log("  → 사이트에 아예 닿지 않아요. 도메인 주소를 다시 확인해주세요.");

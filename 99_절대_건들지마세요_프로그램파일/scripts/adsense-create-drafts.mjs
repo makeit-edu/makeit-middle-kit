@@ -6,6 +6,7 @@ import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {readTitleEntries, resolveTitleFile} from "./title-files.mjs";
 import {keysGuideMessage, requireLicense} from "./lib/env.mjs";
+import {wpFetch} from "./lib/wp.mjs";
 
 const programRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const projectRoot = dirname(programRoot);
@@ -474,7 +475,7 @@ async function fetchAllPostTitles({siteUrl, username, appPassword}) {
     const url = `${base}/wp-json/wp/v2/posts?context=edit&status=draft,pending,future,publish,private&per_page=${perPage}&page=${page}&orderby=id&order=asc&_fields=title`;
     let response;
     try {
-      response = await fetch(url, {headers: {Authorization: `Basic ${credentials}`, Accept: "application/json"}});
+      response = await wpFetch(url, {headers: {Authorization: `Basic ${credentials}`, Accept: "application/json"}});
     } catch (error) {
       return {titles, complete: false, reason: error instanceof Error ? error.message : String(error)};
     }
@@ -502,7 +503,7 @@ async function findExistingPostByTitle({siteUrl, username, appPassword, title}) 
   const url = `${wordpressBaseUrl(siteUrl)}/wp-json/wp/v2/posts?context=edit&status=draft,pending,future,publish&search=${encodeURIComponent(title)}&per_page=50&_fields=id,title,status`;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      const response = await fetch(url, {
+      const response = await wpFetch(url, {
         headers: {Authorization: `Basic ${credentials}`, Accept: "application/json"},
       });
       if (!response.ok) throw new Error(`상태 코드 ${response.status}`);
@@ -669,7 +670,7 @@ async function createWordPressCategory({siteUrl, username, appPassword, name, de
   };
   if (Number(parentId || 0) > 0) payload.parent = Number(parentId);
 
-  const response = await fetch(`${wordpressBaseUrl(siteUrl)}/wp-json/wp/v2/categories`, {
+  const response = await wpFetch(`${wordpressBaseUrl(siteUrl)}/wp-json/wp/v2/categories`, {
     method: "POST",
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -755,7 +756,7 @@ async function fetchWordPressCategories({siteUrl, username, appPassword}) {
 
   while (true) {
     const url = `${wordpressBaseUrl(siteUrl)}/wp-json/wp/v2/categories?per_page=100&page=${page}&hide_empty=false&orderby=name&order=asc&_fields=id,name,slug,description,parent`;
-    const response = await fetch(url, {
+    const response = await wpFetch(url, {
       method: "GET",
       headers: {
         Authorization: `Basic ${credentials}`,
@@ -974,7 +975,7 @@ async function generateFeaturedImage({apiKey, title, meta, usdKrw}) {
 async function uploadFeaturedImage({siteUrl, username, appPassword, title, meta, generatedImage}) {
   const credentials = wordpressCredentials(username, appPassword);
   const mediaUrl = `${wordpressBaseUrl(siteUrl)}/wp-json/wp/v2/media`;
-  const uploadResponse = await fetch(mediaUrl, {
+  const uploadResponse = await wpFetch(mediaUrl, {
     method: "POST",
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -1000,7 +1001,7 @@ async function uploadFeaturedImage({siteUrl, username, appPassword, title, meta,
   const mediaId = Number(uploadData.id);
   if (!mediaId) throw new Error("대표이미지 업로드 후 미디어 ID를 받지 못함");
 
-  const updateResponse = await fetch(`${mediaUrl}/${mediaId}`, {
+  const updateResponse = await wpFetch(`${mediaUrl}/${mediaId}`, {
     method: "POST",
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -1174,7 +1175,7 @@ async function createDraftPost({siteUrl, username, appPassword, title, html, dat
   const categoryIds = categoryIdsForPayload(selectedCategory);
   if (categoryIds.length > 0) payload.categories = categoryIds;
 
-  const response = await fetch(`${wordpressBaseUrl(siteUrl)}/wp-json/wp/v2/posts?context=edit`, {
+  const response = await wpFetch(`${wordpressBaseUrl(siteUrl)}/wp-json/wp/v2/posts?context=edit`, {
     method: "POST",
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -1207,7 +1208,7 @@ async function updateDraftPostContent({siteUrl, username, appPassword, postId, h
   const categoryIds = categoryIdsForPayload(selectedCategory);
   if (categoryIds.length > 0) payload.categories = categoryIds;
 
-  const response = await fetch(`${wordpressBaseUrl(siteUrl)}/wp-json/wp/v2/posts/${postId}?context=edit`, {
+  const response = await wpFetch(`${wordpressBaseUrl(siteUrl)}/wp-json/wp/v2/posts/${postId}?context=edit`, {
     method: "POST",
     headers: {
       Authorization: `Basic ${credentials}`,
