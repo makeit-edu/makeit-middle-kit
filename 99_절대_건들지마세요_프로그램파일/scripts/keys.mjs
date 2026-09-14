@@ -251,12 +251,30 @@ async function testWordPress({url, user, appPassword}) {
       // 그래서 한쪽으로 단정하지 않고, 가능성을 순서대로 보여준다.
       const definitelyWrong = ["incorrect_password", "invalid_username", "invalid_email"].includes(serverCode);
       const blockedLooking = serverCode === "HTML응답" || response.status === 403;
+      // 사이트 앞단에 Cloudflare 가 있는지 (응답 헤더로 바로 알 수 있다)
+      const viaCloudflare =
+        /cloudflare/i.test(response.headers.get("server") || "") || Boolean(response.headers.get("cf-ray"));
 
       let head;
       let tail;
       if (definitelyWrong) {
         head = "관리자 ID 또는 애플리케이션 비밀번호가 틀렸어요.";
         tail = "    워드프레스 [사용자 → 프로필]에서 새로 발급해 보세요.";
+      } else if (blockedLooking && viaCloudflare) {
+        // 작업방은 데이터센터에서 돌아간다. Cloudflare 는 그런 IP 를 기본적으로
+        // 봇으로 보고 403 을 돌려준다. 집 컴퓨터에선 잘 되는데 여기서만 안 되는
+        // 전형적인 이유라, 비밀번호를 아무리 새로 발급해도 소용이 없다.
+        head = "사이트 앞에 있는 Cloudflare 가 접속을 막았어요.";
+        tail =
+          "    비밀번호 문제가 아닙니다. 새로 발급해도 똑같이 막힙니다.\n" +
+          "    이 작업방은 개인 컴퓨터가 아니라 서버에서 돌아가기 때문에\n" +
+          "    Cloudflare 가 '프로그램이 접근한다'고 보고 차단한 겁니다.\n" +
+          "\n" +
+          "    Cloudflare(cloudflare.com)에 로그인해서 풀어주세요.\n" +
+          "    1) 내 도메인 선택 → 왼쪽 Security → Bots\n" +
+          "    2) 'Bot Fight Mode' 를 끕니다  ← 대부분 이것만으로 해결\n" +
+          "    3) 그래도 막히면 Security → WAF → 사용자 지정 규칙에서\n" +
+          "       URI 경로가 /wp-json/ 으로 시작하면 Skip(건너뛰기) 규칙을 추가";
       } else if (blockedLooking) {
         head = "사이트가 접속을 잠시 막았어요.";
         tail =
@@ -344,8 +362,14 @@ async function diagnoseWordPress({url, user, appPassword}) {
   }
 
   const [noAuth, mine, wrong] = lines;
+  const cloudflareBlocked = lines.some((line) => line.status === 403 && /cloudflare/i.test(line.server));
+
   console.log("");
-  if (noAuth.status === 0) {
+  if (cloudflareBlocked) {
+    console.log("  → Cloudflare 가 이 작업방을 막고 있어요. (비밀번호 문제 아님)");
+    console.log("     cloudflare.com → 내 도메인 → Security → Bots → 'Bot Fight Mode' 끕기");
+    console.log("     그래도 막히면 WAF 사용자 지정 규칙에서 /wp-json/ 을 Skip 처리하세요.");
+  } else if (noAuth.status === 0) {
     console.log("  → 사이트에 아예 닿지 않아요. 도메인 주소를 다시 확인해주세요.");
   } else if (mine.status === wrong.status && mine.code === wrong.code) {
     console.log("  → 넣은 값과 일부러 틀린 값의 응답이 같아요.");
