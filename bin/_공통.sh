@@ -49,7 +49,7 @@ guard_template_repo() {
   echo "     ${CYAN}3)${OFF} 새로 만든 ${B}내 저장소${OFF}에서 ${B}Code → Codespaces → Create${OFF}"
   echo "     ${CYAN}4)${OFF} 지금 이 작업방은 ${B}github.com/codespaces${OFF} 에서 지우기"
   echo ""
-  echo "   ${B}안내서 9~14번${OFF} 그대로입니다."
+  echo "   ${B}안내서 3~4번${OFF} 그대로입니다."
   echo ""
   echo "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${OFF}"
   echo ""
