@@ -130,6 +130,9 @@ async function askHidden(rl, question, currentValue) {
   }
 
   output.write(`${question}${suffix}: `);
+  // 프롬프트 바로 뒤 커서 위치를 기억해 둔다.
+  // 입력이 끝나면 여기로 되돌아와 그 뒤를 전부 지운다 (아래 finish 참고).
+  if (output.isTTY) output.write("\u001b[s");
 
   // readline 이 살아 있으면 raw mode 로 바꿔도 readline 이 입력을 그대로 화면에
   // 찍어 버린다 — 실제로 API 키가 터미널에 통째로 노출됐다. 반드시 멈춰 둔다.
@@ -147,6 +150,16 @@ async function askHidden(rl, question, currentValue) {
   const finish = () => {
     input.setRawMode(false);
     input.off("data", onData);
+
+    // 터미널이 붙여넣은 값을 먼저 화면에 그려 버리는 경우가 있다.
+    // raw mode 를 켜도 클라이언트(VS Code 터미널)가 자체 에코를 하기 때문이다.
+    // 실제로 OpenAI 키가 통째로 화면에 찍혔고, 그 상태로 스크린샷까지 나갔다.
+    //
+    // 막는 건 불가능하니, 뒤에서 지운다:
+    //   \u001b[u  → 아까 기억해 둔 프롬프트 뒤로 커서 복귀
+    //   \u001b[0J → 거기서부터 화면 끝까지 지우기 (몇 줄이 찍혔든 사라진다)
+    if (output.isTTY) output.write("\u001b[u\u001b[0J");
+
     // 몇 글자 들어갔는지만 알려 준다 (값 자체는 화면에 남기지 않는다)
     output.write(value ? `${"\u2022".repeat(Math.min(value.length, 12))}\n` : "\n");
     if (rl) rl.resume();
