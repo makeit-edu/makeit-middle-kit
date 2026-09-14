@@ -37,6 +37,65 @@ if [ ! -x "$CODEX_BIN" ]; then
   fi
 fi
 
+# ── 첫 출력이 나올 때까지 돌리는 로딩 표시 ──────────────────
+#
+# codex login 은 서버에서 기기 코드를 받아오느라 몇 초…몇십 초를 조용히 기다린다.
+# 그 사이 화면에 아무것도 안 나와서 수강생은 멈춘 줄 알고 창을 닫아 버린다.
+#
+# 출력을 파일로 받아 두고, 거기 첫 글자가 찍힐 때까지만 스피너를 돌린다.
+# 본채 출력이 시작되면 스피너 줄을 지우고 그대로 흘려보낸다 — 그래야 둘이 섞이지 않는다.
+run_with_spinner() {
+  local msg="$1"
+  shift
+
+  # 터미널이 아니면(파이프·로그) 장식 없이 그냥 실행한다
+  if [ ! -t 1 ]; then
+    "$@"
+    return $?
+  fi
+
+  local out
+  out="$(mktemp)"
+  # stdin 은 터미널에 붙여 둔다 (로그인이 입력을 받아야 할 때를 대비)
+  "$@" >"$out" 2>&1 <&0 &
+  local pid=$!
+
+  local frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+  local i=0
+  while kill -0 "$pid" 2>/dev/null && [ ! -s "$out" ]; do
+    printf '\r  \033[36m%s\033[0m %s' "${frames[$((i % 10))]}" "$msg"
+    i=$((i + 1))
+    sleep 0.12
+  done
+  printf '\r\033[2K'
+
+  # 남은 출력을 끝날 때까지 그대로 보여 준다.
+  #
+  # tail -f --pid 를 써 봤는데 마지막 한 줄을 놓치는 일이 있었다(실측:
+  # "Welcome to Codex" 가 사라짐). 프로세스가 끝나는 순간과 마지막
+  # 쓰기가 겹쳐서다. 그래서 직접 읽은 위치를 세면서 전달한다.
+  local shown=0 size
+  while :; do
+    size=$(wc -c <"$out" 2>/dev/null || echo 0)
+    if [ "$size" -gt "$shown" ]; then
+      tail -c "+$((shown + 1))" "$out"
+      shown=$size
+    fi
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  # 끝난 뒤에 찍힌 게 있을 수 있으니 한 번 더
+  size=$(wc -c <"$out" 2>/dev/null || echo 0)
+  if [ "$size" -gt "$shown" ]; then
+    tail -c "+$((shown + 1))" "$out"
+  fi
+
+  wait "$pid"
+  local rc=$?
+  rm -f "$out"
+  return $rc
+}
+
 # ── 로그인 여부 확인: CODEX_HOME/auth.json 이 없으면 기기 코드 로그인 안내 (D5) ──
 if [ ! -f "$CODEX_HOME/auth.json" ]; then
   echo ""
@@ -49,7 +108,7 @@ if [ ! -f "$CODEX_HOME/auth.json" ]; then
   echo "  ※ 승인이 안 되면: ChatGPT 설정 → 보안 및 로그인 → 맨 아래"
   echo "    'Codex용 장치 코드 인증 활성화'가 켜져 있는지 먼저 확인하세요. (온보딩 0단계)"
   echo ""
-  if ! "$CODEX_BIN" login --device-auth; then
+  if ! run_with_spinner "ChatGPT 연결 준비 중입니다. 잠시만요 (10~30초)" "$CODEX_BIN" login --device-auth; then
     echo ""
     echo "❌ 로그인에 실패했어요. 위 안내(0단계 토글)를 확인한 뒤 다시 '시작' 을 입력해 주세요."
     exit 1
@@ -60,4 +119,11 @@ fi
 
 # ── 저장소 루트를 작업 폴더로 하여 코덱스 실행 (AGENTS.md 라우팅이 루트 기준) ──
 cd "$ROOT"
+
+# 코덱스 화면이 뜨기까지도 몇 초 걸린다. exec 는 프로세스를 통째로 바꿔치므로
+# 스피너를 돌릴 수는 없고, 대신 "지금 뜼는 중"이라고 한 줄 남겨 둔다.
+if [ -t 1 ]; then
+  printf '  \033[36m⠋\033[0m AI 비서 화면을 띄우는 중이에요...\n'
+fi
+
 exec "$CODEX_BIN"
