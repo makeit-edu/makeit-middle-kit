@@ -6,6 +6,7 @@ import path from "node:path";
 import {fileURLToPath} from "node:url";
 import {listTitleFileCandidates} from "./title-files.mjs";
 import {hasEnvLocal, loadEnv} from "./lib/env.mjs";
+import {MAX_SITES, siteNumbers, sitePrefix} from "./lib/sites.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const projectRoot = path.resolve(rootDir, "..");
@@ -74,13 +75,22 @@ if (!env) {
   report(".env.local", "없음 → 터미널에 '키설정' 을 입력하면 만들어집니다");
 } else {
   report("OpenAI API 키", maskKey(env.OPENAI_API_KEY));
-  report("애드센스 사이트 1", siteReady(env, "ADSENSE_SITE_01") ? "연결 정보 입력됨" : "미입력 또는 확인 필요");
-  report("애드센스 사이트 2", siteReady(env, "ADSENSE_SITE_02") ? "연결 정보 입력됨" : "미입력 또는 확인 필요");
-  report("애드센스 사이트 3", siteReady(env, "ADSENSE_SITE_03") ? "연결 정보 입력됨" : "미입력 또는 확인 필요");
+  // 사이트가 최대 10개라 전부 나열하면 출력이 길어진다 — 입력된 것만 보여준다.
+  const readySites = siteNumbers().filter((n) => siteReady(env, sitePrefix(n)));
+  report(
+    "애드센스 사이트",
+    readySites.length > 0
+      ? `${readySites.length}개 입력됨 (사이트 ${readySites.join(", ")})`
+      : `미입력 — 터미널에 '키설정' 을 입력해주세요 (최대 ${MAX_SITES}개)`,
+  );
 }
 
-for (const number of [1, 2, 3]) {
+for (const number of siteNumbers()) {
   const candidates = listTitleFileCandidates(projectRoot, number);
+  // 쓰지 않는 번호는 조용히 넘어간다.
+  // 빈 제목 파일은 10개 다 미리 만들어 두기 때문에, 파일 존재만으로는 판단하지 않는다.
+  const hasTitles = candidates.some((candidate) => candidate.titleCount > 0);
+  if (!hasTitles && !siteReady(env, sitePrefix(number))) continue;
   const filled = candidates.filter((candidate) => candidate.titleCount > 0);
   if (filled.length > 0) {
     report(`사이트 ${number} 제목 파일`, `${filled[0].fileName} (${filled[0].titleCount}개)`);

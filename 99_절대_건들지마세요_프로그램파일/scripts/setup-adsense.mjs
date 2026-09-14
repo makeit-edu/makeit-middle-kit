@@ -5,6 +5,7 @@ import {copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync} from "
 import path from "node:path";
 import {fileURLToPath} from "node:url";
 import {requireLicense} from "./lib/env.mjs";
+import {MAX_SITES, siteNumbers} from "./lib/sites.mjs";
 
 // 설치 게이트: 예전 01 런처의 코드 입력(runtime/.license_ok 파일 마커)을 폐지하고
 // MAKEIT_MIDDLE_LICENSE 환경변수 검증으로 통일 (PRD D9·5-4)
@@ -75,7 +76,7 @@ divider("2/4 애드센스 제목 파일 준비");
 const titlesDir = path.join(projectRoot, "애드센스 승인글", "01_제목넣는곳");
 try {
   mkdirSync(titlesDir, {recursive: true});
-  for (const n of [1, 2, 3]) {
+  for (const n of siteNumbers()) {
     const filePath = path.join(titlesDir, `사이트${n}_제목200개.txt`);
     if (!existsSync(filePath)) {
       writeFileSync(
@@ -91,7 +92,7 @@ try {
       );
     }
   }
-  record("제목 파일", true, "사이트1/2/3 제목 파일 준비 완료");
+  record("제목 파일", true, `사이트1~${MAX_SITES} 제목 파일 준비 완료`);
 } catch (error) {
   record("제목 파일", false, error instanceof Error ? error.message : String(error));
 }

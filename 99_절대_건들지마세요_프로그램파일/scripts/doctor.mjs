@@ -9,6 +9,7 @@ import {execFileSync} from "node:child_process";
 import {existsSync, readFileSync} from "node:fs";
 import {join} from "node:path";
 import {listTitleFileCandidates} from "./title-files.mjs";
+import {MAX_SITES, siteNumbers, sitePrefix} from "./lib/sites.mjs";
 import {PROGRAM_ROOT, PROJECT_ROOT, ENV_LOCAL_PATH, hasEnvLocal, loadEnv, valueReady} from "./lib/env.mjs";
 
 const rootDir = PROGRAM_ROOT;
@@ -87,8 +88,8 @@ const openAiReady = valueReady(env.OPENAI_API_KEY, ["sk-your", "your-openai", "p
 const envReady = hasEnvLocal() || openAiReady; // Codespaces Secrets만 쓰는 경우도 인정
 const workDir = join(projectRoot, WORK_DIR_NAME);
 
-const adsenseReadyCount = ["ADSENSE_SITE_01", "ADSENSE_SITE_02", "ADSENSE_SITE_03"].filter((prefix) => siteReady(env, prefix)).length;
-const titleCandidates = [1, 2, 3].map((n) => listTitleFileCandidates(projectRoot, n));
+const adsenseReadyCount = siteNumbers().filter((n) => siteReady(env, sitePrefix(n))).length;
+const titleCandidates = siteNumbers().map((n) => listTitleFileCandidates(projectRoot, n));
 const titlesReady = titleCandidates.some((candidates) => candidates.some((candidate) => candidate.titleCount > 0));
 
 const checks = [
@@ -145,19 +146,21 @@ const checks = [
     name: "워드프레스 사이트 연결 정보",
     ok: adsenseReadyCount > 0,
     later: adsenseReadyCount === 0,
-    detail: `${adsenseReadyCount}/3개 준비됨${adsenseReadyCount === 0 ? " — 터미널에 '키설정' 을 입력해주세요" : ""}`,
+    detail: `${adsenseReadyCount}개 준비됨 (최대 ${MAX_SITES}개)${adsenseReadyCount === 0 ? " — 터미널에 '키설정' 을 입력해주세요" : ""}`,
   },
   {
     code: "W03",
     name: "사이트별 제목 파일",
     ok: titlesReady,
     later: !titlesReady,
-    detail: titleCandidates
-      .map((candidates, index) => {
-        const filled = candidates.filter((candidate) => candidate.titleCount > 0);
-        return `사이트${index + 1} ${filled.length > 0 ? `${filled[0].titleCount}개` : "아직 없음"}`;
-      })
-      .join(" / "),
+    // 사이트가 최대 10개라 전부 쓰면 한 줄이 너무 길어진다 — 채워진 것만 알려준다.
+    detail: (() => {
+      const filled = titleCandidates
+        .map((candidates, index) => ({n: index + 1, best: candidates.find((candidate) => candidate.titleCount > 0)}))
+        .filter((entry) => entry.best);
+      if (filled.length === 0) return "아직 없음 — '애드센스 승인글/01_제목넣는곳'의 사이트1제목.txt 부터 채우세요";
+      return filled.map((entry) => `사이트${entry.n} ${entry.best.titleCount}개`).join(" / ");
+    })(),
   },
 ];
 

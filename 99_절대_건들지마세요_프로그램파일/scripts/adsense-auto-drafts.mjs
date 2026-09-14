@@ -23,6 +23,7 @@ function ready(value, placeholders = []) {
 function sitePrefix(siteNumber) {
   return `ADSENSE_SITE_${String(siteNumber).padStart(2, "0")}`;
 }
+import {siteNumbers} from "./lib/sites.mjs";
 
 function siteEnvReady(env, siteNumber) {
   const prefix = sitePrefix(siteNumber);
@@ -72,7 +73,7 @@ if (!dryRun && !ready(env.OPENAI_API_KEY, ["sk-your"])) {
   process.exit(1);
 }
 
-const siteInfos = [1, 2, 3].map((siteNumber) => ({
+const siteInfos = siteNumbers().map((siteNumber) => ({
   ...siteTitleInfo(siteNumber),
   envReady: siteEnvReady(env, siteNumber),
 }));
@@ -96,7 +97,7 @@ if (targetSites.length === 0) {
     console.error(`${needs.join(", ")} 제목 파일은 있지만 워드프레스 연결정보가 부족합니다.`);
     console.error(keysGuideMessage("해당 사이트의 워드프레스 연결 정보(도메인·관리자 아이디·애플리케이션 비밀번호)"));
   } else {
-    console.error("실행할 사이트를 찾지 못함. 사이트1/2/3 제목 파일과 연결정보를 확인해야 함.");
+    console.error("실행할 사이트를 찾지 못함. 사이트별 제목 파일과 연결정보를 확인해야 함. (사이트1~10)");
   }
   process.exit(1);
 }

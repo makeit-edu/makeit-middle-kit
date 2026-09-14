@@ -19,9 +19,9 @@
 - 본문 중간 이미지 블록의 alt text와 캡션도 대표이미지와 같은 대표키워드 기준으로 들어가야 해.
 - 제목과 요약글은 내가 워드프레스에서 직접 확인하고 수정할 거야.
 - 비밀번호, 애플리케이션 비밀번호, API 키는 화면에 다시 출력하지 말고 .env.local에 저장해.
-- 제목 파일은 반드시 애드센스 승인글/01_제목넣는곳 에서 사이트1/2/3 파일을 찾아.
+- 제목 파일은 반드시 애드센스 승인글/01_제목넣는곳 에서 사이트N 파일(N 은 1~10)을 찾아.
 - 사이트1은 사이트1제목.txt와 ADSENSE_SITE_01 연결정보, 사이트2는 사이트2제목.txt와 ADSENSE_SITE_02 연결정보, 사이트3은 사이트3제목.txt와 ADSENSE_SITE_03 연결정보를 사용해.
-- 사이트 번호가 없고 "알아서", "추가로", "제목 찾아서"처럼 말하면 node scripts/adsense-auto-drafts.mjs --limit=10 형식으로 실행해. 이 스크립트가 사이트1/2/3 제목 파일을 각 사이트에 맞춰 자동 매핑해.
+- 사이트 번호가 없고 "알아서", "추가로", "제목 찾아서"처럼 말하면 node scripts/adsense-auto-drafts.mjs --limit=10 형식으로 실행해. 이 스크립트가 사이트1~10 제목 파일을 각 사이트에 맞춰 자동 매핑해.
 - 사이트 번호가 있으면 node scripts/adsense-create-drafts.mjs --site=N --limit=10 형식으로 해당 사이트만 실행해.
 - 결과 확인 파일은 애드센스 승인글/02_생성결과_확인용 에 저장돼.
 - 실행 후 last-run.json에서 slug, focusKeyword, featuredImageAlt, featuredMediaId, featuredImageUrl, inlineImageInserted, inlineImageMediaId, postContentImageVerified, categoryId가 비어 있지 않은지 확인해.

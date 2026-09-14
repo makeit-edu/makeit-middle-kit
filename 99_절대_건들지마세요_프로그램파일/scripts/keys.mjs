@@ -12,6 +12,8 @@ import {
   VALID_LICENSE_CODES,
   maskValue,
 } from "./lib/env.mjs";
+import {MAX_SITES, sitePrefix} from "./lib/sites.mjs";
+import {STOP_WORDS, isStopWord, stripPasteNoise} from "./lib/paste.mjs";
 
 const placeholders = {
   MAKEIT_MIDDLE_LICENSE: ["your-", "placeholder"],
@@ -112,8 +114,10 @@ async function ask(rl, prompt) {
 
 async function askVisible(rl, question, currentValue, {normalize = (v) => v.trim()} = {}) {
   const suffix = String(currentValue || "").trim() ? " (그대로 두려면 엔터)" : " (건너뛰려면 엔터)";
-  const answer = await ask(rl, `${question}${suffix}: `);
-  return answer.trim() ? normalize(answer) : String(currentValue || "").trim();
+  const raw = await ask(rl, `${question}${suffix}: `);
+  // 붙여넣기 제어문자를 먼저 턴다 — 주소·아이디에도 섞일 수 있다
+  const answer = stripPasteNoise(raw);
+  return answer ? normalize(answer) : String(currentValue || "").trim();
 }
 
 // 비밀값 입력 — 화면에 글자를 표시하지 않는다
@@ -134,6 +138,10 @@ async function askHidden(rl, question, currentValue) {
   input.setEncoding("utf8");
 
   let value = "";
+  // 0 = 평상, 1 = ESC 받음, 2 = CSI(ESC[) 시퀀스 내부
+  // 붙여넣기하면 터미널이 ESC[200~ … ESC[201~ 로 감싸서 보낸다.
+  // 이걸 걸러내지 않으면 비밀번호 값에 그대로 섞여 서버가 401 을 돌려준다.
+  let escState = 0;
   let onData;
   const finish = () => {
     input.setRawMode(false);
@@ -146,12 +154,26 @@ async function askHidden(rl, question, currentValue) {
   return await new Promise((resolve) => {
     onData = (chunk) => {
       for (const char of chunk) {
+        // ESC 시퀀스는 통째로 버린다
+        if (escState === 1) {
+          escState = char === "[" ? 2 : 0;
+          continue;
+        }
+        if (escState === 2) {
+          // 파라미터/중간 바이트는 계속, 최종 바이트(@ ~ ~)에서 끝
+          if (char >= "\u0040" && char <= "\u007e") escState = 0;
+          continue;
+        }
+        if (char === "\u001b") {
+          escState = 1;
+          continue;
+        }
         if (char === "\u0003") {
           finish();
           process.exit(130);
         }
         if (char === "\r" || char === "\n") {
-          const answer = value.trim() || String(currentValue || "").trim();
+          const answer = stripPasteNoise(value) || String(currentValue || "").trim();
           finish();
           resolve(answer);
           return;
@@ -198,11 +220,27 @@ async function testWordPress({url, user, appPassword}) {
   const credentials = Buffer.from(`${user}:${appPassword}`).toString("base64");
   try {
     const response = await fetch(`${url}/wp-json/wp/v2/users/me?context=edit`, {
-      headers: {Authorization: `Basic ${credentials}`, Accept: "application/json"},
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        Accept: "application/json",
+        // 일부 보안 플러그인은 User-Agent 없는 요청을 막는다
+        "User-Agent": "makeit-middle-kit",
+      },
       signal: AbortSignal.timeout(15_000),
     });
     if (response.status === 401 || response.status === 403) {
-      return {ok: false, detail: "관리자 ID 또는 애플리케이션 비밀번호가 맞지 않아요. 워드프레스 [사용자 → 프로필]에서 새로 발급해 보세요."};
+      // 값은 보여주지 않고 '길이'만 알려준다.
+      // 앱 비밀번호는 보통 24글자(공백 빼고) / 29글자(공백 포함)라,
+      // 여기서 이상한 숫자가 보이면 붙여넣기가 깨졌다는 뜻이다.
+      const spaceless = String(appPassword).replace(/\s+/g, "").length;
+      return {
+        ok: false,
+        detail:
+          `관리자 ID 또는 애플리케이션 비밀번호가 맞지 않아요. ` +
+          `(보낸 값: 아이디 "${user}", 비밀번호 공백빼고 ${spaceless}글자)\n` +
+          `    ※ 앱 비밀번호는 보통 24글자예요. 많이 다르면 복사가 잘못된 겁니다.\n` +
+          `    워드프레스 [사용자 → 프로필]에서 새로 발급해 보세요.`,
+      };
     }
     if (!response.ok) {
       return {ok: false, detail: `상태 코드 ${response.status}. 도메인이 맞는지 확인해주세요.`};
@@ -266,8 +304,10 @@ async function askWordPressUntilValid(rl, {label, current}) {
       rl,
       `${label} 도메인 (예: https://example.com)`,
       first && ready("URL", current.url) ? current.url : "",
-      {normalize: normalizeUrl},
+      // '끝' 같은 중단어는 주소로 바꾸지 않고 그대로 통과시킨다
+      {normalize: (value) => (isStopWord(value) ? stripPasteNoise(value) : normalizeUrl(value))},
     );
+    if (isStopWord(url)) return "STOP";
     if (!url) return null;
 
     let user = "";
@@ -372,13 +412,36 @@ updates.OPENAI_API_KEY = await askApiKeyUntilValid(rl, {
   test: testOpenAi,
 });
 
-// 3) 승인글을 올릴 워드프레스 사이트 1~3
+// 3) 승인글을 올릴 워드프레스 사이트 (최대 MAX_SITES 개)
+const savedSiteNumbers = [];
 {
   console.log("");
   console.log("----- 승인글을 올릴 워드프레스 사이트 정보 -----");
-  console.log("(아직 준비 안 된 사이트는 엔터로 건너뛰면 됩니다)");
-  for (const n of [1, 2, 3]) {
-    const prefix = `ADSENSE_SITE_${String(n).padStart(2, "0")}`;
+  console.log(`사이트는 최대 ${MAX_SITES}개까지 넣을 수 있어요.`);
+
+  // 예전에는 무조건 정해진 개수만큼 물어봤다. 사이트가 2개뿐인 사람도
+  // 나머지를 엔터로 전부 넣겨야 해서 피곤했다. 몇 개인지 먼저 묻는다.
+  let plannedCount = 1;
+  if (isInteractive || pipedLines) {
+    for (let tries = 1; tries <= 3; tries += 1) {
+      const answer = stripPasteNoise(await ask(rl, `몇 개를 넣으시겠어요? (1~${MAX_SITES}, 그냥 엔터 = 1개): `));
+      if (!answer) break;
+      const parsed = Number(answer);
+      if (Number.isInteger(parsed) && parsed >= 1 && parsed <= MAX_SITES) {
+        plannedCount = parsed;
+        break;
+      }
+      console.log(`  → 1부터 ${MAX_SITES} 사이 숫자로 적어주세요.`);
+    }
+  }
+
+  console.log("");
+  console.log(`사이트 ${plannedCount}개를 차례대로 물어볼게요.`);
+  console.log("  · 이 사이트만 건너뛰기 : 그냥 엔터");
+  console.log(`  · 여기서 그만하기   : 도메인 자리에 ${STOP_WORDS[0]} 이라고 치고 엔터`);
+
+  for (let n = 1; n <= plannedCount; n += 1) {
+    const prefix = sitePrefix(n);
     console.log("");
     const site = await askWordPressUntilValid(rl, {
       label: `사이트${n}`,
@@ -388,6 +451,10 @@ updates.OPENAI_API_KEY = await askApiKeyUntilValid(rl, {
         appPassword: values[`${prefix}_APP_PASSWORD`],
       },
     });
+    if (site === "STOP") {
+      console.log(`  → 여기까지 할게요. 나머지는 나중에 '키설정' 으로 다시 넣으면 돼요.`);
+      break;
+    }
     if (!site) {
       console.log(`  → 사이트${n}은 건너뛸게요.`);
       continue;
@@ -395,6 +462,7 @@ updates.OPENAI_API_KEY = await askApiKeyUntilValid(rl, {
     updates[`${prefix}_URL`] = site.url;
     updates[`${prefix}_USER`] = site.user;
     updates[`${prefix}_APP_PASSWORD`] = site.appPassword;
+    savedSiteNumbers.push(n);
   }
 }
 
@@ -420,8 +488,8 @@ if (ready("OPENAI_API_KEY", updates.OPENAI_API_KEY)) {
 }
 
 {
-  for (const n of [1, 2, 3]) {
-    const prefix = `ADSENSE_SITE_${String(n).padStart(2, "0")}`;
+  for (const n of savedSiteNumbers) {
+    const prefix = sitePrefix(n);
     if (!updates[`${prefix}_URL`]) continue;
     const result = await testWordPress({
       url: updates[`${prefix}_URL`],

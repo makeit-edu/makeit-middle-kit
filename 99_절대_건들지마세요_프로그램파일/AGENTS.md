@@ -21,33 +21,30 @@
 - 워드프레스 연결 확인: `node scripts/wordpress-connection-check.mjs`
 - 사이트 자동 매핑 임시글 생성: `node scripts/adsense-auto-drafts.mjs --limit=10`
 - 사이트 지정 임시글 생성: `node scripts/adsense-create-drafts.mjs --site=1`
-- 사이트1 제목 파일: `../애드센스 승인글/01_제목넣는곳/사이트1제목.txt` → `ADSENSE_SITE_01_*` → `--site=1` → `site-01`
-- 사이트2 제목 파일: `../애드센스 승인글/01_제목넣는곳/사이트2제목.txt` → `ADSENSE_SITE_02_*` → `--site=2` → `site-02`
-- 사이트3 제목 파일: `../애드센스 승인글/01_제목넣는곳/사이트3제목.txt` → `ADSENSE_SITE_03_*` → `--site=3` → `site-03`
+사이트는 1번부터 10번까지 있다. N번 사이트는 전부 같은 규칙을 따른다.
+
+- 사이트N 제목 파일: `../애드센스 승인글/01_제목넣는곳/사이트N제목.txt`
+- 연결정보: `ADSENSE_SITE_NN_*` (NN 은 두 자리 — 01, 02, … 10)
+- 실행: `--site=N` → 결과 폴더 `site-NN`
+
+예: 사이트7 → `사이트7제목.txt` / `ADSENSE_SITE_07_*` / `--site=7` / `site-07`
 - 생성 결과 확인 폴더: `../애드센스 승인글/02_생성결과_확인용`
 
 ## 제목 파일 자동 매핑 절대 규칙
 - 제목을 찾아서 발행하라는 요청은 반드시 `../애드센스 승인글/01_제목넣는곳` 폴더를 먼저 확인한다.
 - `makeit-adsense/inputs/site-01/titles.txt` 같은 내부 예비 파일을 우선 사용하지 않는다.
-- 사이트1은 `사이트1제목.txt`, 사이트2는 `사이트2제목.txt`, 사이트3은 `사이트3제목.txt`만 사용한다.
+- 사이트N 은 `사이트N제목.txt` 만 사용한다. 사이트1 제목을 사이트10 에 올리면 안 된다.
 - 사이트 번호가 명확하면 해당 사이트만 실행한다. 예: `사이트2 글 10개` → `node scripts/adsense-create-drafts.mjs --site=2 --limit=10`
 - 사이트 번호가 없고 "알아서", "추가로", "제목 찾아서"처럼 말하면 `node scripts/adsense-auto-drafts.mjs --limit=10`을 실행한다.
-- 자동 매핑 스크립트는 사이트1/2/3 제목 파일과 `ADSENSE_SITE_01/02/03` 연결정보를 확인하고, 둘 다 준비된 사이트만 실행한다.
-- 여러 사이트가 준비되어 있으면 각 사이트의 제목 파일을 각 사이트에 맞춰 순서대로 임시글을 만든다. 사이트1 제목을 사이트2나 사이트3에 올리면 안 된다.
+- 자동 매핑 스크립트는 사이트1~10 제목 파일과 `ADSENSE_SITE_01`~`ADSENSE_SITE_10` 연결정보를 확인하고, 둘 다 준비된 사이트만 실행한다.
+- 여러 사이트가 준비되어 있으면 각 사이트의 제목 파일을 각 사이트에 맞춰 순서대로 임시글을 만든다. 다른 사이트의 제목을 섞으면 안 된다.
 
 ## .env.local 변수명
 아래 변수명만 사용한다. 다른 이름을 새로 만들지 않는다.
 
 - `OPENAI_API_KEY`
-- `ADSENSE_SITE_01_URL`
-- `ADSENSE_SITE_01_USER`
-- `ADSENSE_SITE_01_APP_PASSWORD`
-- `ADSENSE_SITE_02_URL`
-- `ADSENSE_SITE_02_USER`
-- `ADSENSE_SITE_02_APP_PASSWORD`
-- `ADSENSE_SITE_03_URL`
-- `ADSENSE_SITE_03_USER`
-- `ADSENSE_SITE_03_APP_PASSWORD`
+- `ADSENSE_SITE_01_URL` / `_USER` / `_APP_PASSWORD`
+- … 같은 규칙으로 `ADSENSE_SITE_10_*` 까지 (쓰는 만큼만 채워진다)
 
 `SITE1_DOMAIN`, `SITE1_ADMIN_ID`, `SITE1_APP_PASSWORD`, `WORDPRESS_DOMAIN` 같은 새 변수명은 만들지 않는다.
 
@@ -78,9 +75,9 @@
 1. 먼저 `pwd`가 이 `99_절대_건들지마세요_프로그램파일` 폴더인지 확인한다.
 2. `./.env.local`이 있고 `OPENAI_API_KEY`가 실제 값인지 확인한다.
 3. 연결 정보가 부족하면 글 생성을 시작하지 말고, 값을 채팅으로 받지 말고 터미널에서 `키설정` 실행을 안내한다.
-4. `../애드센스 승인글/01_제목넣는곳` 안의 `사이트1/2/3_제목200개.txt`를 먼저 확인한다. 사용자에게 제목 파일 경로를 다시 묻지 않는다.
+4. `../애드센스 승인글/01_제목넣는곳` 안의 사이트별 제목 파일을 먼저 확인한다. 사용자에게 제목 파일 경로를 다시 묻지 않는다.
 5. 사용자가 사이트 번호를 말했으면 해당 사이트만 실행한다. 예: `node scripts/adsense-create-drafts.mjs --site=2 --limit=10`
-6. 사이트 번호를 말하지 않았으면 `node scripts/adsense-auto-drafts.mjs --limit=10`처럼 실행해 사이트1/2/3 제목 파일과 연결정보를 자동 매핑한다.
+6. 사이트 번호를 말하지 않았으면 `node scripts/adsense-auto-drafts.mjs --limit=10`처럼 실행해 사이트1~10 제목 파일과 연결정보를 자동 매핑한다.
 7. 개수를 말하지 않으면 `--limit=1`로 임시글 1개만 테스트 생성한다.
 8. 스크립트는 이전에 성공한 제목을 자동으로 건너뛰므로 같은 제목을 다시 만들지 않는다.
 9. 생성 후 실행된 사이트별 `makeit-adsense/outputs/site-0N/last-run.json`과 `../애드센스 승인글/02_생성결과_확인용/site-0N/last-run.json`을 확인하고, 성공/실패 개수만 짧게 알려준다.

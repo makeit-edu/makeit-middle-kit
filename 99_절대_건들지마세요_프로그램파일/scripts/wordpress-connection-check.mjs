@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import {hasEnvLocal, keysGuideMessage, requireLicense} from "./lib/env.mjs";
+import {siteNumbers, sitePrefix} from "./lib/sites.mjs";
 
 function ready(value, placeholders = []) {
   if (!value) return false;
@@ -75,9 +76,7 @@ async function checkSite(site, {required = true} = {}) {
 const env = requireLicense({scriptLabel: "워드프레스 연결 점검"});
 
 const sites = [
-  siteFromEnv(env, "애드센스 사이트 1", "ADSENSE_SITE_01"),
-  siteFromEnv(env, "애드센스 사이트 2", "ADSENSE_SITE_02"),
-  siteFromEnv(env, "애드센스 사이트 3", "ADSENSE_SITE_03"),
+  ...siteNumbers().map((n) => siteFromEnv(env, `애드센스 사이트 ${n}`, sitePrefix(n))),
 ];
 
 // 파일도 없고 Secrets에도 사이트 정보가 하나도 없으면, 점검 대신 키설정 안내를 먼저 한다

@@ -1,17 +1,44 @@
 import {existsSync, readdirSync, readFileSync, statSync} from "node:fs";
 import {extname, join} from "node:path";
+import {siteNumbers} from "./lib/sites.mjs";
 
 const TITLE_FOLDER_PARTS = ["애드센스 승인글", "01_제목넣는곳"];
-const CANONICAL_TITLE_FILE_NAMES = {
-  1: "사이트1제목.txt",
-  2: "사이트2제목.txt",
-  3: "사이트3제목.txt",
+// 사이트 순서를 가리키는 우리말 표현 — 파일명 자동 찾기에 쓴다
+const ORDINALS = {
+  1: ["첫번째", "첫째", "일번"],
+  2: ["두번째", "둘째", "이번"],
+  3: ["세번째", "셋째", "삼번"],
+  4: ["네번째", "넬째", "사번"],
+  5: ["다섯번째", "다섯째", "오번"],
+  6: ["여섯번째", "여섯째", "육번"],
+  7: ["일곱번째", "일곱째", "칠번"],
+  8: ["여덟번째", "여덟째", "팔번"],
+  9: ["아홉번째", "아홉째", "구번"],
+  10: ["열번째", "열째", "십번"],
 };
-const ALIASES = {
-  1: ["사이트1", "사이트01", "site1", "site01", "1번", "1번째", "첫번째", "첫번째사이트", "사이트첫번째", "첫째"],
-  2: ["사이트2", "사이트02", "site2", "site02", "2번", "2번째", "두번째", "두번째사이트", "사이트두번째", "둘째"],
-  3: ["사이트3", "사이트03", "site3", "site03", "3번", "3번째", "세번째", "세번째사이트", "사이트세번째", "셋째"],
-};
+
+// 사이트 1~10 의 표준 제목 파일명 — 사이트1제목.txt … 사이트10제목.txt
+const CANONICAL_TITLE_FILE_NAMES = Object.fromEntries(
+  siteNumbers().map((n) => [n, `사이트${n}제목.txt`]),
+);
+
+// 파일명을 그대로 안 써도 찾아지도록 하는 별칭들
+const ALIASES = Object.fromEntries(
+  siteNumbers().map((n) => [
+    n,
+    [
+      `사이트${n}`,
+      `사이트${String(n).padStart(2, "0")}`,
+      `site${n}`,
+      `site${String(n).padStart(2, "0")}`,
+      `${n}번`,
+      `${n}번째`,
+      ...(ORDINALS[n] || []),
+      ...(ORDINALS[n] || []).map((word) => `${word}사이트`),
+      ...(ORDINALS[n] || []).map((word) => `사이트${word}`),
+    ],
+  ]),
+);
 
 export function titleDir(projectRoot) {
   return join(projectRoot, ...TITLE_FOLDER_PARTS);
@@ -61,12 +88,39 @@ function exactCanonicalTitleCandidate(projectRoot, siteNumber) {
   return matches[0] || null;
 }
 
+// 별칭이 파일명 안에 들어 있는지 보되, 숫자 경계를 지킨다.
+//
+// 그냥 includes 로 보면 '사이트1' 이 '사이트10제목.txt' 에도 맞아버려
+// 사이트10 의 제목이 사이트1 로 가는 사고가 난다. 사이트가 3개일 때는
+// 드러나지 않던 문제다(두 자릿수 번호가 없었으니까).
+function aliasMatches(normalized, alias) {
+  const needle = compact(alias);
+  if (!needle) return false;
+  const endsWithDigit = /\d$/.test(needle);
+
+  let from = 0;
+  for (;;) {
+    const at = normalized.indexOf(needle, from);
+    if (at === -1) return false;
+    const nextChar = normalized[at + needle.length];
+    // 숫자로 끝나는 별칭(사이트1, site1, 1번…) 뒤에 숫자가 더 오면
+    // 그건 다른 사이트 번호다.
+    if (!(endsWithDigit && nextChar && /\d/.test(nextChar))) return true;
+    from = at + 1;
+  }
+}
+
 export function detectSiteNumberFromFilename(fileName) {
   const normalized = compact(fileName);
 
-  for (const [siteNumber, aliases] of Object.entries(ALIASES)) {
-    if (aliases.some((alias) => normalized.includes(compact(alias)))) {
-      return Number(siteNumber);
+  // 큰 번호부터 본다 — 위 경계 규칙과 함께 걸어 두는 이중 방어.
+  const numbers = Object.keys(ALIASES)
+    .map(Number)
+    .sort((a, b) => b - a);
+
+  for (const siteNumber of numbers) {
+    if (ALIASES[siteNumber].some((alias) => aliasMatches(normalized, alias))) {
+      return siteNumber;
     }
   }
 
