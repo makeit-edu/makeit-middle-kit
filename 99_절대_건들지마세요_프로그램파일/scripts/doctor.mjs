@@ -4,7 +4,7 @@
 // 이 키트는 애드센스 승인글 하나만 다루므로 모드 구분 없이 한 번에 전부 점검한다.
 // 표시 규칙:
 //   [OK] 정상 / [나중에 입력] 키설정 전이라 아직 없는 값(실패 아님) / [확인 필요] 조치가 필요한 항목
-//   각 항목에는 에러코드 태그(E01~)가 붙는다 — 문의 채널에서 코치가 항목을 특정하는 용도.
+//   각 항목에는 에러코드 태그(E01~)가 붙는다 — 코치가 어떤 항목인지 빠르게 특정하는 용도.
 import {execFileSync} from "node:child_process";
 import {existsSync, readFileSync} from "node:fs";
 import {join} from "node:path";
@@ -63,7 +63,7 @@ function printChecks(title, checks) {
   console.log("비밀번호와 API 키 값은 출력하지 않음.");
   const needsAction = checks.some((check) => !check.ok && !check.later);
   if (needsAction) {
-    console.log("[확인 필요] 항목이 있으면 이 출력 전체를 복사해 문의 채널에 올려주세요.");
+    console.log("[확인 필요] 항목이 있으면 이 출력 전체를 복사해 코덱스에게 붙여넣고 물어보세요.");
   } else {
     console.log("모든 항목이 [OK] 또는 [나중에 입력]이면 정상입니다.");
   }
@@ -123,7 +123,7 @@ const checks = [
     detail: disk
       ? `${disk.usedGb}GB / ${disk.totalGb}GB 사용 (${disk.percent})` +
         ((codespaceSized && Number(disk.usedGb) >= 12) || parseInt(disk.percent, 10) >= 90
-          ? " — 무료 사용량(월 15GB)에 가까워졌어요. 이 출력을 복사해 문의 채널에 알려주세요"
+          ? " — 무료 사용량(월 15GB)에 가까워졌어요. 이 출력을 복사해 코덱스에게 물어보세요"
           : "")
       : "확인 안 됨 (치명적이지 않음)",
   },

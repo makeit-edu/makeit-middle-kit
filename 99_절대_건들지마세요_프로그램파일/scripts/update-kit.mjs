@@ -60,7 +60,7 @@ try {
 if (!templateRepo || templateRepo.includes("REPLACE_WITH")) {
   fail([
     "업데이트 기능이 아직 준비 중이에요. 지금은 할 일이 없습니다!",
-    "혹시 공지에서 '업데이트를 입력하세요'라고 안내받았다면, 이 화면을 복사해 문의 채널에 올려주세요.",
+    "혹시 공지에서 '업데이트를 입력하세요'라고 안내받았다면, 이 화면을 복사해 코덱스에게 붙여넣고 물어보세요.",
     "",
     "(운영진 참고: 배포 전에 99_절대_건들지마세요_프로그램파일/package.json 의",
     " config.templateRepo 값을 실제 템플릿 저장소 주소로 바꿔야 합니다 — 배포 체크리스트 항목)",
@@ -89,7 +89,7 @@ if (dirty) {
     "수정된 파일:",
     ...dirty.split("\n").slice(0, 10).map((line) => `  - ${line.trim()}`),
     "",
-    "직접 수정한 기억이 없다면, 위 목록을 복사해서 문의 채널에 올려주세요.",
+    "직접 수정한 기억이 없다면, 위 목록을 복사해서 코덱스에게 붙여넣고 물어보세요.",
   ]);
 }
 
@@ -106,7 +106,7 @@ try {
   fail([
     "템플릿 저장소에서 최신 내용을 받아오지 못했어요.",
     "인터넷 연결을 확인하고 다시 실행해주세요.",
-    "반복되면 GitHub 로그인(저장소 읽기 권한) 문제일 수 있으니 문의 채널에 알려주세요.",
+    "반복되면 GitHub 로그인(저장소 읽기 권한) 문제일 수 있으니 코덱스에게 물어보세요.",
   ]);
 }
 
@@ -114,7 +114,7 @@ try {
 const upstreamTree = gitQuiet(["ls-tree", "--name-only", `upstream/${UPSTREAM_BRANCH}`]).split("\n").filter(Boolean);
 const syncTargets = SYNC_PATHS.filter((syncPath) => upstreamTree.includes(syncPath));
 if (syncTargets.length === 0) {
-  fail(["템플릿 저장소에서 프로그램 폴더를 찾지 못했어요. 문의 채널에 알려주세요."]);
+  fail(["템플릿 저장소에서 프로그램 폴더를 찾지 못했어요. 코덱스에게 물어보세요."]);
 }
 
 // ===== 5. 변경 요약 → 적용 =====
@@ -140,7 +140,7 @@ try {
   fail([
     "업데이트 적용에 실패했어요.",
     String(error && error.stderr ? error.stderr : error).trim(),
-    "위 메시지를 복사해서 문의 채널에 올려주세요.",
+    "위 메시지를 복사해서 코덱스에게 붙여넣고 물어보세요.",
   ]);
 }
 

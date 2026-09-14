@@ -120,7 +120,7 @@ else
   echo "$DOCTOR_OUT" | grep "확인 필요" | sed "s/^/     /"
   echo ""
   echo "   터미널에 ${B}진단${OFF} 을 입력해, 나온 결과 전체를 복사해서"
-  echo "   문의 채널에 올려 주세요."
+  echo "   터미널에 '진단' 을 입력해 상태를 확인해 보세요."
   echo ""
   echo "${RED}${LINE}${OFF}"
 fi
