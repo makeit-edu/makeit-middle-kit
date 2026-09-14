@@ -12,7 +12,7 @@ import {
   VALID_LICENSE_CODES,
   maskValue,
 } from "./lib/env.mjs";
-import {MAX_SITES, sitePrefix} from "./lib/sites.mjs";
+import {MAX_SITES, siteNumbers, sitePrefix} from "./lib/sites.mjs";
 import {STOP_WORDS, isStopWord, stripPasteNoise} from "./lib/paste.mjs";
 import {wpFetch} from "./lib/wp.mjs";
 
@@ -516,6 +516,25 @@ console.log("");
 console.log("현재 상태");
 console.log(`- 수강 코드: ${VALID_LICENSE_CODES.includes(String(values.MAKEIT_MIDDLE_LICENSE || "").trim()) ? "입력됨" : "미입력"}`);
 console.log(`- OpenAI API 키: ${ready("OPENAI_API_KEY", values.OPENAI_API_KEY) ? `입력됨 ${maskValue(values.OPENAI_API_KEY)}` : "미입력"}`);
+
+// 이미 등록된 사이트를 번호·주소까지 보여 준다.
+// 수강생이 "내가 몇 번까지 넣었더라" 를 기억할 필요가 없게 하기 위해서다.
+// 주소와 아이디는 비밀이 아니니 그대로 보여 준다 (비밀번호만 가린다).
+const registeredSites = siteNumbers().filter((n) => ready("URL", values[`${sitePrefix(n)}_URL`]));
+{
+  const registered = registeredSites;
+  if (registered.length === 0) {
+    console.log("- 워드프레스 사이트: 아직 없음");
+  } else {
+    console.log(`- 워드프레스 사이트: ${registered.length}개 등록됨`);
+    for (const n of registered) {
+      const prefix = sitePrefix(n);
+      const domain = String(values[`${prefix}_URL`] || "").replace(/^https?:\/\//, "");
+      const user = String(values[`${prefix}_USER`] || "").trim();
+      console.log(`    · 사이트${n}  ${domain}${user ? `  (아이디 ${user})` : ""}`);
+    }
+  }
+}
 console.log("");
 
 // 파이프 입력이면 stdin 전체를 먼저 줄 큐로 읽어둔다 (질문 사이 유실 방지 — 위 입력 계층 주석 참고)
@@ -564,10 +583,14 @@ const savedSiteNumbers = [];
 
   // 예전에는 무조건 정해진 개수만큼 물어봤다. 사이트가 2개뿐인 사람도
   // 나머지를 엔터로 전부 넣겨야 해서 피곤했다. 몇 개인지 먼저 묻는다.
-  let plannedCount = 1;
+  // 이미 등록된 게 있으면 그 범위까지를 기본값으로 잡는다.
+  // 사이트1·3 이 등록돼 있는데 기본값을 1 로 두면, 엔터만 치는 수강생은
+  // 사이트3 을 다시 보지도 못하고 넘어간다.
+  const defaultCount = registeredSites.length > 0 ? Math.max(...registeredSites) : 1;
+  let plannedCount = defaultCount;
   if (isInteractive || pipedLines) {
     for (let tries = 1; tries <= 3; tries += 1) {
-      const answer = stripPasteNoise(await ask(rl, `몇 개를 넣으시겠어요? (1~${MAX_SITES}, 그냥 엔터 = 1개): `));
+      const answer = stripPasteNoise(await ask(rl, `몇 개를 넣으시겠어요? (1~${MAX_SITES}, 그냥 엔터 = ${defaultCount}개): `));
       if (!answer) break;
       const parsed = Number(answer);
       if (Number.isInteger(parsed) && parsed >= 1 && parsed <= MAX_SITES) {
@@ -580,7 +603,11 @@ const savedSiteNumbers = [];
 
   console.log("");
   console.log(`사이트 ${plannedCount}개를 차례대로 물어볼게요.`);
-  console.log("  · 이 사이트만 건너뛰기 : 그냥 엔터");
+  console.log(
+    registeredSites.length > 0
+      ? "  · 그냥 엔터    : 이미 들어간 값은 그대로 두고, 비어 있으면 건너뛰기"
+      : "  · 그냥 엔터    : 이 사이트는 건너뛰기",
+  );
   console.log(`  · 여기서 그만하기   : 도메인 자리에 ${STOP_WORDS[0]} 이라고 치고 엔터`);
 
   for (let n = 1; n <= plannedCount; n += 1) {
