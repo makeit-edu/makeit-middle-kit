@@ -245,6 +245,7 @@ async function testWordPress({url, user, appPassword}) {
     // 엉뚱한 안내가 나간다. 진현님 화면에서 실제로 그랬다.
     if (response.blocked) {
       if (response.challenged) {
+        // 이 상태에서 또 두드리면 차단이 연장된다. 바로 멈춰야 한다.
         // 허용목록에 넣을 IP 를 직접 찍어 준다.
         // 수강생보고 "내 IP 찾아서 넣으세요"하면 거기서 또 막힌다.
         const myIp = await myPublicIp();
@@ -254,31 +255,27 @@ async function testWordPress({url, user, appPassword}) {
           : "";
         return {
           ok: false,
+          blocked: true,
           detail:
-            "사이트의 '봇 차단' 기능이 막고 있어요.\n" +
+            "사이트가 잠시 접속을 막았어요.\n" +
             "    비밀번호 문제가 아닙니다. 새로 발급해도 같습니다.\n" +
-            "    사람이 브라우저로 들어왔는지 확인하는 화면이 돌아오는데,\n" +
-            "    프로그램은 그 화면을 통과할 수 없어요.\n" +
             "\n" +
+            "    ※ 이 차단은 보통 시간이 지나면 저절로 풀립니다.\n" +
+            "      짧은 시간에 연속으로 틀리면 사이트가 공격으로 오해해서 걸어두는 겁니다.\n" +
+            "\n" +
+            "    1) 20~30분 뒤에 '키설정' 을 다시 돌려보세요. 대부분 이걸로 끝납니다.\n" +
+            "    2) 그때는 비밀번호를 정확히 한 번만 넣으세요.\n" +
+            "       연속으로 틀리면 또 막힙니다.\n" +
             ipLine +
             "\n" +
-            "    호스팅 방화벽에 위 주소를 '허용'으로 등록하면 풀립니다.\n" +
-            "\n" +
-            "    · Cloudways 인 경우 (실제 경로)\n" +
-            "      서버 선택 → Security → Firewall → [Add Custom Rule]\n" +
-            "      → IP Address 칸에 위 주소 붙여넣기\n" +
-            "      → White List 선택 → [Add IP Address]\n" +
-            "      (TTL 은 비워 두면 계속 유지됩니다)\n" +
-            "\n" +
-            "    · 그 밖 호스팅 : '방화벽', 'IP 차단', '봇 차단' 메뉴에서 동일하게\n" +
-            "\n" +
-            "    메뉴를 못 찾으면 호스팅 고객센터에 이렇게 문의하세요.\n" +
-            `    ‘${myIp || "(내 서버 IP)"} 에서 워드프레스 REST API 접속이 봇 차단에 걸립니다.\n` +
-            "     허용목록에 넣어 주세요.’",
+            "    몇 번을 기다려도 계속 같다면, 그때만 호스팅 방화벽에\n" +
+            "    위 주소를 '허용'으로 등록하세요.\n" +
+            "    (Cloudways: 서버 → Security → Firewall → Add Custom Rule → White List)",
         };
       }
       return {
         ok: false,
+        blocked: true,
         detail:
           `사이트가 접속을 막았어요. (응답 ${response.status})\n` +
           "    값이 틀려서가 아니라 사이트 쪽 보안 기능이 막은 것입니다.\n" +
@@ -521,6 +518,7 @@ async function askApiKeyUntilValid(rl, {label, current, looksWrong, test}) {
 
 async function askWordPressUntilValid(rl, {label, current}) {
   let lastAttempt = null;
+  let wasBlocked = false;
   for (let attempt = 1; attempt <= 3; attempt++) {
     const first = attempt === 1;
     const url = await askVisible(
@@ -571,12 +569,32 @@ async function askWordPressUntilValid(rl, {label, current}) {
     }
     console.log("");
     console.log(`  → ${result.detail}`);
+
+    // 차단당한 상태면 여기서 멈춘다.
+    //
+    // 이게 이번 사건의 핵심이다. 비밀번호가 붙여넣기로 깨져 인증이 실패했고,
+    // 이 루프가 쉬지 않고 세 번을 연속으로 두드렸다. 호스팅은 그걸
+    // 무차별 대입 공격으로 보고 임시 차단을 걸었다. 그 뒤로는 올바른
+    // 비밀번호를 넣어도 계속 막혔다 — 우리가 우리 발목을 잡은 셈이다.
+    if (result.blocked) {
+      wasBlocked = true;
+      console.log("  → 지금 다시 시도하면 차단이 더 길어져요. 여기서 멈춥니다.");
+      lastAttempt = {url, user, appPassword};
+      break;
+    }
+
     if (attempt < 3) {
+      // 연속으로 두드리지 않는다. 잠시 쉬었다 간다.
+      const waitSeconds = attempt * 4;
+      console.log(`  → ${waitSeconds}초 쉬었다 다시 물어볼게요. (연속으로 시도하면 사이트가 막아버려요)`);
+      await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
       console.log("  → 도메인부터 다시 입력할게요. (이 사이트를 건너뛰려면 도메인에서 엔터)");
     }
   }
-  // 세 번 다 안 됐다면 원인을 갈라본다 — 대충 짐작하게 두지 않는다
-  if (lastAttempt && lastAttempt.url && lastAttempt.user && lastAttempt.appPassword) {
+  // 원인을 갈라본다 — 단, 이미 '차단' 으로 판정됐으면 건너뛴다.
+  // 진단은 요청을 세 번 더 보내는데, 차단된 상태에서 그러면
+  // 차단 시간만 늘어난다. 원인을 이미 알고 있으니 더 물을 것도 없다.
+  if (!wasBlocked && lastAttempt && lastAttempt.url && lastAttempt.user && lastAttempt.appPassword) {
     console.log("");
     console.log("  왜 안 되는지 몇 가지 더 확인해볼게요...");
     await diagnoseWordPress(lastAttempt);

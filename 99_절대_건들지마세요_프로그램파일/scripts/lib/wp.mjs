@@ -127,8 +127,12 @@ export async function wpFetch(url, options = {}) {
 
   let result = await send(firstUrl);
 
-  // 막혔고, 아직 안 써본 우회 경로가 남아 있으면 그쪽으로 한 번 더
-  if (result.blocked && altUrl && firstUrl !== altUrl) {
+  // 막혔고, 아직 안 써본 우회 경로가 남아 있으면 그쪽으로 한 번 더.
+  //
+  // 단, '사람 확인' 페이지면 우회해도 같다 — 경로가 아니라 접속자를 보고
+  // 막는 것이라(실측: /wp-json/ 과 ?rest_route= 가 똑같은 화면을 돌려줌).
+  // 그런데도 한 번 더 두드리면 차단 시간만 길어진다.
+  if (result.blocked && !result.challenged && altUrl && firstUrl !== altUrl) {
     const retry = await send(altUrl);
     if (!retry.blocked) {
       preferRestRoute.add(origin); // 이 사이트는 앞으로 이 길로
