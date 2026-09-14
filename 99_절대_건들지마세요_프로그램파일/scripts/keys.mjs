@@ -238,6 +238,38 @@ async function testWordPress({url, user, appPassword}) {
       headers: {Authorization: `Basic ${credentials}`},
       signal: AbortSignal.timeout(15_000),
     });
+    // ★ 순서가 중요하다. 차단을 먼저 본다.
+    //
+    // 봇 차단 화면은 상태코드가 200 으로 온다(실측). 그래서 401/403 만 보고
+    // 있으면 이 경우를 놓치고, 아래 JSON 파싱에서 "응답이 이상해요" 같은
+    // 엉뚱한 안내가 나간다. 진현님 화면에서 실제로 그랬다.
+    if (response.blocked) {
+      if (response.challenged) {
+        return {
+          ok: false,
+          detail:
+            "사이트의 '봇 차단' 기능이 막고 있어요.\n" +
+            "    비밀번호 문제가 아닙니다. 새로 발급해도 같습니다.\n" +
+            "    사람이 브라우저로 들어왔는지 확인하는 화면이 돌아오는데,\n" +
+            "    프로그램은 그 화면을 통과할 수 없어요.\n" +
+            "\n" +
+            "    호스팅 관리 화면에서 꺼주셔야 합니다.\n" +
+            "    · Cloudways : Application → Bot Protection → 끄기\n" +
+            "    · 그 밖    : '봇 차단', 'Bot Protection', '보안 수준' 같은 항목을 찾아 끄기\n" +
+            "\n" +
+            "    모르겠으면 호스팅 고객센터에 이렇게 문의하세요.\n" +
+            "    ‘외부 프로그램에서 워드프레스 REST API 연결이 봇 차단에 걸립니다. 풀어주세요.’",
+        };
+      }
+      return {
+        ok: false,
+        detail:
+          `사이트가 접속을 막았어요. (응답 ${response.status})\n` +
+          "    값이 틀려서가 아니라 사이트 쪽 보안 기능이 막은 것입니다.\n" +
+          (response.bodyPreview ? `    돌아온 내용: ${response.bodyPreview.slice(0, 120)}` : ""),
+      };
+    }
+
     if (response.status === 401 || response.status === 403) {
       // 워드프레스가 보낸 에러 코드를 그대로 보여준다.
       // incorrect_password / invalid_username 이면 정말 값이 틀린 것이고,
@@ -260,6 +292,8 @@ async function testWordPress({url, user, appPassword}) {
       // 실측: 이 사이트는 비밀번호가 틀려도 rest_not_logged_in 을 돌려준다.
       // 그래서 한쪽으로 단정하지 않고, 가능성을 순서대로 보여준다.
       const definitelyWrong = ["incorrect_password", "invalid_username", "invalid_email"].includes(serverCode);
+      // wpFetch 가 붙여 준 판정 — 응답이 JSON 이 아니라 '사람 확인' 페이지였는지
+      const gotChallengePage = Boolean(response.challenged);
       const blockedLooking = serverCode === "HTML응답" || response.status === 403;
       // 누가 막았는지를 응답에서 직접 가려낸다.
       //
@@ -286,7 +320,23 @@ async function testWordPress({url, user, appPassword}) {
 
       let head;
       let tail;
-      if (definitelyWrong) {
+      if (gotChallengePage) {
+        // 실측: 응답 200 + "One moment, please..." + 5초 뒤 새로고침 스크립트.
+        // 사람이 브라우저로 들어왔는지 검사하는 화면이라 프로그램은 못 넘는다.
+        // 쿠키를 받아 다시 가봐도, 기다렸다 가봐도, 다른 경로로 가봐도 같았다.
+        head = "사이트의 '봇 차단' 기능이 막고 있어요.";
+        tail =
+          "    비밀번호 문제가 아닙니다. 새로 발급해도 같습니다.\n" +
+          "    사람이 브라우저로 들어왔는지 확인하는 화면이 돌아오는데,\n" +
+          "    프로그램은 그 화면을 통과할 수 없어요.\n" +
+          "\n" +
+          "    호스팅 관리 화면에서 꺼주셔야 합니다.\n" +
+          "    · Cloudways : Application → Bot Protection → 끄기\n" +
+          "    · 그 밖    : '봇 차단', 'Bot Protection', '보안 수준' 같은 항목을 찾아 끄기\n" +
+          "\n" +
+          "    모르겠으면 호스팅 고객센터에 이렇게 문의하세요.\n" +
+          "    ‘외부 프로그램에서 워드프레스 REST API 연결이 봇 차단에 걸립니다. 풀어주세요.’";
+      } else if (definitelyWrong) {
         head = "관리자 ID 또는 애플리케이션 비밀번호가 틀렸어요.";
         tail = "    워드프레스 [사용자 → 프로필]에서 새로 발급해 보세요.";
       } else if (blockedLooking && cloudflareBlockedIt) {

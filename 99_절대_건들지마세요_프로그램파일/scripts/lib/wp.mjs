@@ -62,14 +62,32 @@ export function toRestRouteUrl(rawUrl) {
   return `${parsed.origin}${prefix}/?rest_route=${route}${query ? `&${query}` : ""}`;
 }
 
-// 차단당한 응답인지 (값이 틀린 게 아니라 '문 앞에서 막힌' 경우)
+// 차단당한 응답인지 (값이 틀린 게 아니라 '문 앞에서 막힐' 경우)
+//
+// 주의: 상태코드만 보면 놓친다. 실측된 사례 —
+//   응답은 200 인데 내용이 JSON 이 아니라 setTimeout 으로
+//   브라우저인지 검사하는 HTML 페이지였다. 브라우저는 JS 를 돌려
+//   통과하지만 프로그램은 못 한다. 그래서 인증 헤더가 통째로 무시되고,
+//   결과적으로 "비밀번호가 틀렸다"는 오진이 난다.
+//
+// REST API 는 언제나 JSON 을 돌려준다. HTML 이 오면 무조건 막힌 것이다.
 function looksBlocked(response, bodyText) {
-  if (response.status === 403 || response.status === 503) return true;
-  // 200 이어도 JSON 대신 HTML 차단 페이지를 주는 경우가 있다
-  if (bodyText && bodyText.trim().startsWith("<") && /cloudflare|attention required|blocked/i.test(bodyText.slice(0, 600))) {
-    return true;
-  }
+  if (response.status === 403 || response.status === 503 || response.status === 429) return true;
+
+  const head = (bodyText || "").trim();
+  if (!head) return false;
+
+  // JSON 이 아닌 HTML 응답 = 차단이거나 사람 확인 페이지
+  if (head.startsWith("<")) return true;
+
   return false;
+}
+
+// 사람인지 검사하는 페이지인가 (안내 문구를 갈라 쓰기 위해)
+export function looksLikeChallenge(bodyText) {
+  const head = (bodyText || "").slice(0, 2000);
+  if (!head.trim().startsWith("<")) return false;
+  return /setTimeout|challenge|jschl|cf_chl|__cf|captcha/i.test(head);
 }
 
 export function isCloudflare(response) {
@@ -100,6 +118,8 @@ export async function wpFetch(url, options = {}) {
       headers: response.headers,
     });
     wrapped.blocked = looksBlocked(response, bodyText);
+    wrapped.challenged = looksLikeChallenge(bodyText);
+    wrapped.bodyPreview = bodyText.replace(/\s+/g, " ").trim().slice(0, 200);
     wrapped.viaCloudflare = isCloudflare(response);
     wrapped.usedRestRoute = target !== url;
     return wrapped;
