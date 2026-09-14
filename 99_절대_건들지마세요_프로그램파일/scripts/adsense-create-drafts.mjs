@@ -315,11 +315,10 @@ function dateOnly(date) {
 
 function defaultStartDate(mode) {
   const now = new Date();
-  const utc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0));
-  if (mode === "future-daily") {
-    utc.setUTCDate(utc.getUTCDate() + 1);
-    return utc;
-  }
+  // 한국 날짜 기준으로 그날 정오(UTC 03:00)를 잡아 둔다.
+  // 시간은 아래 postDateForIndex 에서 따로 정하므로 여기서는 날짜만 의미가 있다.
+  const utc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 3, 0, 0));
+  if (mode === "future-daily") return utc; // 오늘부터
   utc.setUTCDate(utc.getUTCDate() - 30);
   return utc;
 }
@@ -328,24 +327,41 @@ function defaultStartDate(mode) {
 const HUMAN_HOUR_FROM = 7;
 const HUMAN_HOUR_TO = 23;
 
-function postDateForIndex(index, mode, startDate, randomDays) {
+// 날짜는 그대로 두고 '시분초'만 정한다.
+//
+// 기본은 무작위다. 예전에는 매일 같은 시각(한국시간 오후 6시)에 박혔는데,
+// 그렇게 정한 사람이 없었고 글이 줄지어 같은 시간에 올라가 부자연스러웠다.
+//
+// KST 를 UTC 로 쓸 때 9를 뺀다. 7시라면 UTC 로는 전날 22시가 되지만,
+// 그게 곰 한국시간 오전 7시라 날짜는 그대로 유지된다.
+function applyTimeOfDay(date, fixedTime) {
+  if (fixedTime) {
+    const [hour, minute] = String(fixedTime).split(":").map((v) => Number(v));
+    if (Number.isInteger(hour)) {
+      date.setUTCHours(hour - 9, Number.isInteger(minute) ? minute : 0, 0, 0);
+      return date;
+    }
+  }
+  const kstHour = HUMAN_HOUR_FROM + Math.floor(Math.random() * (HUMAN_HOUR_TO - HUMAN_HOUR_FROM + 1));
+  date.setUTCHours(kstHour - 9, Math.floor(Math.random() * 60), Math.floor(Math.random() * 60), 0);
+  return date;
+}
+
+function postDateForIndex(index, mode, startDate, {randomDays = 30, fixedTime = "", stepDays = 1} = {}) {
   // 기본값. 날짜를 아예 보내지 않으면 워드프레스가 지금 시각으로 저장한다.
   if (mode === "now" || mode === "none") return null;
 
-  // 날짜와 시간을 무작위로 — 같은 시각에 줄지어 올라가지 않게 한다.
+  // 날짜까지 무작위로 흔는다
   if (mode === "random") {
     const spanMs = Math.max(1, randomDays) * 24 * 60 * 60 * 1000;
     const at = new Date(Date.now() - Math.floor(Math.random() * spanMs));
-    // 새벽에 올라간 글은 부자연스러우니 낮 시간대로 맞춘다.
-    // 저장은 UTC 로 하므로 한국시간(KST=UTC+9)에서 9를 뺀다.
-    const kstHour = HUMAN_HOUR_FROM + Math.floor(Math.random() * (HUMAN_HOUR_TO - HUMAN_HOUR_FROM + 1));
-    at.setUTCHours(kstHour - 9, Math.floor(Math.random() * 60), Math.floor(Math.random() * 60), 0);
-    return at.toISOString();
+    return applyTimeOfDay(at, fixedTime).toISOString();
   }
 
+  // past-daily / future-daily — 간격은 stepDays 만큼 (기본 1일, 0 이면 전부 같은 날)
   const date = new Date(startDate.getTime());
-  date.setUTCDate(date.getUTCDate() + index);
-  return date.toISOString();
+  date.setUTCDate(date.getUTCDate() + index * stepDays);
+  return applyTimeOfDay(date, fixedTime).toISOString();
 }
 
 function extractUsage(data) {
@@ -1273,6 +1289,15 @@ const visibleOutputDir = join(
 // 없는데 갑자기 한 달 전 날짜가 찍혀 나와 혼란스러웠다.
 const dateMode = argValue("date-mode", "now");
 const randomDays = Number(argValue("random-days", "30")) || 30;
+// 시간은 기본적으로 무작위다. 굳이 고정하려면 --fixed-time=18:00 처럼 붙인다.
+const fixedTime = argValue("fixed-time", "");
+// 날짜 간격(일). 1 이면 하루씩, 2 면 이틀씩, 0 이면 전부 같은 날에 들어간다.
+// 몇 개를 어떻게 나눠 올릴지는 수강생이 정할 일이라, 프로그램은 강요하지 않는다.
+const stepDays = (() => {
+  const raw = argValue("date-step", "1");
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1;
+})();
 const startDate = parseDate(argValue("start-date", "")) || defaultStartDate(dateMode);
 const usdKrw = Number(env.ARTICLE_USD_KRW || DEFAULT_USD_KRW);
 
@@ -1355,9 +1380,13 @@ if (titleCatalog.warnings.length > 0) {
 console.log(`워드프레스 카테고리 ${wordpressCategories.length}개 확인 / 글마다 제목에 맞춰 자동 선택`);
 console.log("본문 전체는 화면에 출력하지 않고, 워드프레스 임시글과 outputs 폴더에만 저장함.");
 if (dateMode === "random") {
-  console.log(`임시글 날짜: 최근 ${randomDays}일 안에서 날짜·시간 무작위`);
+  console.log(`임시글 날짜: 최근 ${randomDays}일 안에서 무작위${fixedTime ? ` / 시각 ${fixedTime} 고정` : " (시간도 무작위)"}`);
 } else if (dateMode !== "now" && dateMode !== "none") {
-  console.log(`임시글 날짜: ${dateMode} / 시작 날짜 ${dateOnly(startDate)} / 하루 1개씩 분산`);
+  const gap = stepDays === 0 ? "같은 날에 모두" : stepDays === 1 ? "하루씩" : `${stepDays}일씩`;
+  console.log(
+    `임시글 날짜: ${dateOnly(startDate)} 부터 ${gap}` +
+      (fixedTime ? ` / 시각 ${fixedTime} 고정` : " / 시간은 매번 다르게"),
+  );
 }
 console.log("=".repeat(44));
 
@@ -1411,7 +1440,7 @@ for (let index = 0; index < titles.length; index += 1) {
     writeFileSync(localPath, htmlWithImage, "utf8");
     writeFileSync(visiblePath, htmlWithImage, "utf8");
 
-    const postDate = postDateForIndex(index, dateMode, startDate, randomDays);
+    const postDate = postDateForIndex(index, dateMode, startDate, {randomDays, fixedTime, stepDays});
     let post = await createDraftPost({siteUrl, username, appPassword, title, html: htmlWithImage, date: postDate, meta, featuredMediaId: featuredMedia.id, selectedCategory});
     if (!postHasInlineImage(post, featuredMedia)) {
       post = await updateDraftPostContent({siteUrl, username, appPassword, postId: post.id, html: htmlWithImage, featuredMediaId: featuredMedia.id, selectedCategory});
