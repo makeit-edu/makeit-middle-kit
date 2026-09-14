@@ -23,7 +23,7 @@
 - 사이트1은 사이트1제목.txt와 ADSENSE_SITE_01 연결정보, 사이트2는 사이트2제목.txt와 ADSENSE_SITE_02 연결정보, 사이트3은 사이트3제목.txt와 ADSENSE_SITE_03 연결정보를 사용해.
 - 사이트 번호가 없고 "알아서", "추가로", "제목 찾아서"처럼 말하면 node scripts/adsense-auto-drafts.mjs --limit=10 형식으로 실행해. 이 스크립트가 사이트1~10 제목 파일을 각 사이트에 맞춰 자동 매핑해.
 - 사이트 번호가 있으면 node scripts/adsense-create-drafts.mjs --site=N --limit=10 형식으로 해당 사이트만 실행해.
-- 결과 확인 파일은 애드센스 승인글/02_생성결과_확인용 에 저장돼.
+- 결과 확인 파일은 애드센스 승인글/02_생성결과_확인용 에 저장돼. (수강생에게 보고할 땐 이 경로를 굳이 말하지 마)
 - 실행 후 last-run.json에서 slug, focusKeyword, featuredImageAlt, featuredMediaId, featuredImageUrl, inlineImageInserted, inlineImageMediaId, postContentImageVerified, categoryId가 비어 있지 않은지 확인해.
 
 먼저 필요한 정보가 저장되어 있는지 확인하고, 없으면 애드센스 사이트 1번의 워드프레스 도메인 주소, 관리자 아이디, 애플리케이션 비밀번호부터 받아줘.

@@ -324,8 +324,25 @@ function defaultStartDate(mode) {
   return utc;
 }
 
-function postDateForIndex(index, mode, startDate) {
-  if (mode === "none") return null;
+// 사람이 글을 올림직한 시간대 (한국 시간 기준)
+const HUMAN_HOUR_FROM = 7;
+const HUMAN_HOUR_TO = 23;
+
+function postDateForIndex(index, mode, startDate, randomDays) {
+  // 기본값. 날짜를 아예 보내지 않으면 워드프레스가 지금 시각으로 저장한다.
+  if (mode === "now" || mode === "none") return null;
+
+  // 날짜와 시간을 무작위로 — 같은 시각에 줄지어 올라가지 않게 한다.
+  if (mode === "random") {
+    const spanMs = Math.max(1, randomDays) * 24 * 60 * 60 * 1000;
+    const at = new Date(Date.now() - Math.floor(Math.random() * spanMs));
+    // 새벽에 올라간 글은 부자연스러우니 낮 시간대로 맞춘다.
+    // 저장은 UTC 로 하므로 한국시간(KST=UTC+9)에서 9를 뺀다.
+    const kstHour = HUMAN_HOUR_FROM + Math.floor(Math.random() * (HUMAN_HOUR_TO - HUMAN_HOUR_FROM + 1));
+    at.setUTCHours(kstHour - 9, Math.floor(Math.random() * 60), Math.floor(Math.random() * 60), 0);
+    return at.toISOString();
+  }
+
   const date = new Date(startDate.getTime());
   date.setUTCDate(date.getUTCDate() + index);
   return date.toISOString();
@@ -1251,7 +1268,11 @@ const visibleOutputDir = join(
   "02_생성결과_확인용",
   `site-${String(site).padStart(2, "0")}`,
 );
-const dateMode = argValue("date-mode", "past-daily");
+// 기본은 'now' — 수강생이 돌리는 그 시각으로 저장된다.
+// 예전 기본값은 past-daily(30일 전부터 하루 1개)였는데, 아무도 그렇게 설정한 적이
+// 없는데 갑자기 한 달 전 날짜가 찍혀 나와 혼란스러웠다.
+const dateMode = argValue("date-mode", "now");
+const randomDays = Number(argValue("random-days", "30")) || 30;
 const startDate = parseDate(argValue("start-date", "")) || defaultStartDate(dateMode);
 const usdKrw = Number(env.ARTICLE_USD_KRW || DEFAULT_USD_KRW);
 
@@ -1333,7 +1354,9 @@ if (titleCatalog.warnings.length > 0) {
 }
 console.log(`워드프레스 카테고리 ${wordpressCategories.length}개 확인 / 글마다 제목에 맞춰 자동 선택`);
 console.log("본문 전체는 화면에 출력하지 않고, 워드프레스 임시글과 outputs 폴더에만 저장함.");
-if (dateMode !== "none") {
+if (dateMode === "random") {
+  console.log(`임시글 날짜: 최근 ${randomDays}일 안에서 날짜·시간 무작위`);
+} else if (dateMode !== "now" && dateMode !== "none") {
   console.log(`임시글 날짜: ${dateMode} / 시작 날짜 ${dateOnly(startDate)} / 하루 1개씩 분산`);
 }
 console.log("=".repeat(44));
@@ -1388,7 +1411,7 @@ for (let index = 0; index < titles.length; index += 1) {
     writeFileSync(localPath, htmlWithImage, "utf8");
     writeFileSync(visiblePath, htmlWithImage, "utf8");
 
-    const postDate = postDateForIndex(index, dateMode, startDate);
+    const postDate = postDateForIndex(index, dateMode, startDate, randomDays);
     let post = await createDraftPost({siteUrl, username, appPassword, title, html: htmlWithImage, date: postDate, meta, featuredMediaId: featuredMedia.id, selectedCategory});
     if (!postHasInlineImage(post, featuredMedia)) {
       post = await updateDraftPostContent({siteUrl, username, appPassword, postId: post.id, html: htmlWithImage, featuredMediaId: featuredMedia.id, selectedCategory});
