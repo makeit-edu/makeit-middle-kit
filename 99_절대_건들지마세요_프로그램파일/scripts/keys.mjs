@@ -14,7 +14,7 @@ import {
 } from "./lib/env.mjs";
 import {MAX_SITES, sitePrefix} from "./lib/sites.mjs";
 import {STOP_WORDS, isStopWord, stripPasteNoise} from "./lib/paste.mjs";
-import {wpFetch} from "./lib/wp.mjs";
+import {myPublicIp, wpFetch} from "./lib/wp.mjs";
 
 const placeholders = {
   MAKEIT_MIDDLE_LICENSE: ["your-", "placeholder"],
@@ -245,6 +245,13 @@ async function testWordPress({url, user, appPassword}) {
     // 엉뚱한 안내가 나간다. 진현님 화면에서 실제로 그랬다.
     if (response.blocked) {
       if (response.challenged) {
+        // 허용목록에 넣을 IP 를 직접 찍어 준다.
+        // 수강생보고 "내 IP 찾아서 넣으세요"하면 거기서 또 막힌다.
+        const myIp = await myPublicIp();
+        const ipLine = myIp
+          ? `\n    ↓ 이 주소를 허용목록에 넣으세요 (드래그 → 우클릭 → 복사)\n` +
+            `      ${myIp}\n`
+          : "";
         return {
           ok: false,
           detail:
@@ -253,12 +260,21 @@ async function testWordPress({url, user, appPassword}) {
             "    사람이 브라우저로 들어왔는지 확인하는 화면이 돌아오는데,\n" +
             "    프로그램은 그 화면을 통과할 수 없어요.\n" +
             "\n" +
-            "    호스팅 관리 화면에서 꺼주셔야 합니다.\n" +
-            "    · Cloudways : Application → Bot Protection → 끄기\n" +
-            "    · 그 밖    : '봇 차단', 'Bot Protection', '보안 수준' 같은 항목을 찾아 끄기\n" +
+            ipLine +
             "\n" +
-            "    모르겠으면 호스팅 고객센터에 이렇게 문의하세요.\n" +
-            "    ‘외부 프로그램에서 워드프레스 REST API 연결이 봇 차단에 걸립니다. 풀어주세요.’",
+            "    호스팅 방화벽에 위 주소를 '허용'으로 등록하면 풀립니다.\n" +
+            "\n" +
+            "    · Cloudways 인 경우 (실제 경로)\n" +
+            "      서버 선택 → Security → Firewall → [Add Custom Rule]\n" +
+            "      → IP Address 칸에 위 주소 붙여넣기\n" +
+            "      → White List 선택 → [Add IP Address]\n" +
+            "      (TTL 은 비워 두면 계속 유지됩니다)\n" +
+            "\n" +
+            "    · 그 밖 호스팅 : '방화벽', 'IP 차단', '봇 차단' 메뉴에서 동일하게\n" +
+            "\n" +
+            "    메뉴를 못 찾으면 호스팅 고객센터에 이렇게 문의하세요.\n" +
+            `    ‘${myIp || "(내 서버 IP)"} 에서 워드프레스 REST API 접속이 봇 차단에 걸립니다.\n` +
+            "     허용목록에 넣어 주세요.’",
         };
       }
       return {
