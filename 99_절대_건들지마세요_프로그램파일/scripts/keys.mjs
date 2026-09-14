@@ -229,17 +229,51 @@ async function testWordPress({url, user, appPassword}) {
       signal: AbortSignal.timeout(15_000),
     });
     if (response.status === 401 || response.status === 403) {
+      // 워드프레스가 보낸 에러 코드를 그대로 보여준다.
+      // incorrect_password / invalid_username 이면 정말 값이 틀린 것이고,
+      // 그 밖의 코드나 HTML 응답이면 보안 플러그인이 막은 것이다.
+      // 이걸 안 보여주면 둘을 구분할 수가 없어서 계속 비밀번호만 새로 발급하게 된다.
       // 값은 보여주지 않고 '길이'만 알려준다.
       // 앱 비밀번호는 보통 24글자(공백 빼고) / 29글자(공백 포함)라,
       // 여기서 이상한 숫자가 보이면 붙여넣기가 깨졌다는 뜻이다.
       const spaceless = String(appPassword).replace(/\s+/g, "").length;
+      const body = await response.text().catch(() => "");
+      let serverCode = "";
+      try {
+        const parsed = JSON.parse(body);
+        serverCode = String(parsed.code || "");
+      } catch {
+        serverCode = body.trim().startsWith("<") ? "HTML응답" : "";
+      }
+
+      // 어떤 코드가 무슨 뜻인지는 사이트마다 다르다.
+      // 실측: 이 사이트는 비밀번호가 틀려도 rest_not_logged_in 을 돌려준다.
+      // 그래서 한쪽으로 단정하지 않고, 가능성을 순서대로 보여준다.
+      const definitelyWrong = ["incorrect_password", "invalid_username", "invalid_email"].includes(serverCode);
+      const blockedLooking = serverCode === "HTML응답" || response.status === 403;
+
+      let head;
+      let tail;
+      if (definitelyWrong) {
+        head = "관리자 ID 또는 애플리케이션 비밀번호가 틀렸어요.";
+        tail = "    워드프레스 [사용자 → 프로필]에서 새로 발급해 보세요.";
+      } else if (blockedLooking) {
+        head = "사이트의 보안 기능이 접속을 막았어요.";
+        tail = "    ※ 값이 아니라 보안 플러그인 문제예요. 이 화면을 문의 채널에 올려주세요.";
+      } else {
+        head = "로그인이 되지 않았어요.";
+        tail =
+          "    순서대로 확인해보세요.\n" +
+          "    1) 앱 비밀번호를 새로 발급해 다시 넣기 (가장 흔한 원인)\n" +
+          "    2) 조금 전에 여러 번 틀렸다면 5~10분 뒤에 다시 시도 (잠시 차단될 수 있어요)\n" +
+          "    3) 그래도 같으면 보안 플러그인이 막는 겁니다 — 이 화면을 문의 채널에";
+      }
+
       return {
         ok: false,
         detail:
-          `관리자 ID 또는 애플리케이션 비밀번호가 맞지 않아요. ` +
-          `(보낸 값: 아이디 "${user}", 비밀번호 공백빼고 ${spaceless}글자)\n` +
-          `    ※ 앱 비밀번호는 보통 24글자예요. 많이 다르면 복사가 잘못된 겁니다.\n` +
-          `    워드프레스 [사용자 → 프로필]에서 새로 발급해 보세요.`,
+          `${head} (응답 ${response.status}${serverCode ? ` / ${serverCode}` : ""}, ` +
+          `아이디 "${user}", 비밀번호 공백빼고 ${spaceless}글자)\n${tail}`,
       };
     }
     if (!response.ok) {
@@ -258,6 +292,65 @@ async function testWordPress({url, user, appPassword}) {
   } catch (error) {
     return {ok: false, detail: error instanceof Error ? error.message : String(error)};
   }
+}
+
+// 연결이 세 번 다 안 됐을 때, 원인을 갈라보는 확인 절차.
+//
+// 이 사이트들은 비밀번호가 틀려도 rest_not_logged_in 을 돌려준다(실측).
+// 그래서 응답 코드만 봐서는 "값이 틀렸다" 와 "보안이 막았다" 를 구분할 수 없다.
+// 세 가지를 나란히 재서 비교한다.
+async function diagnoseWordPress({url, user, appPassword}) {
+  const lines = [];
+  const ask = async (label, headers) => {
+    try {
+      const response = await fetch(`${url}/wp-json/wp/v2/users/me?context=edit`, {
+        headers: {Accept: "application/json", ...headers},
+        signal: AbortSignal.timeout(15_000),
+      });
+      const body = await response.text().catch(() => "");
+      let code = "";
+      try {
+        code = String(JSON.parse(body).code || "(성공)");
+      } catch {
+        code = body.trim().startsWith("<") ? "HTML응답" : "(알 수 없음)";
+      }
+      lines.push({label, status: response.status, code, server: response.headers.get("server") || ""});
+      return response.status;
+    } catch (error) {
+      lines.push({label, status: 0, code: error instanceof Error ? error.message.slice(0, 40) : "실패", server: ""});
+      return 0;
+    }
+  };
+
+  const basic = (id, pw) => ({Authorization: `Basic ${Buffer.from(`${id}:${pw}`).toString("base64")}`});
+
+  // 1) 사이트 자체에 닿는가 (인증 없이)
+  await ask("인증 없이 접속", {});
+  // 2) 내가 넣은 값으로
+  await ask("넣은 값으로", basic(user, appPassword));
+  // 3) 일부러 틀린 값으로 (비교용)
+  await ask("일부러 틀린 값", basic(user, "ZZZZ ZZZZ ZZZZ ZZZZ ZZZZ ZZZZ"));
+
+  console.log("");
+  console.log("  —— 확인 결과 ——");
+  for (const line of lines) {
+    console.log(`   ${line.label.padEnd(14)} → ${line.status || "연결안됨"} ${line.code}`);
+  }
+
+  const [noAuth, mine, wrong] = lines;
+  console.log("");
+  if (noAuth.status === 0) {
+    console.log("  → 사이트에 아예 닿지 않아요. 도메인 주소를 다시 확인해주세요.");
+  } else if (mine.status === wrong.status && mine.code === wrong.code) {
+    console.log("  → 넣은 값과 일부러 틀린 값의 응답이 같아요.");
+    console.log("     비밀번호가 서버까지 전달되지 않았거나, 정말 틀린 값입니다.");
+    console.log("     ※ 워드프레스 [사용자 → 프로필 → 애플리케이션 비밀번호]에서");
+    console.log("       새로 발급해 보세요. 그래도 같으면 보안 플러그인이 막고 있는 겁니다.");
+  } else {
+    console.log("  → 넣은 값은 틀린 값과 다르게 처리됐어요. 값 자체는 서버까지 잘 갔다는 뜻입니다.");
+    console.log("     이 화면을 그대로 문의 채널에 올려주세요.");
+  }
+  console.log("");
 }
 
 // ===== 입력 → 즉시 확인 → 안 되면 그 자리에서 다시 입력 =====
@@ -298,6 +391,7 @@ async function askApiKeyUntilValid(rl, {label, current, looksWrong, test}) {
 }
 
 async function askWordPressUntilValid(rl, {label, current}) {
+  let lastAttempt = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     const first = attempt === 1;
     const url = await askVisible(
@@ -339,6 +433,7 @@ async function askWordPressUntilValid(rl, {label, current}) {
       continue;
     }
 
+    lastAttempt = {url, user, appPassword};
     output.write("  확인 중...");
     const result = await testWordPress({url, user, appPassword});
     if (result.ok) {
@@ -350,6 +445,21 @@ async function askWordPressUntilValid(rl, {label, current}) {
     if (attempt < 3) {
       console.log("  → 도메인부터 다시 입력할게요. (이 사이트를 건너뛰려면 도메인에서 엔터)");
     }
+  }
+  // 세 번 다 안 됐다면 원인을 갈라본다 — 대충 짐작하게 두지 않는다
+  if (lastAttempt && lastAttempt.url && lastAttempt.user && lastAttempt.appPassword) {
+    console.log("");
+    console.log("  왜 안 되는지 몇 가지 더 확인해볼게요...");
+    await diagnoseWordPress(lastAttempt);
+  }
+
+  // 여기서 값을 버리면 세 번이나 손으로 넣은 게 통째로 날아간다.
+  // 연결은 안 됐지만 값은 살려 둔다 — 원인이 값이 아닐 수도 있고(보안 차단 등),
+  // 다음에 '키설정'을 다시 돌려도 엔터로 넘길 수 있게 된다. (OpenAI 키와 같은 정책)
+  if (lastAttempt && lastAttempt.url && lastAttempt.user && lastAttempt.appPassword) {
+    console.log("  → 3번 모두 연결되지 않았어요. 입력한 값은 그대로 저장해 둘게요.");
+    console.log("     (다시 치지 않아도 되고, 원인을 해결한 뒤 '진단' 으로 확인하면 돼요)");
+    return {...lastAttempt, unverified: true};
   }
   console.log("  → 3번 모두 연결되지 않아 이 사이트는 저장하지 않습니다. 나중에 '키설정' 으로 다시 넣어주세요.");
   return null;
@@ -502,6 +612,16 @@ if (ready("OPENAI_API_KEY", updates.OPENAI_API_KEY)) {
 }
 
 console.log("");
+
+// 사이트가 하나도 연결되지 않았으면 준비가 끝난 게 아니다.
+// 예전에는 OpenAI 키만 되면 "모두 정상 확인!"을 찍었다 — 사이트를 전부 놓치고도
+// 준비된 줄 알고 다음 단계로 갔다가 거기서 막힌다(실측).
+if (savedSiteNumbers.length === 0) {
+  console.log("[확인 필요] 워드프레스 사이트가 하나도 저장되지 않았어요.");
+  console.log("           사이트 연결 정보가 있어야 승인글을 만들 수 있으니, '키설정' 을 다시 돌려주세요.");
+  needsRecheck = true;
+}
+
 if (needsRecheck) {
   console.log("[확인 필요] 위에 표시된 항목을 다시 확인한 뒤, 터미널에 '키설정' 을 다시 입력하면 그 값만 고칠 수 있어요.");
   process.exitCode = 1;
