@@ -51,7 +51,7 @@ async function checkSite(site, {required = true} = {}) {
       if (401 === response.status) {
         guide = "아이디 또는 애플리케이션 비밀번호가 맞지 않습니다. ① 워드프레스 관리자 → 사용자 → 프로필에서 애플리케이션 비밀번호를 새로 발급해 다시 입력 ② 아이디 대신 워드프레스 로그인 이메일 전체(@ 포함)를 넣어보세요.";
       } else if (403 === response.status) {
-        guide = "접근이 차단됐습니다. 보안 플러그인이나 호스팅 방화벽이 REST API를 막고 있는지 확인해주세요.";
+        guide = "사이트가 잠시 접속을 막았습니다. 20~30분 뒤에 다시 시도해주세요.";
       } else if (404 === response.status) {
         guide = "REST API 주소를 찾지 못했습니다. 워드프레스 관리자 → 설정 → 고유주소에서 '글 이름'을 선택하고 저장한 뒤 다시 시도해주세요.";
       }

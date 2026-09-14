@@ -14,7 +14,7 @@ import {
 } from "./lib/env.mjs";
 import {MAX_SITES, sitePrefix} from "./lib/sites.mjs";
 import {STOP_WORDS, isStopWord, stripPasteNoise} from "./lib/paste.mjs";
-import {myPublicIp, wpFetch} from "./lib/wp.mjs";
+import {wpFetch} from "./lib/wp.mjs";
 
 const placeholders = {
   MAKEIT_MIDDLE_LICENSE: ["your-", "placeholder"],
@@ -245,32 +245,18 @@ async function testWordPress({url, user, appPassword}) {
     // 엉뚱한 안내가 나간다. 진현님 화면에서 실제로 그랬다.
     if (response.blocked) {
       if (response.challenged) {
-        // 이 상태에서 또 두드리면 차단이 연장된다. 바로 멈춰야 한다.
-        // 허용목록에 넣을 IP 를 직접 찍어 준다.
-        // 수강생보고 "내 IP 찾아서 넣으세요"하면 거기서 또 막힌다.
-        const myIp = await myPublicIp();
-        const ipLine = myIp
-          ? `\n    ↓ 이 주소를 허용목록에 넣으세요 (드래그 → 우클릭 → 복사)\n` +
-            `      ${myIp}\n`
-          : "";
         return {
           ok: false,
           blocked: true,
           detail:
             "사이트가 잠시 접속을 막았어요.\n" +
-            "    비밀번호 문제가 아닙니다. 새로 발급해도 같습니다.\n" +
+            "    비밀번호 문제가 아닙니다. 새로 발급할 필요 없어요.\n" +
             "\n" +
-            "    ※ 이 차단은 보통 시간이 지나면 저절로 풀립니다.\n" +
-            "      짧은 시간에 연속으로 틀리면 사이트가 공격으로 오해해서 걸어두는 겁니다.\n" +
+            "    짧은 시간에 연속으로 틀리면 사이트가 잠시 문을 잠그는데,\n" +
+            "    시간이 지나면 저절로 풀립니다.\n" +
             "\n" +
-            "    1) 20~30분 뒤에 '키설정' 을 다시 돌려보세요. 대부분 이걸로 끝납니다.\n" +
-            "    2) 그때는 비밀번호를 정확히 한 번만 넣으세요.\n" +
-            "       연속으로 틀리면 또 막힙니다.\n" +
-            ipLine +
-            "\n" +
-            "    몇 번을 기다려도 계속 같다면, 그때만 호스팅 방화벽에\n" +
-            "    위 주소를 '허용'으로 등록하세요.\n" +
-            "    (Cloudways: 서버 → Security → Firewall → Add Custom Rule → White List)",
+            "    → 20~30분 뒤에 '키설정' 을 다시 돌려주세요.\n" +
+            "    → 그때는 비밀번호를 정확히 한 번만 넣으세요.",
         };
       }
       return {
@@ -284,116 +270,22 @@ async function testWordPress({url, user, appPassword}) {
     }
 
     if (response.status === 401 || response.status === 403) {
-      // 워드프레스가 보낸 에러 코드를 그대로 보여준다.
-      // incorrect_password / invalid_username 이면 정말 값이 틀린 것이고,
-      // 그 밖의 코드나 HTML 응답이면 보안 플러그인이 막은 것이다.
-      // 이걸 안 보여주면 둘을 구분할 수가 없어서 계속 비밀번호만 새로 발급하게 된다.
-      // 값은 보여주지 않고 '길이'만 알려준다.
-      // 앱 비밀번호는 보통 24글자(공백 빼고) / 29글자(공백 포함)라,
-      // 여기서 이상한 숫자가 보이면 붙여넣기가 깨졌다는 뜻이다.
-      const spaceless = String(appPassword).replace(/\s+/g, "").length;
-      const body = await response.text().catch(() => "");
-      let serverCode = "";
-      try {
-        const parsed = JSON.parse(body);
-        serverCode = String(parsed.code || "");
-      } catch {
-        serverCode = body.trim().startsWith("<") ? "HTML응답" : "";
-      }
-
-      // 어떤 코드가 무슨 뜻인지는 사이트마다 다르다.
-      // 실측: 이 사이트는 비밀번호가 틀려도 rest_not_logged_in 을 돌려준다.
-      // 그래서 한쪽으로 단정하지 않고, 가능성을 순서대로 보여준다.
-      const definitelyWrong = ["incorrect_password", "invalid_username", "invalid_email"].includes(serverCode);
-      // wpFetch 가 붙여 준 판정 — 응답이 JSON 이 아니라 '사람 확인' 페이지였는지
-      const gotChallengePage = Boolean(response.challenged);
-      const blockedLooking = serverCode === "HTML응답" || response.status === 403;
-      // 누가 막았는지를 응답에서 직접 가려낸다.
+      // 여기까지 왔다면 차단은 아니다(위에서 걸러냈다). 값 문제로 본다.
       //
-      // 중요: 헤더에 server: cloudflare 가 있다고 Cloudflare 가 막은 것은 아니다.
-      // 그저 CDN 을 쓴다는 뜻일 뿐이다. 실제로 차단한 주체는 따로 확인해야 한다.
-      const cdnIsCloudflare =
-        /cloudflare/i.test(response.headers.get("server") || "") || Boolean(response.headers.get("cf-ray"));
-      // Cloudflare 가 직접 차단했을 때만 붙는 표식들
-      const cloudflareBlockedIt =
-        Boolean(response.headers.get("cf-mitigated")) ||
-        /attention required|cloudflare ray id|__cf_chl/i.test(body.slice(0, 1500));
-      // 워드프레스 보안 플러그인이 막았을 때
-      const pluginBlockedIt = /wordfence|your access to this site has been limited|sucuri|보안 정책/i.test(
-        body.slice(0, 1500),
-      );
-
-      // 문제를 끝까지 몰고 가기 위한 흔적 — 짐작하지 않게 해 준다.
-      // (민감한 값은 없다. 서버가 돌려준 공개 응답이다)
-      const evidence = [];
-      if (response.headers.get("server")) evidence.push(`server=${response.headers.get("server")}`);
-      if (response.headers.get("cf-mitigated")) evidence.push(`cf-mitigated=${response.headers.get("cf-mitigated")}`);
-      const bodyHint = body.replace(/\s+/g, " ").trim().slice(0, 90);
-      if (bodyHint) evidence.push(`응답내용="${bodyHint}"`);
-
-      let head;
-      let tail;
-      if (gotChallengePage) {
-        // 실측: 응답 200 + "One moment, please..." + 5초 뒤 새로고침 스크립트.
-        // 사람이 브라우저로 들어왔는지 검사하는 화면이라 프로그램은 못 넘는다.
-        // 쿠키를 받아 다시 가봐도, 기다렸다 가봐도, 다른 경로로 가봐도 같았다.
-        head = "사이트의 '봇 차단' 기능이 막고 있어요.";
-        tail =
-          "    비밀번호 문제가 아닙니다. 새로 발급해도 같습니다.\n" +
-          "    사람이 브라우저로 들어왔는지 확인하는 화면이 돌아오는데,\n" +
-          "    프로그램은 그 화면을 통과할 수 없어요.\n" +
-          "\n" +
-          "    호스팅 관리 화면에서 꺼주셔야 합니다.\n" +
-          "    · Cloudways : Application → Bot Protection → 끄기\n" +
-          "    · 그 밖    : '봇 차단', 'Bot Protection', '보안 수준' 같은 항목을 찾아 끄기\n" +
-          "\n" +
-          "    모르겠으면 호스팅 고객센터에 이렇게 문의하세요.\n" +
-          "    ‘외부 프로그램에서 워드프레스 REST API 연결이 봇 차단에 걸립니다. 풀어주세요.’";
-      } else if (definitelyWrong) {
-        head = "관리자 ID 또는 애플리케이션 비밀번호가 틀렸어요.";
-        tail = "    워드프레스 [사용자 → 프로필]에서 새로 발급해 보세요.";
-      } else if (blockedLooking && cloudflareBlockedIt) {
-        // 작업방은 데이터센터에서 돌아간다. Cloudflare 는 그런 IP 를 기본적으로
-        // 봇으로 보고 403 을 돌려준다. 집 컴퓨터에선 잘 되는데 여기서만 안 되는
-        // 전형적인 이유라, 비밀번호를 아무리 새로 발급해도 소용이 없다.
-        head = "사이트 앞의 Cloudflare 가 두 가지 길을 모두 막았어요.";
-        tail =
-          "    비밀번호 문제가 아닙니다. 새로 발급해도 똑같이 막힙니다.\n" +
-          "    (프로그램이 우회 경로로 한 번 더 시도했지만 그것도 막혔습니다)\n" +
-          "\n" +
-          "    이럴 때만 Cloudflare 설정을 한 번 손보면 됩니다.\n" +
-          "    cloudflare.com 로그인 → 내 도메인 → Security → Bots\n" +
-          "    → 'Bot Fight Mode' 끄기";
-      } else if (blockedLooking && pluginBlockedIt) {
-        head = "워드프레스 보안 플러그인이 접속을 막았어요.";
-        tail =
-          "    비밀번호 문제가 아닙니다.\n" +
-          "    워드프레스 관리자 화면 → 보안 플러그인(Wordfence 등)\n" +
-          "    → 차단된 IP 목록을 비우거나, 잠시 끕고 다시 해보세요.\n" +
-          (evidence.length ? `    흔적: ${evidence.join(" / ")}` : "");
-      } else if (blockedLooking) {
-        head = "사이트가 접속을 막았는데, 누가 막았는지는 아직 모르겠어요.";
-        tail =
-          "    값이 틀려서가 아니라, 무언가가 이 작업방을 막고 있습니다.\n" +
-          "    (작업방은 개인 PC 가 아니라 서버에서 돌아서 가끔 이런 일이 생깁니다)\n" +
-          "    1) 10분쯤 기다렸다가 다시 — 잠시 잠긴 거라면 저절로 풀립니다\n" +
-          "    2) 워드프레스 관리자 화면에 보안 플러그인이 있으면 잠시 끕고 재시도\n" +
-          "    3) 그래도 같으면 아래 흔적을 복사해 코덱스에게 보여주세요.\n" +
-          (evidence.length ? `    흔적: ${evidence.join(" / ")}` : "    흔적: 응답이 비어 있음");
-      } else {
-        head = "로그인이 되지 않았어요.";
-        tail =
-          "    순서대로 확인해보세요.\n" +
-          "    1) 앱 비밀번호를 새로 발급해 다시 넣기 (가장 흔한 원인)\n" +
-          "    2) 조금 전에 여러 번 틀렸다면 5~10분 뒤에 다시 시도 (잠시 차단될 수 있어요)\n" +
-          "    3) 그래도 같으면 보안 플러그인이 막는 겁니다 — 관리자 화면에서 잠시 꺼보세요";
-      }
+      // 비밀번호 길이를 같이 보여 준다. 앱 비밀번호는 보통 공백 빼고 24글자라,
+      // 이 숫자가 다르면 복사가 잘못된 것이 바로 보인다. (값 자체는 안 보여 준다)
+      const spaceless = String(appPassword).replace(/\s+/g, "").length;
+      const lengthHint =
+        spaceless === 24
+          ? ""
+          : `\n    ※ 앱 비밀번호는 보통 24글자예요. 지금은 ${spaceless}글자라 복사가 잘못됐을 수 있어요.`;
 
       return {
         ok: false,
         detail:
-          `${head} (응답 ${response.status}${serverCode ? ` / ${serverCode}` : ""}, ` +
-          `아이디 "${user}", 비밀번호 공백빼고 ${spaceless}글자)\n${tail}`,
+          `관리자 ID 또는 애플리케이션 비밀번호가 맞지 않아요. (아이디 "${user}")` +
+          lengthHint +
+          "\n    워드프레스 [사용자 → 프로필 → 애플리케이션 비밀번호]에서 새로 발급해 보세요.",
       };
     }
     if (!response.ok) {
@@ -458,23 +350,17 @@ async function diagnoseWordPress({url, user, appPassword}) {
   }
 
   const [noAuth, mine, wrong] = lines;
-  const cloudflareBlocked = lines.some((line) => line.status === 403 && /cloudflare/i.test(line.server));
 
   console.log("");
-  if (cloudflareBlocked) {
-    console.log("  → Cloudflare 가 이 작업방을 막고 있어요. (비밀번호 문제 아님)");
-    console.log("     cloudflare.com → 내 도메인 → Security → Bots → 'Bot Fight Mode' 끄기");
-    console.log("     그래도 막히면 WAF 사용자 지정 규칙에서 /wp-json/ 을 Skip 처리하세요.");
-  } else if (noAuth.status === 0) {
+  if (noAuth.status === 0) {
     console.log("  → 사이트에 아예 닿지 않아요. 도메인 주소를 다시 확인해주세요.");
   } else if (mine.status === wrong.status && mine.code === wrong.code) {
-    console.log("  → 넣은 값과 일부러 틀린 값의 응답이 같아요.");
-    console.log("     비밀번호가 서버까지 전달되지 않았거나, 정말 틀린 값입니다.");
-    console.log("     ※ 워드프레스 [사용자 → 프로필 → 애플리케이션 비밀번호]에서");
-    console.log("       새로 발급해 보세요. 그래도 같으면 보안 플러그인이 막고 있는 겁니다.");
+    console.log("  → 넣은 값과 일부러 틀린 값의 응답이 같아요. 값이 틀렸을 가능성이 큽니다.");
+    console.log("     워드프레스 [사용자 → 프로필 → 애플리케이션 비밀번호]에서");
+    console.log("     새로 발급해 다시 넣어 보세요.");
   } else {
-    console.log("  → 넣은 값은 틀린 값과 다르게 처리됐어요. 값 자체는 서버까지 잘 갔다는 뜻입니다.");
-    console.log("     잠시 뒤에 다시 해보세요. 계속 같으면 이 화면을 복사해 코덱스에게 물어보세요.");
+    console.log("  → 넣은 값은 서버까지 잘 갔어요. 잠시 뒤에 다시 해보세요.");
+    console.log("     계속 같으면 이 화면을 복사해 코덱스에게 물어보세요.");
   }
   console.log("");
 }

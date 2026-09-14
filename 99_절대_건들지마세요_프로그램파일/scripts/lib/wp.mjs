@@ -150,22 +150,3 @@ export async function wpFetch(url, options = {}) {
 export function usingRestRoute(url) {
   return preferRestRoute.has(originOf(url));
 }
-
-// 이 작업방이 밖으로 나갈 때 쓰는 IP.
-//
-// 봇 차단에 걸렸을 때 호스팅 방화벽 허용목록에 넣어야 하는 값이다.
-// 수강생이 이걸 직접 찾게 하면 거기서 또 막히므로, 안내문에 바로 찍어 준다.
-export async function myPublicIp() {
-  const sources = ["https://api.ipify.org", "https://ifconfig.me/ip", "https://icanhazip.com"];
-  for (const url of sources) {
-    try {
-      const response = await fetch(url, {signal: AbortSignal.timeout(5000)});
-      if (!response.ok) continue;
-      const ip = (await response.text()).trim();
-      if (/^[0-9a-fA-F.:]{7,45}$/.test(ip)) return ip;
-    } catch {
-      // 다음 곳으로
-    }
-  }
-  return null;
-}
