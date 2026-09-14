@@ -248,16 +248,35 @@ async function testWordPress({url, user, appPassword}) {
       // 그래서 한쪽으로 단정하지 않고, 가능성을 순서대로 보여준다.
       const definitelyWrong = ["incorrect_password", "invalid_username", "invalid_email"].includes(serverCode);
       const blockedLooking = serverCode === "HTML응답" || response.status === 403;
-      // 사이트 앞단에 Cloudflare 가 있는지 (응답 헤더로 바로 알 수 있다)
-      const viaCloudflare =
+      // 누가 막았는지를 응답에서 직접 가려낸다.
+      //
+      // 중요: 헤더에 server: cloudflare 가 있다고 Cloudflare 가 막은 것은 아니다.
+      // 그저 CDN 을 쓴다는 뜻일 뿐이다. 실제로 차단한 주체는 따로 확인해야 한다.
+      const cdnIsCloudflare =
         /cloudflare/i.test(response.headers.get("server") || "") || Boolean(response.headers.get("cf-ray"));
+      // Cloudflare 가 직접 차단했을 때만 붙는 표식들
+      const cloudflareBlockedIt =
+        Boolean(response.headers.get("cf-mitigated")) ||
+        /attention required|cloudflare ray id|__cf_chl/i.test(body.slice(0, 1500));
+      // 워드프레스 보안 플러그인이 막았을 때
+      const pluginBlockedIt = /wordfence|your access to this site has been limited|sucuri|보안 정책/i.test(
+        body.slice(0, 1500),
+      );
+
+      // 문제를 끝까지 몰고 가기 위한 흔적 — 짐작하지 않게 해 준다.
+      // (민감한 값은 없다. 서버가 돌려준 공개 응답이다)
+      const evidence = [];
+      if (response.headers.get("server")) evidence.push(`server=${response.headers.get("server")}`);
+      if (response.headers.get("cf-mitigated")) evidence.push(`cf-mitigated=${response.headers.get("cf-mitigated")}`);
+      const bodyHint = body.replace(/\s+/g, " ").trim().slice(0, 90);
+      if (bodyHint) evidence.push(`응답내용="${bodyHint}"`);
 
       let head;
       let tail;
       if (definitelyWrong) {
         head = "관리자 ID 또는 애플리케이션 비밀번호가 틀렸어요.";
         tail = "    워드프레스 [사용자 → 프로필]에서 새로 발급해 보세요.";
-      } else if (blockedLooking && viaCloudflare) {
+      } else if (blockedLooking && cloudflareBlockedIt) {
         // 작업방은 데이터센터에서 돌아간다. Cloudflare 는 그런 IP 를 기본적으로
         // 봇으로 보고 403 을 돌려준다. 집 컴퓨터에선 잘 되는데 여기서만 안 되는
         // 전형적인 이유라, 비밀번호를 아무리 새로 발급해도 소용이 없다.
@@ -269,15 +288,22 @@ async function testWordPress({url, user, appPassword}) {
           "    이럴 때만 Cloudflare 설정을 한 번 손보면 됩니다.\n" +
           "    cloudflare.com 로그인 → 내 도메인 → Security → Bots\n" +
           "    → 'Bot Fight Mode' 끄기";
-      } else if (blockedLooking) {
-        head = "사이트가 접속을 잠시 막았어요.";
+      } else if (blockedLooking && pluginBlockedIt) {
+        head = "워드프레스 보안 플러그인이 접속을 막았어요.";
         tail =
-          "    값이 틀려서가 아닙니다. 여러 번 연속으로 시도하면 워드프레스 보안 기능이\n" +
-          "    잠금을 걸어 버립니다. 순서대로 해보세요.\n" +
-          "    1) 10분쯤 기다렸다가 '키설정' 을 다시 — 대부분 저절로 풀립니다\n" +
-          "    2) 안 풀리면 워드프레스 관리자 화면 → 보안 플러그인(Wordfence 등)\n" +
-          "       → 차단된 IP 목록을 비우기\n" +
-          "    3) 그래도 안 되면 호스팅 업체에 'REST API 접속이 막혀 있다'고 문의";
+          "    비밀번호 문제가 아닙니다.\n" +
+          "    워드프레스 관리자 화면 → 보안 플러그인(Wordfence 등)\n" +
+          "    → 차단된 IP 목록을 비우거나, 잠시 끕고 다시 해보세요.\n" +
+          (evidence.length ? `    흔적: ${evidence.join(" / ")}` : "");
+      } else if (blockedLooking) {
+        head = "사이트가 접속을 막았는데, 누가 막았는지는 아직 모르겠어요.";
+        tail =
+          "    값이 틀려서가 아니라, 무언가가 이 작업방을 막고 있습니다.\n" +
+          "    (작업방은 개인 PC 가 아니라 서버에서 돌아서 가끔 이런 일이 생깁니다)\n" +
+          "    1) 10분쯤 기다렸다가 다시 — 잠시 잠긴 거라면 저절로 풀립니다\n" +
+          "    2) 워드프레스 관리자 화면에 보안 플러그인이 있으면 잠시 끕고 재시도\n" +
+          "    3) 그래도 같으면 아래 흔적을 복사해 코덱스에게 보여주세요.\n" +
+          (evidence.length ? `    흔적: ${evidence.join(" / ")}` : "    흔적: 응답이 비어 있음");
       } else {
         head = "로그인이 되지 않았어요.";
         tail =
