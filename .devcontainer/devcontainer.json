@@ -32,10 +32,21 @@
       //     확장 단독 OAuth는 Codespaces에서 실패(#6403)하므로 로그인은 CLI로만 안내.
       "extensions": ["openai.chatgpt"],
       "settings": {
-        // 초보 수강생의 Ctrl+S/Cmd+S 저장 실수 제거 목적 (PRD 5-2 [검증필요])
+        // 초보 수강생의 Ctrl+S/Cmd+S 저장 실수 제거 목적
         "files.autoSave": "afterDelay",
         // 시작 화면(Welcome 탭)도 띄우지 않는다 — 위 openFiles 와 같은 이유.
-        "workbench.startupEditor": "none"
+        "workbench.startupEditor": "none",
+        // 터미널 패널을 처음부터 최대화해 화면을 꽉 채운다.
+        // openFiles 로 열리는 파일이 뒤에 가려져, 수강생이 "문서가 떴으니 다 끝났나?"
+        // 하고 헷갈리는 일을 막는다. 작업은 전부 터미널에서 이뤄지므로 이게 맞다.
+        // (왼쪽 탐색기에서 파일을 클릭하면 패널이 자동으로 줄어든다)
+        "workbench.panel.opensMaximized": "always",
+        // 폴더 신뢰 확인창을 띄우지 않는다. 수강생 본인 저장소이고 템플릿에서 온
+        // 코드라 신뢰 대상이며, 이 창이 뜨면 초보자가 여기서 멈춰 버린다.
+        // (application 스코프라 원격에 안 먹을 수 있어 안내서에도 대응을 적어 둔다)
+        "security.workspace.trust.enabled": false,
+        "security.workspace.trust.startupPrompt": "never",
+        "security.workspace.trust.banner": "never"
       }
     }
   },
