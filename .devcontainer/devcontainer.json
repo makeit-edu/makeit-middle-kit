@@ -22,8 +22,8 @@
     // 생성 직후 README.md 가 미리보기로 열려 안내서와 혼동을 준다.
     // openFiles 는 "파일 하나 이상"을 요구해서 빈 배열([])로는 끌 수 없다 —
     // 빈 배열은 무시되고 README 를 여는 기본 동작으로 되돌아간다(실측).
-    // 그래서 '아무것도 안 열기'는 포기하고, 대신 한 화면에 들어오는
-    // 짧은 안내 카드를 열어 시선을 곧장 터미널로 보낸다.
+    // 여기 적은 파일은 '열리긴 하되 곧바로 터미널 탭에 덮이는' 자리다.
+    // (아래 terminal.integrated.defaultLocation 참고 — 터미널이 나중에 열려 앞에 온다)
     "codespaces": {
       "openFiles": ["시작하기.md"]
     },
@@ -36,14 +36,25 @@
         "files.autoSave": "afterDelay",
         // 시작 화면(Welcome 탭)도 띄우지 않는다 — 위 openFiles 와 같은 이유.
         "workbench.startupEditor": "none",
-        // 터미널 패널을 처음부터 최대화해 화면을 꽉 채운다.
-        // openFiles 로 열리는 파일이 뒤에 가려져, 수강생이 "문서가 떴으니 다 끝났나?"
-        // 하고 헷갈리는 일을 막는다. 작업은 전부 터미널에서 이뤄지므로 이게 맞다.
-        // (왼쪽 탐색기에서 파일을 클릭하면 패널이 자동으로 줄어든다)
+        // ★ 터미널을 '패널' 이 아니라 '편집기 탭' 으로 띄운다.
+        //   이게 이 파일에서 제일 중요한 한 줄이다.
+        //
+        //   패널 방식(workbench.panel.opensMaximized)은 실패했다(실측):
+        //   Codespaces 가 터미널 패널을 '이미 열린 상태'로 복원해 버려서
+        //   "열 때 최대화하라"는 지시가 발동할 기회 자체가 없었고, 결국
+        //   시작하기.md 가 화면 위쪽을 다 차지하고 터미널은 아래 한 줌만 남았다.
+        //
+        //   편집기 탭으로 띄우면 openFiles 로 열린 문서보다 '나중에' 열리므로
+        //   터미널이 활성 탭이 되어 화면 전체를 차지한다. 수강생이 처음 보는 화면이
+        //   곧 검은 창이 된다.
+        "terminal.integrated.defaultLocation": "editor",
+        // 터미널 탭이 실수로 닫혀도 빈 화면만 남지 않게 한다
+        "terminal.integrated.tabs.enabled": true,
+        // 패널로 열리는 경우(수강생이 + 버튼으로 새로 여는 등)를 위한 보조 장치
         "workbench.panel.opensMaximized": "always",
-        // 폴더 신뢰 확인창을 띄우지 않는다. 수강생 본인 저장소이고 템플릿에서 온
-        // 코드라 신뢰 대상이며, 이 창이 뜨면 초보자가 여기서 멈춰 버린다.
-        // (application 스코프라 원격에 안 먹을 수 있어 안내서에도 대응을 적어 둔다)
+        // 폴더 신뢰 확인창 — 이 세 줄은 application 스코프라 원격 설정으로는
+        // 적용되지 않는다(실측: 넣은 뒤에도 확인창이 그대로 떴다).
+        // 남겨 두되 기대하지 않고, 실제 대응은 안내서 4번에서 한다.
         "security.workspace.trust.enabled": false,
         "security.workspace.trust.startupPrompt": "never",
         "security.workspace.trust.banner": "never"
