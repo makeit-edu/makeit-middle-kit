@@ -16,6 +16,16 @@ echo "[시작] AI 비서(코덱스)를 켭니다..."
 # CODEX_HOME 은 devcontainer 가 워크스페이스 내부로 지정 (D6). 없으면 동일 규칙으로 보정.
 export CODEX_HOME="${CODEX_HOME:-$ROOT/.codex}"
 
+# ── 못 쓰는 모델 지정 걷어내기 (예전 작업방 자가 복구) ──────────────────
+# ChatGPT 구독 계정으로는 gpt-5.4-mini 같은 모델을 쓸 수 없어서, 예전 설정이 남아 있으면
+# 첫 실행이 400 오류로 죽는다. 모델 지정을 지우면 계정에 맞는 기본 모델이 쓰인다.
+CODEX_CONFIG="$CODEX_HOME/config.toml"
+if [ -f "$CODEX_CONFIG" ] && grep -qE '^[[:space:]]*model[[:space:]]*=[[:space:]]*"gpt-' "$CODEX_CONFIG"; then
+  sed -i.bak -E '/^[[:space:]]*model[[:space:]]*=[[:space:]]*"gpt-/d' "$CODEX_CONFIG"
+  rm -f "$CODEX_CONFIG.bak"
+  echo "[시작] 예전 모델 설정을 정리했어요. (ChatGPT 계정에서 못 쓰는 값이었어요)"
+fi
+
 # ── 코덱스가 아직 설치 전이면 여기서 설치 (setup.sh 실패 대비 자가 복구) ──
 if [ ! -x "$CODEX_BIN" ]; then
   echo "코덱스가 아직 설치되어 있지 않아 지금 설치합니다. 1~2분만 기다려 주세요..."

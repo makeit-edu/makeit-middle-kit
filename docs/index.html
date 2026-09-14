@@ -178,7 +178,7 @@ footer a{font-weight:600}
   <h2>먼저 챙길 것</h2>
   <ul>
     <li><b>크롬이 깔린 컴퓨터</b> (노트북·데스크톱)</li>
-    <li><b>ChatGPT Plus</b> 계정</li>
+    <li><b>ChatGPT Plus 이상</b> 계정 <b style="color:var(--stop)">(무료 계정은 안 됩니다)</b></li>
     <li><b>OpenAI API 키</b> — 자료실 「키 발급 가이드」</li>
     <li><b>워드프레스 정보</b> — 주소 · 관리자 ID · 애플리케이션 비밀번호</li>
     <li><b>수강 코드</b> — 자료실 공지</li>
@@ -196,6 +196,9 @@ footer a{font-weight:600}
     → <b>“Codex용 장치 코드 인증 활성화”</b> 켜기</p>
     <div class="note stop"><b>이거 안 켜면 7번에서 막힙니다</b>
     여기서 로그인한 계정과 나중에 승인할 계정이 같아야 합니다.</div>
+    <div class="note warn"><b>무료(Free) 계정으로는 안 됩니다</b>
+    AI 비서(코덱스)는 <b>ChatGPT Plus 이상</b>에서만 쓸 수 있어요.
+    무료 계정이면 이 스위치 자체가 안 보이거나, 7번에서 승인이 거절됩니다.</div>
   </div>
 </div>
 
@@ -278,12 +281,24 @@ footer a{font-weight:600}
 <div class="step">
   <div class="num">7</div>
   <div class="body">
-    <h3>AI 비서 켜기</h3>
+    <h3>AI 비서 켜기 (ChatGPT 연결)</h3>
     <p>검은 창에 <span class="type">시작</span> 치고 엔터.</p>
-    <p>알파벳 코드와 주소가 나옵니다. 코드를 <b>드래그 → 우클릭 → 복사</b> 한 뒤,
-    주소를 <b>Ctrl</b>(맥 <b>Cmd</b>) 누른 채 클릭해 새 탭에서 열고 붙여넣어 승인하세요.</p>
+    <p><b>처음 한 번만</b> ChatGPT 로그인을 합니다. 아래 화면이 나와요.</p>
+    <div class="term">1. Open this link in your browser and sign in to your account
+   <span style="color:#7cadff">https://auth.openai.com/codex/device</span>
+
+2. Enter this one-time code (expires in 15 minutes)
+   <span class="hi"> C7X3-SMNLZ </span>   ← 사람마다 다릅니다</div>
+    <p style="margin-top:14px"><b>① 코드</b>를 마우스로 드래그 → <b>우클릭 → 복사</b><br>
+    <b>② 주소</b>를 <b>Ctrl</b>(맥 <b>Cmd</b>) 누른 채 클릭 → 새 탭에서 열기<br>
+    <b>③</b> 코드를 붙여넣고 <b>ChatGPT 계정으로 승인</b></p>
     <div class="note stop"><b>검은 창에서는 Ctrl+C 가 복사가 아닙니다</b>
-    꼭 마우스로 드래그한 뒤 우클릭 → 복사.</div>
+    꼭 마우스로 드래그한 뒤 우클릭 → 복사하세요.</div>
+    <div class="note warn"><b>15분 안에 하세요</b>
+    코드는 15분이 지나면 만료됩니다. 늦었으면 <span class="type">시작</span> 을 다시 쳐서
+    새 코드를 받으면 됩니다.</div>
+    <div class="note ok"><b>승인이 끝나면</b>
+    검은 창에 코덱스 대화 화면이 열립니다. 이 로그인은 <b>처음 한 번만</b> 하면 돼요.</div>
   </div>
 </div>
 

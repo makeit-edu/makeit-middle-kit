@@ -64,16 +64,25 @@ step_codex_config() {
   local codex_home="${CODEX_HOME:-$ROOT/.codex}"
   mkdir -p "$codex_home"
   local cfg="$codex_home/config.toml"
-  if [ -f "$cfg" ] && grep -qE '^[[:space:]]*model[[:space:]]*=' "$cfg"; then
-    echo "기존 모델 설정이 있어 그대로 둡니다: $cfg"
-  else
+  # 모델은 지정하지 않는다.
+  # ChatGPT 구독 계정으로 로그인하면 쓸 수 있는 모델이 정해져 있어, 여기서 특정 모델을
+  # 박아 두면 첫 실행이 그대로 죽는다 (실측):
+  #   400 invalid_request_error — "The 'gpt-5.4-mini' model is not supported
+  #   when using Codex with a ChatGPT account."
+  # 지정을 비워 두면 Codex 가 계정에 맞는 기본 모델을 알아서 고른다.
+  # 한도 절약은 모델 고정 대신 reasoning effort 로만 조절한다.
+  if [ -f "$cfg" ] && grep -qE '^[[:space:]]*model[[:space:]]*=[[:space:]]*"gpt-' "$cfg"; then
+    # 구버전 작업방 마이그레이션: 못 쓰는 모델 지정을 걷어낸다
+    sed -i.bak -E '/^[[:space:]]*model[[:space:]]*=[[:space:]]*"gpt-/d' "$cfg"
+    rm -f "$cfg.bak"
+    echo "ChatGPT 계정에서 쓸 수 없는 모델 지정을 정리했습니다."
+  fi
+  if ! grep -qE '^[[:space:]]*model_reasoning_effort[[:space:]]*=' "$cfg" 2>/dev/null; then
     cat >> "$cfg" <<'EOF'
 
-# 월부 중급반 기본값 (한도 절약형)
-model = "gpt-5.4-mini"
+# 한도 절약형 (모델은 계정에 맞는 기본값을 그대로 쓴다)
 model_reasoning_effort = "low"
 EOF
-    echo "Codex 기본 모델을 한도 절약형(gpt-5.4-mini, low)으로 설정했습니다."
   fi
 
   # 권한 사전 설정 — 기존 강의의 '전체 권한 주기' 수동 단계를 대체한다.
