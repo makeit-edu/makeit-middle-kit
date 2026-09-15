@@ -393,7 +393,30 @@ export function readTitleEntries(filePath) {
 
   const text = readFileSync(filePath, "utf8");
   const structured = parseStructuredTitleCatalog(text);
-  if (structured.entries.length > 0) return structured;
+  if (structured.entries.length > 0) {
+    // 섞여 있는 파일을 살린다.
+    //
+    // 수강생이 직접 넣은 제목(카테고리 없이 한 줄씩) 아래에 우리 형식으로 더 뽑아 붙이는
+    // 경우가 있다. 예전에는 구조가 하나라도 있으면 그것만 읽어서, 위쪽에 있던
+    // 제목이 통째로 사라졌다. 첫 카테고리 줄보다 앞에 있는 제목도 함께 담는다.
+    const firstCategoryAt = text.search(/^\s*(?:\*\*\s*)?(?:\[\d+\s*\/\s*\d+\]\s*)?카테고리\s*\d+\s*:/m);
+    if (firstCategoryAt > 0) {
+      const head = text.slice(0, firstCategoryAt);
+      const loose = extractTitlesFromText(head).map((title) => ({
+        title,
+        parentCategoryNumber: 0,
+        parentCategory: "",
+        parentCategoryDescription: "",
+        childCategoryNumber: 0,
+        childCategory: "",
+        childCategoryDescription: "",
+      }));
+      if (loose.length > 0) {
+        return {...structured, entries: [...loose, ...structured.entries]};
+      }
+    }
+    return structured;
+  }
 
   return {
     categories: [],
