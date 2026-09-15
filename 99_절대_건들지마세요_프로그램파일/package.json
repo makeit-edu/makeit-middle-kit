@@ -14,7 +14,6 @@
     "adsense:auto-drafts": "node scripts/adsense-auto-drafts.mjs",
     "keys": "node scripts/keys.mjs",
     "save": "node scripts/save.mjs",
-    "update:kit": "node scripts/update-kit.mjs",
-    "setup:adsense": "node scripts/setup-adsense.mjs"
+    "update:kit": "node scripts/update-kit.mjs"
   }
 }

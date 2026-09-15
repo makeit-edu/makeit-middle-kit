@@ -57,7 +57,7 @@ function isUsableTitleFile(fileName) {
 }
 
 export function canonicalTitleFileName(siteNumber) {
-  return CANONICAL_TITLE_FILE_NAMES[Number(siteNumber)] || `사이트${siteNumber}_제목200개.txt`;
+  return CANONICAL_TITLE_FILE_NAMES[Number(siteNumber)] || `사이트${siteNumber}제목.txt`;
 }
 
 function sameFileName(left, right) {
