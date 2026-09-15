@@ -58,32 +58,54 @@ step_codex_install() {
 # ----------------------------------------------------------------------------
 # (f) CODEX_HOME 준비 + config.toml 작성 (D6·D7)
 #     - 모델 설정은 config.toml 하나로 일원화 (기존 런처의 -c 플래그 폐기)
-#     - 이미 model 설정이 있으면 존중하고 건드리지 않는다
+#     - 모델과 추론 강도는 재빌드할 때마다 정해진 값으로 되돌린다 (수강생 전원 동일 환경)
 # ----------------------------------------------------------------------------
+# config.toml 의 최상위 설정 한 줄을 원하는 값으로 맞춘다.
+#
+# 기존 줄을 고치는 게 아니라 '지우고 맨 앞에 다시 넣는' 방식이다. 이유가 두 가지 있다.
+#   · TOML 최상위 키는 파일 맨 앞에 있어야 한다. 그냥 뒤에 붙이면
+#     [projects."..."] 같은 테이블 안으로 들어가 설정이 조용히 무시된다.
+#   · 같은 키가 두 줄이 되면 Codex 가 설정 파일을 못 읽고 통째로 죽는다. 지우고 넣으면
+#     중복도 같이 정리된다.
+codex_cfg_set() {
+  local cfg="$1" key="$2" value="$3"
+  # 이미 그 값이면 파일을 건드리지 않는다 (재빌드마다 의미 없는 변경이 쌓이지 않도록)
+  if [ "$(grep -cE "^[[:space:]]*$key[[:space:]]*=" "$cfg" 2>/dev/null)" = "1" ] &&
+     grep -qE "^[[:space:]]*$key[[:space:]]*=[[:space:]]*\"$value\"[[:space:]]*$" "$cfg"; then
+    return 0
+  fi
+  sed -E "/^[[:space:]]*$key[[:space:]]*=/d" "$cfg" > "$cfg.tmp"
+  { printf '%s = "%s"\n' "$key" "$value"; cat "$cfg.tmp"; } > "$cfg"
+  rm -f "$cfg.tmp"
+  echo "코덱스 설정을 맞췄습니다: $key = \"$value\""
+}
+
 step_codex_config() {
   local codex_home="${CODEX_HOME:-$ROOT/.codex}"
   mkdir -p "$codex_home"
   local cfg="$codex_home/config.toml"
-  # 모델은 지정하지 않는다.
-  # ChatGPT 구독 계정으로 로그인하면 쓸 수 있는 모델이 정해져 있어, 여기서 특정 모델을
-  # 박아 두면 첫 실행이 그대로 죽는다 (실측):
+  touch "$cfg"
+
+  # 모델과 추론 강도를 고정한다.
+  #
+  #     model = "gpt-5.6-luna"          빠르고 가벼운 코딩용 모델
+  #     model_reasoning_effort = "low"  Codex 설명: "가볍게 생각하고 빠르게 답하기"
+  #
+  # 300명이 제각각 다른 모델로 돌면 같은 질문에 답이 다르고, 속도도 한도 소모도 달라진다.
+  # 코치가 화면만 보고는 원인을 못 짚는다. 그래서 재빌드할 때마다 이 값으로 되돌린다.
+  #
+  # 예전에는 모델을 일부러 비워 뒀다. ChatGPT 구독 계정에서 못 쓰는 모델을 박으면
+  # 첫 실행이 그대로 죽기 때문이다 (실측):
   #   400 invalid_request_error — "The 'gpt-5.4-mini' model is not supported
   #   when using Codex with a ChatGPT account."
-  # 지정을 비워 두면 Codex 가 계정에 맞는 기본 모델을 알아서 고른다.
-  # 한도 절약은 모델 고정 대신 reasoning effort 로만 조절한다.
-  if [ -f "$cfg" ] && grep -qE '^[[:space:]]*model[[:space:]]*=[[:space:]]*"gpt-' "$cfg"; then
-    # 구버전 작업방 마이그레이션: 못 쓰는 모델 지정을 걷어낸다
-    sed -i.bak -E '/^[[:space:]]*model[[:space:]]*=[[:space:]]*"gpt-/d' "$cfg"
-    rm -f "$cfg.bak"
-    echo "ChatGPT 계정에서 쓸 수 없는 모델 지정을 정리했습니다."
-  fi
-  if ! grep -qE '^[[:space:]]*model_reasoning_effort[[:space:]]*=' "$cfg" 2>/dev/null; then
-    cat >> "$cfg" <<'EOF'
-
-# 한도 절약형 (모델은 계정에 맞는 기본값을 그대로 쓴다)
-model_reasoning_effort = "low"
-EOF
-  fi
+  # gpt-5.6-luna 는 ChatGPT 계정으로 직접 돌려 통과를 확인했다 (2026-09-15 / codex-cli 0.144.1).
+  # 단 이 모델은 codex-cli 0.144.0 이상에서만 보인다 — 설치를 @latest 로 유지해야 하는 이유다.
+  #
+  # 언젠가 이 모델이 목록에서 내려가면 첫 실행이 다시 400 으로 죽는다.
+  # 그때는 아래 두 줄만 새 모델로 바꿔 업데이트를 내보내면 된다.
+  # '진단' 이 지금 쓰는 모델을 출력하니, 어느 수강생이 무엇으로 돌고 있는지 바로 드러난다.
+  codex_cfg_set "$cfg" model "gpt-5.6-luna"
+  codex_cfg_set "$cfg" model_reasoning_effort "low"
 
   # 권한 사전 설정 — 기존 강의의 '전체 권한 주기' 수동 단계를 대체한다.
   # Codex 의 workspace-write 샌드박스는 bubblewrap(bwrap) 으로 user namespace 를 만드는데,

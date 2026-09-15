@@ -88,6 +88,26 @@ const openAiReady = valueReady(env.OPENAI_API_KEY, ["sk-your", "your-openai", "p
 const envReady = hasEnvLocal() || openAiReady; // Codespaces Secrets만 쓰는 경우도 인정
 const workDir = join(projectRoot, WORK_DIR_NAME);
 
+// 코덱스가 지금 어떤 모델로 돌고 있는지 — 값은 .devcontainer/setup.sh 가 작업방을 만들 때 넣는다.
+// 수강생 전원이 같은 모델·같은 추론 강도로 돌아야 코치가 화면만 보고 지원할 수 있다.
+// 이 값이 다르면 그 사람만 다른 속도·다른 한도로 돌고 있다는 뜻이라 반드시 드러나야 한다.
+const CODEX_MODEL = "gpt-5.6-luna";
+const CODEX_EFFORT = "low";
+const codexConfigPath = join(process.env.CODEX_HOME || join(projectRoot, ".codex"), "config.toml");
+
+function codexSetting(key) {
+  try {
+    const found = readFileSync(codexConfigPath, "utf8").match(new RegExp(`^\\s*${key}\\s*=\\s*"([^"]*)"`, "m"));
+    return found ? found[1] : "";
+  } catch {
+    return "";
+  }
+}
+
+const codexModel = codexSetting("model");
+const codexEffort = codexSetting("model_reasoning_effort");
+const codexConfigExists = existsSync(codexConfigPath);
+
 const adsenseReadyCount = siteNumbers().filter((n) => siteReady(env, sitePrefix(n))).length;
 const titleCandidates = siteNumbers().map((n) => listTitleFileCandidates(projectRoot, n));
 const titlesReady = titleCandidates.some((candidates) => candidates.some((candidate) => candidate.titleCount > 0));
@@ -133,6 +153,18 @@ const checks = [
     ok: envReady,
     later: !envReady,
     detail: envReady ? (existsSync(ENV_LOCAL_PATH) ? "있음" : "Codespaces Secrets 사용 중") : "아직 없음 — 터미널에 '키설정' 을 입력하면 만들어져요",
+  },
+  {
+    code: "E08",
+    name: "코덱스 모델",
+    ok: codexModel === CODEX_MODEL && codexEffort === CODEX_EFFORT,
+    later: !codexConfigExists,
+    detail: !codexConfigExists
+      ? "아직 없음 — 작업방을 처음 만들 때 자동으로 설정돼요"
+      : `${codexModel || "지정 없음"} / ${codexEffort || "지정 없음"}` +
+        (codexModel === CODEX_MODEL && codexEffort === CODEX_EFFORT
+          ? ""
+          : ` — 정해진 값은 ${CODEX_MODEL} / ${CODEX_EFFORT} 입니다. 터미널에 '업데이트' 를 입력한 뒤 작업방을 다시 만들면(Rebuild Container) 되돌아와요`),
   },
   {
     code: "W01",
