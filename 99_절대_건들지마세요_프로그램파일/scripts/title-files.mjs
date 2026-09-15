@@ -204,8 +204,18 @@ function stripCategoryTitleDecorations(line) {
   return cleanTitle(line, {removeNumbering: true});
 }
 
+// 카테고리 머릿줄은 챗봇마다 조금씩 다르게 나온다. 실측으로 확인된 세 가지 —
+//   [1/5] 카테고리 1: 이름 (30개)     ← 우리 표준
+//   **[1/5] 카테고리 1: 이름**        ← 마크다운 볼드가 붙고 개수가 없음
+//   카테고리 1: 이름                  ← 머리표와 개수가 둘 다 없음
+// 예전 정규식은 첫 번째만 읽었고, 나머지는 매칭도 무시도 안 돼서
+// 그 뒤에 오는 제목이 통째로 버려졌다(카테고리 없이는 제목을 담지 않기 때문).
+function stripBold(value) {
+  return value.replace(/^\*\*\s*/, "").replace(/\s*\*\*$/, "").trim();
+}
+
 export function parseStructuredTitleCatalog(text) {
-  const parentPattern = /^\[(\d+)\s*\/\s*(\d+)\]\s*카테고리\s*(\d+)\s*:\s*(.+?)\s*\((\d+)\s*개\)\s*$/;
+  const parentPattern = /^(?:\[(\d+)\s*\/\s*(\d+)\]\s*)?카테고리\s*(\d+)\s*:\s*(.+?)(?:\s*\((\d+)\s*개\))?\s*$/;
   const childPattern = /^세부\s*카테고리\s*(\d+)\s*-\s*(\d+)\s*:\s*(.+)$/;
   const categories = [];
   const entries = [];
@@ -244,18 +254,24 @@ export function parseStructuredTitleCatalog(text) {
       return;
     }
 
-    const parentMatch = line.match(parentPattern);
+    // 머릿줄 판정에는 볼드를 걷어낸 사본을 쓴다.
+    // 제목 줄은 원문 그대로 담아야 하므로 line 은 건드리지 않는다.
+    const bare = stripBold(line);
+
+    const parentMatch = bare.match(parentPattern);
     if (parentMatch) {
       finishParent();
+      const declared = Number(parentMatch[5]);
       currentParent = newParentCategory({
         number: Number(parentMatch[3]),
-        name: parentMatch[4],
-        expectedCount: Number(parentMatch[5]),
+        name: stripBold(parentMatch[4]),
+        // 개수를 안 적은 형식도 있다. 그 경우 기대값 검사를 건너뛰도록 0 으로 둔다.
+        expectedCount: Number.isFinite(declared) ? declared : 0,
       });
       return;
     }
 
-    const childMatch = line.match(childPattern);
+    const childMatch = bare.match(childPattern);
     if (childMatch) {
       finishChild();
       if (!currentParent || Number(childMatch[1]) !== Number(currentParent.number)) {
@@ -265,7 +281,7 @@ export function parseStructuredTitleCatalog(text) {
       currentChild = newChildCategory({
         parentNumber: Number(childMatch[1]),
         number: Number(childMatch[2]),
-        name: childMatch[3],
+        name: stripBold(childMatch[3]),
       });
       return;
     }
@@ -298,21 +314,39 @@ export function parseStructuredTitleCatalog(text) {
 
   finishParent();
 
+  // 세부 카테고리 개수는 기수마다 다르다 (중급반 200개판은 4개, 150개판은 3개).
+  // 숫자를 박아두면 다른 기수 파일마다 거짓 경고가 나므로, 이 파일 안에서
+  // 가장 흔한 개수를 기준으로 삼고 거기서 어긋나는 카테고리만 짚는다.
+  const childCounts = categories.map((category) => category.children.length).filter((n) => n > 0);
+  const commonChildCount = childCounts.length
+    ? Number(
+        Object.entries(
+          childCounts.reduce((acc, n) => ({...acc, [n]: (acc[n] || 0) + 1}), {}),
+        ).sort((a, b) => b[1] - a[1] || Number(b[0]) - Number(a[0]))[0][0],
+      )
+    : 0;
+
   categories.forEach((category) => {
     const titleCount = category.children.reduce((sum, child) => sum + child.titles.length, 0);
     if (category.expectedCount && titleCount !== category.expectedCount) {
       warnings.push(`카테고리 ${category.number} "${category.name}" 제목 수가 ${titleCount}개입니다. 기대값은 ${category.expectedCount}개입니다.`);
     }
-    if (category.children.length !== 4) {
-      warnings.push(`카테고리 ${category.number} "${category.name}" 세부 카테고리가 ${category.children.length}개입니다. 기대값은 4개입니다.`);
+    // 카테고리가 하나뿐이면 비교 대상이 없으므로 개수 경고를 내지 않는다
+    // (제목을 카테고리 단위로 나눠 쓰는 중간 상태가 정상이다).
+    if (categories.length > 1 && commonChildCount && category.children.length !== commonChildCount) {
+      warnings.push(`카테고리 ${category.number} "${category.name}" 세부 카테고리가 ${category.children.length}개입니다. 다른 카테고리는 ${commonChildCount}개입니다.`);
     }
   });
 
+  // 예전에는 "1~5번이 다 있어야 한다"고 봤다. 그러면 카테고리를 하나씩 저장하는
+  // 중간 상태마다 거짓 경고가 4건씩 나고, 그게 쌓이면 진짜 경고까지 같이 무시된다.
+  // 지금은 '있는 번호들 사이의 구멍'만 본다 — 1·2·4 처럼 가운데가 빈 경우만 짚는다.
   const categoryNumbers = new Set(categories.map((category) => Number(category.number)));
-  if (categories.length > 0) {
-    for (let index = 1; index <= 5; index += 1) {
+  if (categoryNumbers.size > 0) {
+    const maxNumber = Math.max(...categoryNumbers);
+    for (let index = 1; index <= maxNumber; index += 1) {
       if (!categoryNumbers.has(index)) {
-        warnings.push(`카테고리 ${index}번이 제목 파일에서 발견되지 않았습니다.`);
+        warnings.push(`카테고리 ${index}번이 빠져 있습니다. (${maxNumber}번까지 있는데 ${index}번만 없습니다)`);
       }
     }
   }

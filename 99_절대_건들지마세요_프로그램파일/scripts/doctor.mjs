@@ -166,5 +166,49 @@ const checks = [
 
 printChecks("월부 중급반 키트 환경 점검", checks);
 
+// ── 지금까지 얼마나 했는지 ────────────────────────────────
+//
+// 이게 없으면 AI 비서가 매번 "처음"이라고 짐작하고, 어제 200개를 만들었어도
+// 오늘 다시 "테스트로 1개 발행해볼까요?" 부터 묻는다.
+// 기록은 우리 파일만 본다. 워드프레스를 부르면 켤 때마다 네트워크에 매달리고,
+// 이미 글이 있는 블로그를 '이어하기'로 잘못 볼 수도 있다.
+function 사이트별진행() {
+  const 결과 = [];
+  for (const n of siteNumbers()) {
+    const dir = join(PROGRAM_ROOT, "makeit-adsense", "outputs", `site-${String(n).padStart(2, "0")}`);
+    const file = join(dir, "draft-history.json");
+    let 만든수 = 0;
+    if (existsSync(file)) {
+      try {
+        const rows = JSON.parse(readFileSync(file, "utf8"));
+        if (Array.isArray(rows)) 만든수 = rows.filter((row) => row && row.title).length;
+      } catch {
+        만든수 = 0;
+      }
+    }
+    const 제목수 = (titleCandidates[n - 1] || []).reduce((max, c) => Math.max(max, c.titleCount || 0), 0);
+    if (만든수 > 0 || 제목수 > 0) 결과.push({site: n, 만든수, 제목수});
+  }
+  return 결과;
+}
+
+const 진행 = 사이트별진행();
+const 총만든수 = 진행.reduce((sum, row) => sum + row.만든수, 0);
+
+console.log("");
+console.log("지금까지 만든 글");
+console.log("=".repeat(44));
+if (진행.length === 0) {
+  console.log("아직 만든 글이 없어요. 제목도 아직 없습니다.");
+} else {
+  for (const row of 진행) {
+    const 남은수 = Math.max(row.제목수 - row.만든수, 0);
+    console.log(`사이트${row.site}: 만든 글 ${row.만든수}개 / 제목 ${row.제목수}개 (남은 제목 ${남은수}개)`);
+  }
+}
+console.log("=".repeat(44));
+// 비서가 이 한 줄을 보고 갈라 진행한다. 사람에게도 뜻이 통하는 문장이어야 한다.
+console.log(총만든수 > 0 ? "상태: 이어하기 (이미 만든 글이 있어요)" : "상태: 처음 (아직 만든 글이 없어요)");
+
 const hardFails = checks.filter((check) => ["E02", "E03", "E04", "E05"].includes(check.code) && !check.ok);
 if (hardFails.length > 0) process.exitCode = 1;

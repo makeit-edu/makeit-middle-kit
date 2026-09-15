@@ -174,10 +174,69 @@ function wrapPlainHtmlAsBlocks(html) {
     .join("\n\n");
 }
 
+// 마크다운 표를 HTML 표로 바꾼다.
+//
+//   | 항목 | 금액 |        <table><thead><tr><th>항목</th><th>금액</th></tr></thead>
+//   |---|---|         →     <tbody><tr><td>통신비</td><td>4만원</td></tr></tbody></table>
+//   | 통신비 | 4만원 |
+//
+// 이 변환이 없으면 워드프레스가 파이프 문자를 그대로 본문에 찍는다(표가 통째로 사라진 것처럼 보인다).
+function markdownTablesToHtml(html) {
+  const tablePattern = /(^|\n)((?:[ \t]*\|.*\|[ \t]*\n)+)/g;
+  return html.replace(tablePattern, (whole, lead, block) => {
+    const rows = block
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("|") && line.endsWith("|"));
+    if (rows.length < 2) return whole;
+
+    // 두 번째 줄이 |---|---| 형태여야 표로 본다
+    const isDivider = /^\|[\s:\-|]+\|$/.test(rows[1]) && rows[1].includes("-");
+    if (!isDivider) return whole;
+
+    const cells = (row) => row.slice(1, -1).split("|").map((cell) => cell.trim());
+    const head = cells(rows[0]);
+    const body = rows.slice(2).map(cells);
+    if (head.length === 0) return whole;
+
+    const thead = `<thead><tr>${head.map((cell) => `<th>${cell}</th>`).join("")}</tr></thead>`;
+    const tbody = body.length
+      ? `<tbody>${body.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody>`
+      : "";
+    return `${lead}<table>${thead}${tbody}</table>\n`;
+  });
+}
+
+// 표를 워드프레스가 아는 한 가지 모양으로 다시 씌운다.
+//
+// AI 가 보내는 모양이 제각각이다 — 주석만 있는 것, figure 만 있는 것, 맨 <table> 뿐인 것.
+// 껍데기를 일단 전부 벗기고 다시 씌우면 어느 쪽으로 와도 결과가 같아진다.
+// 표 '안쪽'은 한 글자도 건드리지 않는다. 굵게·병합(colspan)·링크가 그대로 살아야 한다.
+function normalizeTableBlocks(html) {
+  let out = html;
+  // 1) 표를 감싼 wp:table 주석을 걷어낸다 (여는 것·닫는 것 모두)
+  out = out.replace(/<!--\s*\/?\s*wp:table(?:\s+\{[^}]*\})?\s*-->/gi, "");
+  // 2) figure 껍데기를 걷어낸다 — 표를 감싼 figure 만 (다른 figure 는 두어야 이미지가 산다)
+  out = out.replace(
+    /<figure\b[^>]*>\s*(<table\b[\s\S]*?<\/table>)\s*<\/figure>/gi,
+    (_m, table) => table,
+  );
+  // 3) 남은 맨몸 표에 표준 껍데기를 씌운다.
+  //    <table> 하나씩만 잡으므로, 닫는 주석이 없어도 뒤쪽 본문을 삼키지 않는다.
+  out = out.replace(
+    /<table\b[\s\S]*?<\/table>/gi,
+    (table) => `<!-- wp:table -->\n<figure class="wp-block-table">${table}</figure>\n<!-- /wp:table -->`,
+  );
+  return out.replace(/\n{3,}/g, "\n\n");
+}
+
 function normalizeArticleHtml(rawHtml, title) {
   let html = cleanHtml(rawHtml)
     .replace(/<h1\b([^>]*)>([\s\S]*?)<\/h1>/gi, (_match, attrs, inner) => `<h2${attrs}>${inner}</h2>`)
     .trim();
+
+  // 블록으로 감싸기 전에 마크다운 표를 먼저 HTML 로 바꿔 둔다
+  html = markdownTablesToHtml(html);
 
   if (!/<!--\s*wp:/i.test(html)) {
     html = wrapPlainHtmlAsBlocks(html);
@@ -205,10 +264,15 @@ function normalizeArticleHtml(rawHtml, title) {
     html = wrapPlainHtmlAsBlocks(html);
   }
 
+  // 표 정리는 반드시 이 자리에서 한다.
+  // 위 두 갈래(블록으로 감싼 경우 / 이미 감싸져 온 경우)가 여기서 합쳐지므로,
+  // 한 줄이라도 위에서 하면 한쪽 경로의 표만 고쳐지거나 본문이 통째로 맨몸이 된다.
+  html = normalizeTableBlocks(html);
+
   return html.trim();
 }
 
-function validateArticleHtml(html, title) {
+function validateArticleHtml(html, title, {minChars = 0} = {}) {
   if (/<h1\b/i.test(html)) throw new Error("본문에 h1 태그가 남아 있음");
   if (!/<!--\s*wp:/i.test(html)) throw new Error("본문에 Gutenberg 블록 주석이 없음");
   const firstH2 = html.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i);
@@ -216,6 +280,46 @@ function validateArticleHtml(html, title) {
   const firstH2Text = stripTags(firstH2[1]);
   if (comparableText(firstH2Text) === comparableText(title)) {
     throw new Error("제목과 첫 h2 소제목이 같음");
+  }
+
+  // ── 아래는 "조용히 망가진 글"을 잡기 위한 검사다.
+  //    예전에는 글자수도, 표 모양도, 끊긴 태그도 보지 않아서
+  //    반쪽짜리 글이 화면에 "완료"로 찍힌 채 워드프레스에 쌓였다.
+
+  // 글자수 — 프롬프트로 부탁만 하고 확인은 안 하고 있었다
+  if (minChars > 0) {
+    const textLength = stripTags(html).replace(/\s/g, "").length;
+    if (textLength < minChars) {
+      throw new Error(`본문이 너무 짧음 (${textLength}자 / 최소 ${minChars}자)`);
+    }
+  }
+
+  // 마크다운 표가 남아 있으면 워드프레스에 파이프 문자가 그대로 찍힌다
+  if (/^[ \t]*\|.*\|[ \t]*$/m.test(html)) {
+    throw new Error("본문에 마크다운 표가 남아 있음 (| 로 그린 표)");
+  }
+
+  // 표 껍데기가 짝이 맞는지 — 하나라도 어긋나면 편집기에서 오류 덩어리로 뜬다
+  const tableOpen = (html.match(/<table\b/gi) || []).length;
+  const tableClose = (html.match(/<\/table>/gi) || []).length;
+  if (tableOpen !== tableClose) {
+    throw new Error(`표 태그가 닫히지 않음 (여는 것 ${tableOpen} / 닫는 것 ${tableClose})`);
+  }
+  if (tableOpen > 0) {
+    const tableComments = (html.match(/<!--\s*wp:table/gi) || []).length;
+    if (tableComments !== tableOpen) {
+      throw new Error(`표 블록 껍데기 누락 (표 ${tableOpen}개 / 블록주석 ${tableComments}개)`);
+    }
+    // 행마다 칸 수가 다르면 표가 어긋나 보인다
+    for (const table of html.match(/<table\b[\s\S]*?<\/table>/gi) || []) {
+      const counts = (table.match(/<tr\b[\s\S]*?<\/tr>/gi) || []).map(
+        (row) => (row.match(/<t[dh]\b/gi) || []).length,
+      );
+      const uneven = counts.filter((n) => n > 0);
+      if (uneven.length > 1 && new Set(uneven).size > 1) {
+        throw new Error(`표의 행마다 칸 수가 다름 (${uneven.join(", ")})`);
+      }
+    }
   }
 }
 
@@ -269,6 +373,13 @@ function readJsonArray(filePath) {
 function compactDraftHistoryEntry(item) {
   if (!item?.ok || !normalizeSpaces(item.title)) return null;
   return {
+    // ok 를 반드시 담아야 한다.
+    //
+    // 예전에는 이 줄이 없어서, 저장할 때는 ok 를 빼고 읽을 때는 ok 를 요구했다.
+    // 그래서 다음 실행에서 이전 기록이 전부 걸러져 누적이 쌓이지 않았고,
+    // "지금까지 몇 개 만들었다" 가 항상 마지막 실행분만 가리켰다.
+    // 덤으로, 이제 예전 제목을 제대로 기억하므로 중복 발행도 한 겹 더 막힌다.
+    ok: true,
     site: Number(item.site || 1),
     title: normalizeSpaces(item.title),
     postId: Number(item.postId || 0),
@@ -347,11 +458,28 @@ function applyTimeOfDay(date, fixedTime) {
   return date;
 }
 
-function postDateForIndex(index, mode, startDate, {randomDays = 30, fixedTime = "", stepDays = 1} = {}) {
+function postDateForIndex(index, mode, startDate, {randomDays = 30, fixedTime = "", stepDays = 1, hourGap = 0} = {}) {
   // 기본값. 날짜를 아예 보내지 않으면 워드프레스가 지금 시각으로 저장한다.
   if (mode === "now" || mode === "none") return null;
 
-  // 날짜까지 무작위로 흔는다
+  // 시간 간격 모드 — 글마다 N시간씩 미룬다.
+  //
+  // 앞날짜(미래)로 저장해 두면, 수강생이 평소처럼 '발행' 을 눌러도 워드프레스가
+  // 알아서 '예약' 으로 바꿔 준다(실측으로 확인). 그래서 조작이 늘지 않으면서
+  // 글이 2시간 간격으로 하나씩 공개된다.
+  //
+  // 반대로 날짜 없이 올린 글은 발행을 누르는 순간 그 시각으로 덮어써져서,
+  // 아무리 예쁘게 흩어 놔도 전부 같은 시각에 공개된다.
+  if (hourGap > 0) {
+    const base = startDate ? new Date(startDate.getTime()) : new Date();
+    const at = new Date(base.getTime() + index * hourGap * 60 * 60 * 1000);
+    // 지금보다 앞이면 예약이 안 걸리므로 최소 10분 뒤로 민다
+    const 최소 = Date.now() + 10 * 60 * 1000;
+    if (at.getTime() < 최소) at.setTime(최소 + index * hourGap * 60 * 60 * 1000);
+    return at.toISOString();
+  }
+
+  // 날짜까지 무작위로 흩는다
   if (mode === "random") {
     const spanMs = Math.max(1, randomDays) * 24 * 60 * 60 * 1000;
     const at = new Date(Date.now() - Math.floor(Math.random() * spanMs));
@@ -372,14 +500,20 @@ function extractUsage(data) {
   return {inputTokens, outputTokens, totalTokens};
 }
 
+// 모델별 100만 토큰당 단가(달러). 표에 없는 모델은 기본값으로 어림잡고 그렇다고 알린다.
+//
+// 예전 코드는 if 문 양쪽에 같은 값을 넣어 두어서, 어떤 모델을 쓰든 항상 같은 단가로
+// 계산했다. 모델을 바꾸면 화면의 "약 N원"이 조용히 틀린 값이 된다.
+const MODEL_PRICE_PER_1M = {
+  "gpt-5.4-mini": {input: GPT54_MINI_INPUT_PER_1M, output: GPT54_MINI_OUTPUT_PER_1M},
+};
+
 function estimateCost({model, inputTokens, outputTokens, usdKrw}) {
   const modelName = String(model || "").toLowerCase();
-  let inputPer1m = GPT54_MINI_INPUT_PER_1M;
-  let outputPer1m = GPT54_MINI_OUTPUT_PER_1M;
-  if (!modelName.includes("gpt-5.4-mini")) {
-    inputPer1m = GPT54_MINI_INPUT_PER_1M;
-    outputPer1m = GPT54_MINI_OUTPUT_PER_1M;
-  }
+  const known = Object.keys(MODEL_PRICE_PER_1M).find((name) => modelName.includes(name));
+  const price = known ? MODEL_PRICE_PER_1M[known] : {input: GPT54_MINI_INPUT_PER_1M, output: GPT54_MINI_OUTPUT_PER_1M};
+  const inputPer1m = price.input;
+  const outputPer1m = price.output;
   const usd = (inputTokens / 1_000_000) * inputPer1m + (outputTokens / 1_000_000) * outputPer1m;
   return {
     estimatedUsd: Number(usd.toFixed(6)),
@@ -388,6 +522,16 @@ function estimateCost({model, inputTokens, outputTokens, usdKrw}) {
     outputPer1m,
     usdKrw,
   };
+}
+
+// 한 단계가 끝날 때마다 한 줄씩 찍는다.
+//
+// 글 하나를 만드는 데 1~3분이 걸리는데 예전에는 시작·끝 두 줄뿐이라
+// 그 사이가 통째로 침묵이었다. 수강생은 멈춘 줄 알고 창을 닫는다.
+// 자주 찍으면 AI 비서 화면이 그 줄로 가득 차므로 단계가 바뀔 때만 찍는다.
+function 단계(글번호, 전체, 문구, 덧말 = "") {
+  const 머리 = `[${글번호}/${전체}]`;
+  console.log(`${머리} ${문구}${덧말 ? ` · ${덧말}` : ""}`);
 }
 
 function openAiResponsesUrl() {
@@ -858,7 +1002,7 @@ async function generatePostMeta({apiKey, model, title}) {
         {role: "system", content: systemPrompt},
         {role: "user", content: userPrompt},
       ],
-      max_output_tokens: 700,
+      max_output_tokens: 2000,
     }),
   });
 
@@ -1157,6 +1301,9 @@ async function generateArticle({apiKey, model, title, minChars}) {
     "- 제목과 요약글은 사람이 나중에 직접 다듬을 예정이므로 본문만 출력",
     "- 첫 h2는 제목과 다른 문구로 작성",
     "- 본문 전체를 워드프레스 블록 주석으로 감싼 HTML로 출력",
+    "- 표가 필요하면 아래 모양을 그대로 따라 쓸 것. 마크다운 표(| 로 그린 표)는 쓰지 말 것:",
+    '  <!-- wp:table -->\n  <figure class="wp-block-table"><table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr><td>가</td><td>나</td></tr></tbody></table></figure>\n  <!-- /wp:table -->',
+    "- 표는 모든 행의 칸 수가 같아야 함",
   ].join("\n");
 
   const response = await fetch(openAiResponsesUrl(), {
@@ -1171,7 +1318,7 @@ async function generateArticle({apiKey, model, title, minChars}) {
         {role: "system", content: systemPrompt},
         {role: "user", content: userPrompt},
       ],
-      max_output_tokens: Number(env.ARTICLE_MAX_OUTPUT_TOKENS || 9000),
+      max_output_tokens: Number(env.ARTICLE_MAX_OUTPUT_TOKENS || 12000),
     }),
   });
 
@@ -1188,9 +1335,21 @@ async function generateArticle({apiKey, model, title, minChars}) {
     throw new Error(`OpenAI API 실패: ${message}`);
   }
 
+  // 글이 중간에 끊겼는지 확인한다.
+  //
+  // 예전에는 이걸 한 번도 보지 않아서, 문장 중간에 뚝 끊긴 글이 그대로 워드프레스에 올라갔다.
+  // 표를 그리다 끊기면 </table> 이 없는 채로 저장되고, 화면에는 "완료"만 찍힌다.
+  // 지금 모델은 생각하는 데도 출력 한도를 같이 쓰기 때문에 한도에 걸리는 일이 드물지 않다.
+  if (data.status === "incomplete") {
+    const reason = data.incomplete_details?.reason || "이유 미상";
+    const error = new Error(`본문이 중간에 끊겼어요 (${reason})`);
+    error.truncated = true;
+    throw error;
+  }
+
   const html = normalizeArticleHtml(extractOutputText(data), title);
   if (!html) throw new Error("OpenAI가 빈 본문을 반환함");
-  validateArticleHtml(html, title);
+  validateArticleHtml(html, title, {minChars});
   return {html, usage: extractUsage(data)};
 }
 
@@ -1232,6 +1391,45 @@ async function createDraftPost({siteUrl, username, appPassword, title, html, dat
   }
 
   return data;
+}
+
+// 랭크매스(Rank Math SEO) 포커스 키워드를 글에 넣는다.
+//
+// 함정이 하나 있다 — 워드프레스 표준 경로(글 만들 때 meta 필드)로 보내면
+// 오류도 안 나고 조용히 무시된다. 랭크매스가 그 칸을 REST 로 열어두지 않았기 때문이다.
+// 실측(b.sciencehax.com)으로 확인했고, 전용 창구로 보내면 제대로 저장된다.
+// 수강생이 플러그인을 더 깔 필요는 없다.
+//
+// 랭크매스가 없는 사이트면 그냥 건너뛴다. 요가(Yoast)는 쓰기용 창구가 없어 지원하지 않는다.
+async function applyRankMathKeyword({siteUrl, username, appPassword, postId, meta}) {
+  const keyword = normalizeSpaces(meta?.focusKeyword || "");
+  if (!keyword || !postId) return {ok: false, reason: "키워드 없음"};
+
+  const credentials = wordpressCredentials(username, appPassword);
+  const payload = {
+    objectID: Number(postId),
+    objectType: "post",
+    meta: {
+      rank_math_focus_keyword: keyword,
+      ...(meta?.metaDescription ? {rank_math_description: normalizeSpaces(meta.metaDescription)} : {}),
+    },
+  };
+
+  try {
+    const response = await wpFetch(`${siteUrl.replace(/\/$/, "")}/wp-json/rankmath/v1/updateMeta`, {
+      method: "POST",
+      headers: {Authorization: `Basic ${credentials}`, "Content-Type": "application/json"},
+      body: JSON.stringify(payload),
+    });
+    if (response.status === 404) return {ok: false, reason: "랭크매스가 설치돼 있지 않음"};
+    if (!response.ok) {
+      const body = await response.text();
+      return {ok: false, reason: `저장 실패 (${response.status}) ${body.slice(0, 80)}`};
+    }
+    return {ok: true, keyword};
+  } catch (error) {
+    return {ok: false, reason: error instanceof Error ? error.message : String(error)};
+  }
 }
 
 async function updateDraftPostContent({siteUrl, username, appPassword, postId, html, featuredMediaId, selectedCategory}) {
@@ -1298,6 +1496,9 @@ const stepDays = (() => {
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1;
 })();
+
+// 글 사이 시간 간격(시간 단위). 예: --hour-gap=2 면 2시간씩 벌려 예약한다.
+const hourGap = Math.max(0, Number(argValue("hour-gap", "0")) || 0);
 const startDate = parseDate(argValue("start-date", "")) || defaultStartDate(dateMode);
 const usdKrw = Number(env.ARTICLE_USD_KRW || DEFAULT_USD_KRW);
 
@@ -1408,6 +1609,7 @@ for (let index = 0; index < titles.length; index += 1) {
       console.log(`  건너뜀: 워드프레스에 같은 제목의 글이 이미 있음 (ID ${existingPost.id} / 상태 ${existingPost.status})`);
       continue;
     }
+    단계(index + 1, titles.length, "제목·키워드 정리하는 중");
     let meta = fallbackPostMeta(title);
     let metaUsage = {inputTokens: 0, outputTokens: 0, totalTokens: 0};
     try {
@@ -1419,7 +1621,29 @@ for (let index = 0; index < titles.length; index += 1) {
       console.log(`  메타 보정: ${message}`);
     }
 
-    const {html, usage: articleUsage} = await generateArticle({apiKey: env.OPENAI_API_KEY, model, title, minChars});
+    // 글이 끊기거나 점검에 걸리면 한 번만 더 만들어 본다.
+    // 두 번 다 실패하면 이 제목은 올리지 않고 넘어간다 — 반쪽짜리 글을 올리는 것보다 낫다.
+    // (다음에 다시 실행하면 이 제목부터 자동으로 다시 만든다)
+    단계(index + 1, titles.length, "본문 쓰는 중 (보통 1~2분)");
+    let html;
+    let articleUsage;
+    for (let 시도 = 1; 시도 <= 2; 시도 += 1) {
+      try {
+        const made = await generateArticle({apiKey: env.OPENAI_API_KEY, model, title, minChars});
+        html = made.html;
+        articleUsage = made.usage;
+        break;
+      } catch (articleError) {
+        const message = articleError instanceof Error ? articleError.message : String(articleError);
+        // 키가 틀렸거나 요청 자체가 거부된 경우는 다시 해도 같다. 바로 멈춘다.
+        if (/OpenAI API 실패|응답을 해석하지 못함/.test(message)) throw articleError;
+        if (시도 === 2) {
+          throw new Error(`두 번 만들어 봤지만 점검을 통과하지 못했어요: ${message}`);
+        }
+        console.log(`  글 점검에서 걸렸어요: ${message}`);
+        console.log("  한 번만 더 만들어 볼게요.");
+      }
+    }
     const usage = mergeUsage(metaUsage, articleUsage);
     let selectedCategory = null;
     if (titleEntryHasCategory(titleEntry)) {
@@ -1430,7 +1654,9 @@ for (let index = 0; index < titles.length; index += 1) {
     } else {
       selectedCategory = selectBestCategory(wordpressCategories, {title, meta});
     }
+    단계(index + 1, titles.length, "그림 만드는 중 (20~40초)");
     const generatedImage = await generateFeaturedImage({apiKey: env.OPENAI_API_KEY, title, meta, usdKrw});
+    단계(index + 1, titles.length, "워드프레스에 올리는 중");
     const featuredMedia = await uploadFeaturedImage({siteUrl, username, appPassword, title, meta, generatedImage});
     const htmlWithImage = insertImageBlockIntoArticle(html, buildArticleImageBlock({media: featuredMedia}));
     validateArticleHtml(htmlWithImage, title);
@@ -1440,7 +1666,7 @@ for (let index = 0; index < titles.length; index += 1) {
     writeFileSync(localPath, htmlWithImage, "utf8");
     writeFileSync(visiblePath, htmlWithImage, "utf8");
 
-    const postDate = postDateForIndex(index, dateMode, startDate, {randomDays, fixedTime, stepDays});
+    const postDate = postDateForIndex(index, dateMode, startDate, {randomDays, fixedTime, stepDays, hourGap});
     let post = await createDraftPost({siteUrl, username, appPassword, title, html: htmlWithImage, date: postDate, meta, featuredMediaId: featuredMedia.id, selectedCategory});
     if (!postHasInlineImage(post, featuredMedia)) {
       post = await updateDraftPostContent({siteUrl, username, appPassword, postId: post.id, html: htmlWithImage, featuredMediaId: featuredMedia.id, selectedCategory});
@@ -1448,6 +1674,14 @@ for (let index = 0; index < titles.length; index += 1) {
     if (!postHasInlineImage(post, featuredMedia)) {
       throw new Error("워드프레스 임시글 본문에 이미지 블록이 저장되지 않았습니다.");
     }
+
+    // 랭크매스 포커스 키워드. 없는 사이트면 조용히 건너뛰되, 화면에는 왜 안 됐는지 남긴다.
+    // (조용히 넘어가면 "됐다고 나오는데 실제로는 비어 있는" 사고가 난다)
+    const rankMath = await applyRankMathKeyword({siteUrl, username, appPassword, postId: post.id, meta});
+    if (!rankMath.ok && rankMath.reason !== "키워드 없음") {
+      console.log(`     (랭크매스 키워드는 넣지 못했어요: ${rankMath.reason})`);
+    }
+
     const textCost = estimateCost({model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, usdKrw});
     const estimatedUsd = Number((textCost.estimatedUsd + generatedImage.estimatedUsd).toFixed(6));
     const estimatedKrw = Number((textCost.estimatedKrw + generatedImage.estimatedKrw).toFixed(1));
@@ -1497,7 +1731,12 @@ for (let index = 0; index < titles.length; index += 1) {
     });
     const categorySourceLabel = selectedCategory?.source ? `(${selectedCategory.source})` : "";
     const categoryLabel = selectedCategory ? ` / 카테고리 ${selectedCategory.name}${categorySourceLabel}` : " / 카테고리 미지정";
-    console.log(`  완료: 임시글 ID ${post.id} / slug ${post.slug || meta.slug} / 키워드 ${meta.focusKeyword} / OpenAI 대표이미지+본문이미지 ${featuredMedia.id}${categoryLabel} / 날짜 ${post.date || postDate || "기본값"} / 약 ${estimatedKrw}원`);
+    // 이 글은 위에서 results 에 이미 담겼다. 여기서 또 더하면 두 배로 세어진다.
+    // (실측에서 1개를 만들었는데 "지금까지 2개 · 약 73원" 으로 찍혔다)
+    const 지금까지완료 = results.filter((item) => item.ok && !item.skipped).length;
+    const 지금까지비용 = results.reduce((sum, item) => sum + Number(item.estimated_krw || 0), 0);
+    console.log(`  ✅ 완료 · 이 글 약 ${estimatedKrw}원 · 지금까지 ${지금까지완료}개 · 약 ${Math.round(지금까지비용)}원`);
+    console.log(`     (임시글 ID ${post.id} / 키워드 ${meta.focusKeyword}${categoryLabel} / 날짜 ${post.date || postDate || "기본값"})`);
   } catch (error) {
     let message = error instanceof Error ? error.message : String(error);
     if (/fetch failed|ENOTFOUND|ECONNREFUSED|certificate/i.test(message)) {
@@ -1559,11 +1798,31 @@ writeFileSync(join(visibleOutputDir, "cost-summary.json"), JSON.stringify(costSu
 
 const success = results.filter((item) => item.ok && !item.skipped).length;
 const skippedCount = results.filter((item) => item.skipped).length;
-console.log("=".repeat(44));
-console.log(`완료: 성공 ${success}개 / 중복 건너뜀 ${skippedCount}개 / 실패 ${results.length - success - skippedCount}개`);
-console.log(`결과 기록: ${join(outputDir, "last-run.json")}`);
-console.log(`누적 기록: ${join(outputDir, "draft-history.json")}`);
-console.log(`비용 기록: ${join(outputDir, "cost-summary.json")}`);
-console.log("워드프레스에는 모두 임시글로 저장됨. 제목과 요약글은 사람이 직접 확인한 뒤 발행해야 함.");
+const failedCount = results.length - success - skippedCount;
 
-if (success !== results.length) process.exitCode = 1;
+console.log("");
+console.log("============================================");
+if (success > 0) {
+  console.log(`  ✅ 다 됐어요! 새 글 ${success}개를 저장했어요`);
+  console.log("     워드프레스 임시글에 들어 있어요. 글을 확인한 뒤 발행하세요");
+  console.log(`     이번에 든 돈: 약 ${Math.round(costSummary.estimated_krw)}원`);
+} else {
+  console.log("  새로 만든 글이 없어요");
+}
+console.log("============================================");
+if (skippedCount > 0) console.log(`이미 있어서 건너뛴 제목 ${skippedCount}개 (같은 글을 두 번 만들지 않아요)`);
+if (failedCount > 0) {
+  console.log(`점검을 통과하지 못한 제목 ${failedCount}개 — 워드프레스에 올리지 않았어요.`);
+  console.log("다시 실행하면 그 제목부터 다시 만듭니다.");
+}
+console.log("");
+
+// 작업이 끝났다고 소리로 알린다. 다른 탭을 보고 있어도 들리게.
+// (브라우저나 기기를 음소거해 두면 안 들리므로 위 배너가 본체다)
+if (process.stdout.isTTY) process.stdout.write("");
+
+// 중복 건너뜀은 실패가 아니다.
+//
+// 예전에는 건너뛴 게 하나만 있어도 종료코드 1 이 되었고, 여러 사이트를 도는 스크립트가
+// 그걸 실패로 읽어 사이트2 부터는 아예 실행하지 않고 조용히 끝났다.
+if (failedCount > 0) process.exitCode = 1;

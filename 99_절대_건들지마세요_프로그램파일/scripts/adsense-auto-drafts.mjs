@@ -67,6 +67,12 @@ const dryRun = ["1", "true", "yes"].includes(argValue("dry-run", "0").toLowerCas
 const includeUsed = ["1", "true", "yes"].includes(argValue("include-used", "0").toLowerCase());
 const dateMode = argValue("date-mode", "");
 const startDate = argValue("start-date", "");
+// 날짜 관련 옵션은 여기서 받아 그대로 자식 스크립트에 넘긴다.
+// 넘기지 않으면 "이틀에 하나씩" 같은 요청이 조용히 무시된다(실측으로 확인).
+const dateStep = argValue("date-step", "");
+const fixedTime = argValue("fixed-time", "");
+const randomDays = argValue("random-days", "");
+const hourGap = argValue("hour-gap", "");
 
 if (!dryRun && !ready(env.OPENAI_API_KEY, ["sk-your"])) {
   console.error(keysGuideMessage("OpenAI API 키"));
@@ -115,6 +121,8 @@ for (const info of targetSites) {
 
 console.log(`실행 대상: ${targetSites.map((info) => `사이트${info.siteNumber}`).join(", ")}`);
 
+const 실패한사이트 = [];
+
 for (const info of targetSites) {
   const args = ["scripts/adsense-create-drafts.mjs", `--site=${info.siteNumber}`, `--titles=${info.filePath}`];
   if (limit > 0) args.push(`--limit=${limit}`);
@@ -122,6 +130,10 @@ for (const info of targetSites) {
   if (includeUsed) args.push("--include-used=1");
   if (dateMode) args.push(`--date-mode=${dateMode}`);
   if (startDate) args.push(`--start-date=${startDate}`);
+  if (dateStep) args.push(`--date-step=${dateStep}`);
+  if (fixedTime) args.push(`--fixed-time=${fixedTime}`);
+  if (randomDays) args.push(`--random-days=${randomDays}`);
+  if (hourGap) args.push(`--hour-gap=${hourGap}`);
 
   console.log("=".repeat(44));
   console.log(`사이트${info.siteNumber} 실행 시작`);
@@ -130,10 +142,21 @@ for (const info of targetSites) {
     stdio: "inherit",
   });
 
+  // 한 사이트가 실패해도 나머지 사이트는 계속 돌린다.
+  //
+  // 예전에는 여기서 곧바로 멈춰서, 사이트1 에 문제가 하나만 있어도
+  // 사이트2~10 은 아예 실행되지 않고 조용히 끝났다. 수강생은 왜 안 됐는지 모른다.
   if (result.status !== 0) {
-    process.exit(result.status || 1);
+    실패한사이트.push(info.siteNumber);
+    console.log(`사이트${info.siteNumber} 는 끝까지 마치지 못했어요. 다음 사이트로 넘어갑니다.`);
   }
 }
 
 console.log("=".repeat(44));
-console.log("사이트별 제목 파일 자동 매핑 실행 완료");
+if (실패한사이트.length > 0) {
+  console.log(`끝까지 마치지 못한 사이트: ${실패한사이트.map((n) => `${n}번`).join(", ")}`);
+  console.log("위 화면을 위로 올려 그 사이트의 메시지를 확인해 주세요. 다시 실행하면 이어서 만듭니다.");
+  process.exitCode = 1;
+} else {
+  console.log("사이트별 제목 파일 자동 매핑 실행 완료");
+}

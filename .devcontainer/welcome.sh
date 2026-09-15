@@ -55,7 +55,10 @@ case "$ORIGIN_URL" in
 esac
 
 echo ""
+echo "  ${DIM}지금 보고 계신 이 검은 창을 '터미널' 이라고 부릅니다.${OFF}"
+echo ""
 echo "  ${DIM}── 쓸 수 있는 한글 명령 ──────────────────${OFF}"
+echo "    ${B}주제${OFF}      글 제목 150개 만들기"
 echo "    ${B}시작${OFF}      AI 비서(코덱스) 켜기"
 echo "    ${B}진단${OFF}      뭔가 이상할 때 상태 점검"
 echo "    ${B}키설정${OFF}    API 키·수강 코드 입력/변경"
