@@ -22,7 +22,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 이 파일을 고칠 때마다 올린다. 시작.mjs 가 원격 판이 이보다 새 것일 때만 덮어쓴다.
-export const 버전 = "2026-09-16e";
+export const 버전 = "2026-09-16f";
 
 const 여기 = path.dirname(fileURLToPath(import.meta.url));
 const 프로젝트 = path.resolve(여기, "..");
@@ -105,25 +105,18 @@ function 사진경로(파일) {
   return p;
 }
 
-// ── 입력 도구: 글자는 CDP 로, 버튼은 진짜 클릭으로 ─────────────────
-const 키표 = {
-  Enter: { code: "Enter", vk: 13, text: "\r" },
-  Escape: { code: "Escape", vk: 27 },
-  Tab: { code: "Tab", vk: 9 },
-  End: { code: "End", vk: 35 },
-};
-
-async function 키(cdp, 이름) {
-  const k = 키표[이름];
-  const 공통 = { key: 이름, code: k.code, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk };
-  await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", ...공통, ...(k.text ? { text: k.text } : {}) });
-  await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...공통 });
+// ── 입력 도구: 글자·키는 tab.cua 로, 버튼은 진짜 클릭으로 ─────────────
+// Codex 는 raw CDP 의 Input.* 를 막는다 ("This method is not supported through raw CDP. Use tab.cua.type(...)" — 2026-09-16 실측).
+// tab.cua.type / tab.cua.keypress 는 브라우저가 진짜 키보드 입력으로 만들어 넣는다.
+// (Playwright 로 돌릴 때는 어댑터가 page.keyboard 를 같은 모양으로 감싸 준다.)
+async function 키(입력, 이름) {
+  await 입력.keypress({ keys: [이름] });
 }
 
 // 한 글자씩 넣는다. 화면에서 글자가 하나씩 찍힌다.
-async function 타이핑(cdp, 문장, 딜레이) {
+async function 타이핑(입력, 문장, 딜레이) {
   for (const 글자 of 문장) {
-    await cdp.send("Input.insertText", { text: 글자 });
+    await 입력.type({ text: 글자 });
     await 쉬기(랜덤(딜레이));
   }
 }
@@ -242,7 +235,8 @@ export async function 실행(옵션 = {}) {
       }
     }
     const pw = tab.playwright;
-    const cdp = await tab.capabilities.get("cdp");
+    const 입력 = tab.cua;
+    if (!입력 || typeof 입력.type !== "function") { 적기("입력", { 실패: "이 브라우저 연결에는 cua 입력 API 가 없습니다" }); return 마무리(); }
     const F = pw.frameLocator(R.프레임);
 
     // 2. 팝업 정리 → 시작 전 상태
@@ -258,7 +252,7 @@ export async function 실행(옵션 = {}) {
       if (!t) { 적기("제목", { 실패: "제목 칸을 못 찾음", 시도: R.제목칸 }); return 마무리(); }
       await t.loc.click();
       await 쉬기(400);
-      await 타이핑(cdp, 원고.제목, 딜레이);
+      await 타이핑(입력,원고.제목, 딜레이);
       await 쉬기(500);
       const 후 = await 에디터상태(pw, R.프레임);
       적기("제목", { 셀렉터: t.셀렉터, 넣은것: 원고.제목, 화면: 후.제목, 들어감: 후.제목.includes(원고.제목.slice(0, 8)) });
@@ -288,8 +282,8 @@ export async function 실행(옵션 = {}) {
       try {
         if (블록.종류 === "문단") {
           for (const 줄 of 블록.글) {
-            if (줄) await 타이핑(cdp, 줄, 딜레이);
-            await 키(cdp, "Enter");
+            if (줄) await 타이핑(입력,줄, 딜레이);
+            await 키(입력,"Enter");
             await 쉬기(랜덤(150));
           }
           적기(이름, { 줄수: 블록.글.length });
@@ -298,7 +292,7 @@ export async function 실행(옵션 = {}) {
           // 줄을 치고 → 그 줄을 3번 클릭해 잡고 → 문단서식 → 소제목
           // 단, 네이버가 새 줄을 처음부터 소제목 블록으로 만들어 주는 경우가 있다 (2026-09-16 실측).
           // 그때는 서식 단계를 건너뛴다.
-          await 타이핑(cdp, 블록.글, 딜레이);
+          await 타이핑(입력,블록.글, 딜레이);
           await 쉬기(1000); // 네이버가 블록을 바꿀 시간을 준다
           const 앞머리 = 블록.글.slice(0, 12);
           const 이미소제목 = async () => (await 에디터상태(pw, R.프레임)).소제목.some((s) => s.includes(앞머리));
@@ -322,7 +316,7 @@ export async function 실행(옵션 = {}) {
               if (!옵션버튼) throw new Error("소제목 선택지 못 찾음");
               await 옵션버튼.loc.click();
               await 쉬기(700);
-              await 키(cdp, "Escape");
+              await 키(입력,"Escape");
               await 쉬기(200);
               방법 = "문단서식 → 소제목";
             }
@@ -331,8 +325,8 @@ export async function 실행(옵션 = {}) {
           await F.locator(".se-component.se-sectionTitle .se-text-paragraph", { hasText: 앞머리 }).last().click({ timeout: 5000 });
           await 쉬기(300);
           // 소제목 줄 끝에서 다음 줄로
-          await 키(cdp, "End");
-          await 키(cdp, "Enter");
+          await 키(입력,"End");
+          await 키(입력,"Enter");
           await 쉬기(400);
           const 후 = await 에디터상태(pw, R.프레임);
           적기(이름, { 글: 블록.글, 방법, 소제목목록: 후.소제목, 컴포넌트: 후.컴포넌트 });
@@ -342,9 +336,9 @@ export async function 실행(옵션 = {}) {
           if (!b) throw new Error("인용구 버튼 못 찾음");
           await b.loc.click();
           await 쉬기(1300);
-          await 타이핑(cdp, 블록.글, 딜레이);
+          await 타이핑(입력,블록.글, 딜레이);
           await 쉬기(600);
-          await 키(cdp, "Escape");
+          await 키(입력,"Escape");
           await 쉬기(300);
           await 본문추가하기();
           const 후 = await 에디터상태(pw, R.프레임);
@@ -360,10 +354,10 @@ export async function 실행(옵션 = {}) {
           for (let k = 0; k < 블록.칸.length && k < 칸수; k++) {
             await 칸.nth(k).click();
             await 쉬기(300);
-            await 타이핑(cdp, 블록.칸[k], 딜레이);
+            await 타이핑(입력,블록.칸[k], 딜레이);
             await 쉬기(200);
           }
-          await 키(cdp, "Escape");
+          await 키(입력,"Escape");
           await 쉬기(300);
           await 본문추가하기();
           const 후 = await 에디터상태(pw, R.프레임);
