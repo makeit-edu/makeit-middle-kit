@@ -24,38 +24,54 @@ const 갱신대상 = ["naver-typing.mjs", "recipe.json"];
 const API폴더 = "https://api.github.com/repos/makeit-edu/makeit-middle-kit/contents/"
   + encodeURIComponent("네이버 승인글") + "/" + encodeURIComponent("99_프로그램") + "/";
 
-async function 받기(이름) {
-  const 시도 = [
-    // raw 는 몇 분짜리 캐시가 있어 옛 판을 줄 때가 있다. 매번 다른 쿼리를 붙여 캐시를 비켜 간다.
-    [원격폴더 + encodeURIComponent(이름) + "?t=" + Date.now(), {}],
-    [API폴더 + encodeURIComponent(이름) + "?ref=main", { headers: { Accept: "application/vnd.github.raw" } }],
-  ];
-  let 마지막오류 = null;
-  for (const [주소, 추가] of 시도) {
-    try {
-      const r = await fetch(주소, { ...추가, signal: AbortSignal.timeout(6000), cache: "no-store" });
-      if (r.ok) return r.text();
-      마지막오류 = new Error(`HTTP ${r.status}`);
-    } catch (e) { 마지막오류 = e; }
-  }
-  throw 마지막오류;
+// 파일 안의 버전 문자열. naver-typing.mjs 는 `export const 버전 = "..."`, recipe.json 은 `"버전": "..."`.
+function 버전읽기(내용) {
+  const m = /버전"?\s*[=:]\s*"([^"]+)"/.exec(내용 || "");
+  return m ? m[1] : "";
 }
 
-// 최신판으로 덮어쓴다. 내용이 같으면 건드리지 않는다. 실패는 기록만 하고 계속 간다.
+async function 한번받기(주소, 추가 = {}) {
+  const r = await fetch(주소, { ...추가, signal: AbortSignal.timeout(6000), cache: "no-store" });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.text();
+}
+
+// raw 먼저, 그 판이 로컬보다 낮으면(캐시가 옛 판을 준 것) API 로 한 번 더.
+// raw 는 5분짜리 CDN 캐시가 있어 방금 올린 판이 늦게 뜬다 (2026-09-16 실측: 옛 판이 새 로컬을 덮어쓴 사고).
+async function 받기(이름, 로컬버전) {
+  const raw = 원격폴더 + encodeURIComponent(이름) + "?t=" + Date.now();
+  const api = API폴더 + encodeURIComponent(이름) + "?ref=main";
+  let 마지막오류 = null, 후보 = null;
+  try {
+    후보 = await 한번받기(raw);
+    if (버전읽기(후보) >= 로컬버전) return 후보;
+  } catch (e) { 마지막오류 = e; }
+  try {
+    const 것 = await 한번받기(api, { headers: { Accept: "application/vnd.github.raw" } });
+    if (!후보 || 버전읽기(것) >= 버전읽기(후보)) 후보 = 것;
+  } catch (e) { 마지막오류 = e; }
+  if (후보 == null) throw 마지막오류 || new Error("못 받음");
+  return 후보;
+}
+
+// 원격 판이 로컬과 같거나 더 새 것일 때만 덮어쓴다. 실패는 기록만 하고 계속 간다.
 export async function 갱신() {
   const 기록 = {};
   for (const 이름 of 갱신대상) {
     const 파일 = path.join(여기, 이름);
+    let 옛것 = "";
+    try { 옛것 = await readFile(파일, "utf8"); } catch {}
+    const 로컬버전 = 버전읽기(옛것);
     try {
-      const 새것 = await 받기(이름);
+      const 새것 = await 받기(이름, 로컬버전);
       if (이름.endsWith(".json")) JSON.parse(새것); // 깨진 JSON 은 받지 않는다
-      let 옛것 = "";
-      try { 옛것 = await readFile(파일, "utf8"); } catch {}
-      if (옛것 === 새것) { 기록[이름] = "최신 그대로"; continue; }
+      const 원격버전 = 버전읽기(새것);
+      if (옛것 === 새것) { 기록[이름] = `최신 그대로 (${로컬버전})`; continue; }
+      if (옛것 && 원격버전 < 로컬버전) { 기록[이름] = `원격(${원격버전})이 로컬(${로컬버전})보다 옛 판 → 로컬 유지`; continue; }
       await writeFile(파일, 새것, "utf8");
-      기록[이름] = 옛것 ? "새 판으로 바꿈" : "새로 받음";
+      기록[이름] = 옛것 ? `새 판으로 바꿈 (${로컬버전} → ${원격버전})` : `새로 받음 (${원격버전})`;
     } catch (e) {
-      기록[이름] = `원격 실패(${String(e?.message || e).slice(0, 40)}) → 지금 파일 사용`;
+      기록[이름] = `원격 실패(${String(e?.message || e).slice(0, 40)}) → 지금 파일(${로컬버전}) 사용`;
     }
   }
   return 기록;
