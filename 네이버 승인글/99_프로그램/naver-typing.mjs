@@ -22,7 +22,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 이 파일을 고칠 때마다 올린다. 시작.mjs 가 원격 판이 이보다 새 것일 때만 덮어쓴다.
-export const 버전 = "2026-09-16c";
+export const 버전 = "2026-09-16d";
 
 const 여기 = path.dirname(fileURLToPath(import.meta.url));
 const 프로젝트 = path.resolve(여기, "..");
@@ -210,17 +210,33 @@ export async function 실행(옵션 = {}) {
     }
     const chrome = await agent.browsers.get("chrome");
 
+    // 열려 있는 글쓰기 탭을 먼저 잡아 본다. 못 잡으면(탭이 없거나, 다른 세션이 물고 있으면 — 2026-09-16 실측
+    // "Tab ... is already part of browser session") 새 탭을 열어 글쓰기 주소로 간다. 로그인은 프로필에 있으니 그대로 이어진다.
+    let tab = null;
     const 탭들 = await chrome.user.openTabs();
     const 대상 = 탭들.find((t) => R.글쓰기주소패턴.some((p) => new RegExp(p).test(t.url || "")));
-    if (!대상) {
-      적기("탭찾기", { 실패: "네이버 글쓰기 화면이 열린 탭이 없습니다", 열린탭: 탭들.map((t) => (t.url || "").slice(0, 60)) });
-      return 마무리();
+    if (대상) {
+      try {
+        tab = await chrome.user.claimTab(대상);
+        적기("탭잡기", { 방법: "열린 탭 잡음", 주소: (대상.url || "").slice(0, 80) });
+      } catch (e) {
+        적기("탭잡기", { 열린탭못잡음: String(e?.message || e).slice(0, 120) });
+      }
     }
-    const tab = await chrome.user.claimTab(대상);
+    if (!tab) {
+      tab = await chrome.tabs.new();
+      await tab.goto(R.글쓰기주소 || "https://blog.naver.com/GoBlogWrite.naver");
+      await 쉬기(5000);
+      const 지금주소 = await Promise.resolve(tab.url()).catch(() => "");
+      적기("탭잡기", { 방법: 대상 ? "새 탭으로 다시 열음" : "글쓰기 탭이 없어 새 탭으로 열음", 주소: String(지금주소).slice(0, 80) });
+      if (/nid\.naver\.com/.test(String(지금주소))) {
+        적기("로그인", { 실패: "네이버 로그인이 안 돼 있습니다. 크롬에서 로그인한 뒤 다시 실행하세요" });
+        return 마무리();
+      }
+    }
     const pw = tab.playwright;
     const cdp = await tab.capabilities.get("cdp");
     const F = pw.frameLocator(R.프레임);
-    적기("탭잡기", { 주소: (대상.url || "").slice(0, 80) });
 
     // 2. 팝업 정리 → 시작 전 상태
     적기("팝업", { 결과: await 팝업정리(pw, R.프레임, R.작성중팝업버튼) });
