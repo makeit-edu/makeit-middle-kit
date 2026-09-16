@@ -1,12 +1,13 @@
 {
-  "버전": "2026-09-16a",
+  "버전": "2026-09-16b",
   "설명": "네이버 스마트에디터 ONE 셀렉터와 동작. 2026-09-15 실측으로 통한 것만 넣었다. 네이버가 화면을 바꾸면 이 파일만 고친다.",
 
   "타이핑딜레이": 35,
 
   "글쓰기주소패턴": [
     "blog\\.naver\\.com/.*(PostWrite|GoBlogWrite|postwrite)",
-    "blog\\.naver\\.com/[^/]+/postwrite"
+    "blog\\.naver\\.com/[^/]+/postwrite",
+    "blog\\.naver\\.com/[^/?]+\\?.*Redirect=Write"
   ],
 
   "프레임": "iframe#mainFrame",
