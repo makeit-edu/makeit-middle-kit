@@ -1,19 +1,21 @@
 // 네이버 블로그 스마트에디터에 글을 '사람이 치듯' 넣는 프로그램
 //
-// 이 파일은 Codex 앱의 Node REPL 안에서만 돈다. 일반 node 로는 돌지 않는다.
-// Codex 가 번들한 크롬 플러그인(browser-client)이 REPL 세션에만 붙기 때문이다.
+// 이 파일은 Codex 의 Node REPL(MCP node_repl) 안에서 돈다. 크롬은 Codex 의 크롬 플러그인(browser-client)으로 붙는다.
 //
-//   const 모듈 = await import("<이 파일 절대경로>");
-//   const 결과 = await 모듈.실행({ 원고: "원고1.json" });
+//   const 시작 = await import("<이 폴더>/시작.mjs");          // 시작.mjs 가 최신판을 받아 이 파일을 부른다
+//   const 결과 = await 시작.실행({ agent, 원고: "원고1.json" });
 //
 // 원칙
 //   · 로그인 · 2차인증 · 발행은 사람이 한다. 이 프로그램은 편집기 안만 건드리고 임시저장까지만 한다.
-//   · 글자는 전부 CDP(Input.insertText / dispatchKeyEvent)로 넣는다.
-//     페이지 안 자바스크립트로 넣는 글자는 네이버가 전부 거른다 (2026-09-15 실측).
-//     CDP 입력은 브라우저가 진짜 키보드 입력으로 만들어 넣으므로 통과한다 (같은 날 실측).
-//   · 버튼은 전부 진짜 마우스 클릭(locator.click)이다.
+//   · 클릭은 전부 '좌표로 진짜 마우스 클릭'(tab.ax.click) 이다. 셀렉터로 요소 위치를 재서 그 자리를 누른다.
+//     Codex 의 frameLocator().click() 은 이 iframe 편집기에서 실제 클릭이 안 일어난다 (2026-09-16 실측).
+//   · 글자는 tab.ax.typeText, 키는 tab.ax.pressKey 로 넣는다. 둘 다 브라우저가 진짜 키보드 입력으로 만든다.
+//     raw CDP 의 Input.* 는 Codex 가 막는다. 페이지 안 JS 로 넣는 글자는 네이버가 거른다 (2026-09-15 실측).
+//   · 화면 읽기는 frameLocator("body").evaluate 로 한다. Codex 의 evaluate 는 읽기 전용이라 클릭 같은 부작용은 무시된다.
 //   · 셀렉터와 순서는 recipe.json 에 있다. 네이버가 화면을 바꾸면 그 파일만 고친다.
 //   · 판단하지 않는다. 안 되면 어디서 멈췄는지 그대로 돌려준다.
+//
+// Playwright 로 직접 돌릴 때(코치 점검용)는 어댑터가 tab.ax 를 page.mouse / page.keyboard 로 흉내 낸다.
 
 import { readFile } from "node:fs/promises";
 import { existsSync, readdirSync } from "node:fs";
@@ -22,18 +24,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 이 파일을 고칠 때마다 올린다. 시작.mjs 가 원격 판이 이보다 새 것일 때만 덮어쓴다.
-export const 버전 = "2026-09-16f";
+export const 버전 = "2026-09-16g";
 
 const 여기 = path.dirname(fileURLToPath(import.meta.url));
 const 프로젝트 = path.resolve(여기, "..");
 const 쉬기 = (ms) => new Promise((r) => setTimeout(r, ms));
 const 랜덤 = (기본) => 기본 + Math.floor(Math.random() * 기본);
 
-// Codex 앱이 플러그인을 두는 자리. 맥·윈도우 모두 CODEX_HOME(기본 ~/.codex) 아래 같은 경로다.
-// 캐시 폴더(버전별)가 있으면 그중 최신을, 없으면 번들 폴더를 쓴다.
-//
-// 주의: Codex 의 Node REPL 은 빈 vm 컨텍스트라 `process` 전역이 없다 (2026-09-16 실측, "process is not defined").
-// setTimeout · fetch · console · AbortSignal 은 있다. 그래서 process 는 절대 직접 쓰지 않는다.
+// ── Codex 플러그인 위치 ─────────────────────────────────────────
+// 주의: Codex 의 Node REPL 은 빈 vm 컨텍스트라 `process` 전역이 없다 (2026-09-16 실측). 그래서 process 는 직접 쓰지 않는다.
 function 코덱스홈() {
   const env = globalThis.process?.env || {};
   return env.CODEX_HOME || path.join(homedir(), ".codex");
@@ -45,29 +44,26 @@ export function 클라이언트경로() {
     const home = 코덱스홈();
     const 캐시 = path.join(home, "plugins", "cache", "openai-bundled", "chrome");
     if (existsSync(캐시)) {
-      for (const v of readdirSync(캐시).sort().reverse()) {
-        후보.push(path.join(캐시, v, "scripts", "browser-client.mjs"));
-      }
+      for (const v of readdirSync(캐시).sort().reverse()) 후보.push(path.join(캐시, v, "scripts", "browser-client.mjs"));
     }
     후보.push(path.join(home, ".tmp", "bundled-marketplaces", "openai-bundled", "plugins", "chrome", "scripts", "browser-client.mjs"));
   } catch (e) {
     throw new Error(`Codex 홈 폴더를 못 읽었습니다: ${e?.message || e}`);
   }
-  // 맥 ChatGPT 앱은 번들 안에도 같은 파일을 둔다. 마지막 보루.
   후보.push("/Applications/ChatGPT.app/Contents/Resources/plugins/openai-bundled/plugins/chrome/scripts/browser-client.mjs");
   const 있는것 = 후보.find((p) => existsSync(p));
   if (!있는것) throw new Error(`Codex 크롬 플러그인을 못 찾았습니다. 찾아본 곳: ${후보.join(" , ")}`);
   return 있는것;
 }
 
-// 실행 전에 환경을 훑어본다. 어디서 막히는지 한 번에 보려고 만든 것. 판단은 안 한다.
 export function 점검() {
   const 있음 = (이름) => typeof globalThis[이름] !== "undefined";
   let 플러그인 = null, 플러그인오류 = null;
   try { 플러그인 = 클라이언트경로(); } catch (e) { 플러그인오류 = String(e?.message || e); }
   const 원고폴더 = path.join(프로젝트, "01_원고넣는곳");
   return {
-    전역: { process: 있음("process"), setTimeout: 있음("setTimeout"), fetch: 있음("fetch"), AbortSignal: 있음("AbortSignal"), nodeRepl: 있음("nodeRepl") },
+    버전,
+    전역: { process: 있음("process"), setTimeout: 있음("setTimeout"), fetch: 있음("fetch"), nodeRepl: 있음("nodeRepl") },
     플러그인, 플러그인오류,
     프로젝트폴더: 프로젝트,
     원고목록: existsSync(원고폴더) ? readdirSync(원고폴더).filter((f) => f.endsWith(".json")) : [],
@@ -77,14 +73,13 @@ export function 점검() {
 
 // ── 레시피 · 원고 읽기 ────────────────────────────────────────────
 async function 레시피읽기(원격주소) {
-  // 원격과 로컬을 둘 다 읽어 '버전' 이 더 큰 쪽을 쓴다.
-  // (GitHub raw 캐시가 몇 분 옛 판을 주는 일이 있어서, 원격 무조건 우선은 위험하다 — 2026-09-16 실측)
+  // 원격과 로컬을 둘 다 읽어 '버전' 이 더 큰 쪽을 쓴다. (raw 캐시가 옛 판을 줄 때가 있다)
   let 로컬 = null;
   try { 로컬 = JSON.parse(await readFile(path.join(여기, "recipe.json"), "utf8")); } catch {}
   let 원격 = null;
   if (원격주소) {
     try {
-      const r = await fetch(원격주소, { signal: AbortSignal.timeout(4000), cache: "no-store" });
+      const r = await fetch(원격주소 + "?t=" + Date.now(), { signal: AbortSignal.timeout(4000), cache: "no-store" });
       if (r.ok) 원격 = await r.json();
     } catch {}
   }
@@ -105,78 +100,6 @@ function 사진경로(파일) {
   return p;
 }
 
-// ── 입력 도구: 글자·키는 tab.cua 로, 버튼은 진짜 클릭으로 ─────────────
-// Codex 는 raw CDP 의 Input.* 를 막는다 ("This method is not supported through raw CDP. Use tab.cua.type(...)" — 2026-09-16 실측).
-// tab.cua.type / tab.cua.keypress 는 브라우저가 진짜 키보드 입력으로 만들어 넣는다.
-// (Playwright 로 돌릴 때는 어댑터가 page.keyboard 를 같은 모양으로 감싸 준다.)
-async function 키(입력, 이름) {
-  await 입력.keypress({ keys: [이름] });
-}
-
-// 한 글자씩 넣는다. 화면에서 글자가 하나씩 찍힌다.
-async function 타이핑(입력, 문장, 딜레이) {
-  for (const 글자 of 문장) {
-    await 입력.type({ text: 글자 });
-    await 쉬기(랜덤(딜레이));
-  }
-}
-
-// 에디터 iframe 안을 들여다본다.
-// 페이지 최상위 evaluate 에서 iframe.contentDocument 를 여는 방식은 Codex 의 읽기 전용 evaluate 에서 막힌다 (2026-09-16 실측).
-// 그래서 frameLocator 로 프레임 안 body 를 잡고, 그 요소의 ownerDocument 로 읽는다. Playwright 에서도 똑같이 돈다.
-async function 에디터상태(pw, 프레임셀렉터) {
-  const body = pw.frameLocator(프레임셀렉터).locator("body").first();
-  try {
-    if ((await body.count()) === 0) return { 에디터: false };
-    return await body.evaluate((el) => {
-      const d = el.ownerDocument;
-      if (!d.querySelector(".se-documentTitle") && !d.querySelector(".se-content")) return { 에디터: false };
-      const 컴포 = [...d.querySelectorAll(".se-component")].map((c) => (c.className.match(/se-\w+/g) || [])[1] || "?");
-      return {
-        에디터: true,
-        제목: (d.querySelector(".se-documentTitle") || {}).innerText?.trim().slice(0, 60) || "",
-        본문글자수: ((d.querySelector(".se-component.se-text") || {}).innerText || "").replace(/\s/g, "").length,
-        컴포넌트: 컴포,
-        소제목: [...d.querySelectorAll(".se-component.se-sectionTitle")].map((e) => (e.innerText || "").trim().slice(0, 30)),
-        인용구: [...d.querySelectorAll(".se-quotation")].map((e) => (e.innerText || "").trim().split("\n")[0].slice(0, 40)),
-        표칸: [...d.querySelectorAll(".se-table td")].map((t) => (t.innerText || "").trim()).filter(Boolean),
-        이미지: d.querySelectorAll(".se-component.se-image").length,
-        구분선: d.querySelectorAll(".se-component.se-horizontalLine").length,
-      };
-    });
-  } catch (e) {
-    return { 에디터: false, 오류: String(e?.message || e).slice(0, 120) };
-  }
-}
-
-// "작성 중인 글이 있습니다" 팝업이 뜨면 정해진 버튼을 누른다. 팝업 버튼은 JS 클릭으로도 눌린다(실측).
-async function 팝업정리(pw, 프레임셀렉터, 버튼글자) {
-  const body = pw.frameLocator(프레임셀렉터).locator("body").first();
-  try {
-    if ((await body.count()) === 0) return "에디터 없음";
-    return await body.evaluate((el, btn) => {
-      const d = el.ownerDocument;
-      const 팝 = [...d.querySelectorAll("[class*=popup],[class*=layer]")]
-        .find((e) => e.offsetParent && (e.innerText || "").includes("작성 중인 글"));
-      if (!팝) return "팝업 없음";
-      const b = [...팝.querySelectorAll("button")].find((x) => (x.textContent || "").trim() === btn);
-      if (b) { b.click(); return `팝업 → '${btn}' 누름`; }
-      return "팝업 있는데 버튼 못 찾음";
-    }, 버튼글자);
-  } catch (e) {
-    return "팝업 확인 실패: " + String(e?.message || e).slice(0, 100);
-  }
-}
-
-// 여러 후보 셀렉터 중 화면에 있는 첫 번째를 고른다. 네이버가 클래스명을 바꿔도 하나는 살아남게.
-async function 찾기(F, 후보들) {
-  for (const s of 후보들) {
-    const loc = F.locator(s).first();
-    try { if ((await loc.count()) > 0) return { loc, 셀렉터: s }; } catch {}
-  }
-  return null;
-}
-
 // ── 본체 ──────────────────────────────────────────────────────────
 export async function 실행(옵션 = {}) {
   const 기록 = [];
@@ -186,42 +109,32 @@ export async function 실행(옵션 = {}) {
   try {
     // 0. 준비
     const { 레시피: R, 출처 } = await 레시피읽기(옵션.레시피주소 ?? R_기본주소);
-    적기("레시피", { 출처, 버전: R.버전 });
+    적기("레시피", { 출처, 버전: R.버전, 프로그램: 버전 });
     const 원고 = await 원고읽기(옵션.원고 || "원고1.json");
     const 딜레이 = 옵션.딜레이 ?? R.타이핑딜레이 ?? 35;
     const 단계 = 옵션.단계 || "전부";
 
-    // 1. 브라우저에 붙기 — 이미 열려 있는 네이버 글쓰기 탭을 그대로 잡는다
-    //
-    // 브라우저 연결(setupBrowserRuntime)은 REPL 최상위에서 해서 agent 를 넘겨받는 것이 원칙이다.
-    // 플러그인이 globalThis.nodeRepl 을 검사하는데, 그 전역은 REPL 최상위 코드에만 주어지고
-    // 이 파일처럼 ~/.codex 밖에서 import 된 모듈 안에서는 보이지 않는다 (2026-09-16 실측).
+    // 1. 브라우저 — agent 는 REPL 최상위에서 만들어 넘겨받는다 (플러그인이 globalThis.nodeRepl 을 최상위에서만 본다)
     let agent = 옵션.agent;
     if (!agent) {
       const { setupBrowserRuntime } = await import(클라이언트경로());
       agent = await setupBrowserRuntime();
     }
-    // Codex 플러그인은 CDP 입력·파일 업로드를 쓰기 전에 해당 문서를 '읽었다'는 표시를 요구한다
-    // ("Required documentation has not been read" — 2026-09-16 실측). 여기서 미리 읽어 둔다. 내용은 쓰지 않는다.
+    // Codex 플러그인은 CDP·파일 업로드 전에 해당 문서를 '읽었다' 는 표시를 요구한다. 내용은 쓰지 않는다.
     if (agent.documentation && typeof agent.documentation.get === "function") {
-      for (const 문서 of ["confirmations", "capabilities/tab/cdp", "file-uploads"]) {
+      for (const 문서 of ["confirmations", "capabilities/tab/cdp", "accessibility", "file-uploads"]) {
         try { await agent.documentation.get(문서); } catch {}
       }
     }
     const chrome = await agent.browsers.get("chrome");
 
-    // 열려 있는 글쓰기 탭을 먼저 잡아 본다. 못 잡으면(탭이 없거나, 다른 세션이 물고 있으면 — 2026-09-16 실측
-    // "Tab ... is already part of browser session") 새 탭을 열어 글쓰기 주소로 간다. 로그인은 프로필에 있으니 그대로 이어진다.
+    // 2. 탭 — 열려 있는 글쓰기 탭을 잡고, 못 잡으면 새 탭으로 글쓰기 주소를 연다
     let tab = null;
     const 탭들 = await chrome.user.openTabs();
     const 대상 = 탭들.find((t) => R.글쓰기주소패턴.some((p) => new RegExp(p).test(t.url || "")));
     if (대상) {
-      try {
-        tab = await chrome.user.claimTab(대상);
-        적기("탭잡기", { 방법: "열린 탭 잡음", 주소: (대상.url || "").slice(0, 80) });
-      } catch (e) {
-        적기("탭잡기", { 열린탭못잡음: String(e?.message || e).slice(0, 120) });
-      }
+      try { tab = await chrome.user.claimTab(대상); 적기("탭잡기", { 방법: "열린 탭 잡음", 주소: (대상.url || "").slice(0, 80) }); }
+      catch (e) { 적기("탭잡기", { 열린탭못잡음: String(e?.message || e).slice(0, 120) }); }
     }
     if (!tab) {
       tab = await chrome.tabs.new();
@@ -229,181 +142,236 @@ export async function 실행(옵션 = {}) {
       await 쉬기(5000);
       const 지금주소 = await Promise.resolve(tab.url()).catch(() => "");
       적기("탭잡기", { 방법: 대상 ? "새 탭으로 다시 열음" : "글쓰기 탭이 없어 새 탭으로 열음", 주소: String(지금주소).slice(0, 80) });
-      if (/nid\.naver\.com/.test(String(지금주소))) {
-        적기("로그인", { 실패: "네이버 로그인이 안 돼 있습니다. 크롬에서 로그인한 뒤 다시 실행하세요" });
-        return 마무리();
-      }
+      if (/nid\.naver\.com/.test(String(지금주소))) { 적기("로그인", { 실패: "네이버 로그인이 안 돼 있습니다. 크롬에서 로그인한 뒤 다시 실행하세요" }); return 마무리(); }
     }
     const pw = tab.playwright;
-    const 입력 = tab.cua;
-    if (!입력 || typeof 입력.type !== "function") { 적기("입력", { 실패: "이 브라우저 연결에는 cua 입력 API 가 없습니다" }); return 마무리(); }
+    const ax = tab.ax;
+    if (!ax || typeof ax.typeText !== "function" || typeof ax.click !== "function") { 적기("입력", { 실패: "이 브라우저 연결에는 ax 입력 API 가 없습니다" }); return 마무리(); }
     const F = pw.frameLocator(R.프레임);
+    const 키이름 = (k) => (k === "Enter" ? "Return" : k);
 
-    // 2. 팝업 정리 → 시작 전 상태
-    적기("팝업", { 결과: await 팝업정리(pw, R.프레임, R.작성중팝업버튼) });
-    await 쉬기(1200);
-    const 전 = await 에디터상태(pw, R.프레임);
-    if (!전.에디터) { 적기("에디터", { 실패: "편집기 프레임을 못 찾았습니다. 화면이 다 떴는지 확인하세요" }); return 마무리(); }
+    // ── 도구들 (F, ax, pw 를 닫아 쓴다) ──
+    const 프레임위치 = async () => {
+      try { return await pw.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: r.left, y: r.top, w: innerWidth, h: innerHeight }; }, R.프레임); }
+      catch { return { x: 0, y: 0, w: 1400, h: 900 }; }
+    };
+    // 요소의 화면 좌표(프레임 오프셋 포함). 화면 밖이면 스크롤해서 다시 잰다.
+    const 좌표 = async (loc) => {
+      const 재기 = () => loc.evaluate((el) => { const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width, h: b.height }; });
+      let r = await 재기();
+      let f = await 프레임위치();
+      if (r.y < 0 || r.y > f.h - 10) {
+        try { await ax.scroll([Math.round(f.x + f.w / 2), Math.round(f.y + f.h / 2)], r.y < 0 ? "up" : "down", 1); } catch {}
+        await 쉬기(500);
+        r = await 재기(); f = await 프레임위치();
+      }
+      return { x: Math.round(f.x + r.x), y: Math.round(f.y + r.y), w: r.w, h: r.h };
+    };
+    const 좌표클릭 = async (loc, 옵션 = {}) => {
+      const p = await 좌표(loc);
+      if (!(p.w > 0 && p.h > 0)) throw new Error("요소가 화면에 없음(크기 0)");
+      await ax.click([p.x, p.y], 옵션.clickCount ? { clickCount: 옵션.clickCount } : undefined);
+      return p;
+    };
+    // 여러 후보 셀렉터 중 화면에 있는 첫 번째
+    const 찾기 = async (후보들) => {
+      for (const s of 후보들) {
+        const loc = F.locator(s).first();
+        try { if ((await loc.count()) > 0) return { loc, 셀렉터: s }; } catch {}
+      }
+      return null;
+    };
+    const 버튼클릭 = async (후보들, 이름) => {
+      const b = await 찾기(후보들);
+      if (!b) throw new Error(`${이름} 버튼 못 찾음`);
+      await 좌표클릭(b.loc);
+      return b.셀렉터;
+    };
+    const 타이핑 = async (문장) => { for (const 글자 of 문장) { await ax.typeText(글자); await 쉬기(랜덤(딜레이)); } };
+    const 키 = async (이름) => { await ax.pressKey(키이름(이름)); };
+    const 에디터상태 = async () => {
+      const body = F.locator("body").first();
+      try {
+        if ((await body.count()) === 0) return { 에디터: false };
+        return await body.evaluate((el) => {
+          const d = el.ownerDocument;
+          if (!d.querySelector(".se-documentTitle") && !d.querySelector(".se-content")) return { 에디터: false };
+          return {
+            에디터: true,
+            제목: (d.querySelector(".se-documentTitle") || {}).innerText?.trim().slice(0, 60) || "",
+            본문글자수: [...d.querySelectorAll(".se-component.se-text")].map((e) => (e.innerText || "").replace(/\s/g, "").length).reduce((a, b) => a + b, 0),
+            컴포넌트: [...d.querySelectorAll(".se-component")].map((c) => (c.className.match(/se-\w+/g) || [])[1] || "?"),
+            소제목: [...d.querySelectorAll(".se-component.se-sectionTitle")].map((e) => (e.innerText || "").trim().slice(0, 30)),
+            인용구: [...d.querySelectorAll(".se-quotation")].map((e) => (e.innerText || "").trim().split("\n")[0].slice(0, 40)),
+            표칸: [...d.querySelectorAll(".se-table td")].map((t) => (t.innerText || "").trim()).filter(Boolean),
+            이미지: d.querySelectorAll(".se-component.se-image").length,
+            구분선: d.querySelectorAll(".se-component.se-horizontalLine").length,
+            팝업: !!d.body.innerText.includes("작성 중인 글"),
+          };
+        });
+      } catch (e) { return { 에디터: false, 오류: String(e?.message || e).slice(0, 120) }; }
+    };
+    // '작성 중인 글' 팝업이 있으면 정해진 버튼을 진짜 클릭으로 누른다
+    const 팝업정리 = async () => {
+      const 글 = F.locator("text=작성 중인 글");
+      if ((await 글.count().catch(() => 0)) === 0) return "팝업 없음";
+      const 버튼들 = F.locator(`button:has-text("${R.작성중팝업버튼}")`);
+      const n = await 버튼들.count();
+      for (let i = 0; i < n; i++) {
+        const p = await 좌표(버튼들.nth(i)).catch(() => null);
+        if (p && p.w > 40 && p.h > 20 && p.y > 150) { await ax.click([p.x, p.y]); await 쉬기(1200); return `팝업 → '${R.작성중팝업버튼}' 누름`; }
+      }
+      return "팝업 있는데 버튼 못 찾음";
+    };
+    const 본문추가하기 = async () => {
+      const b = await 찾기(R.본문추가버튼);
+      if (!b) return "버튼 없음";
+      const p = await 좌표(b.loc).catch(() => null);
+      if (!p || !(p.w > 0 && p.h > 0)) return "버튼 숨김 → 건너뜀";
+      await ax.click([p.x, p.y]); await 쉬기(800); return "누름";
+    };
+
+    // 3. 팝업 → 시작 상태
+    적기("팝업", { 결과: await 팝업정리() });
+    await 쉬기(600);
+    const 전 = await 에디터상태();
+    if (!전.에디터) { 적기("에디터", { 실패: "편집기 프레임을 못 찾았습니다. 화면이 다 떴는지 확인하세요", 상세: 전.오류 }); return 마무리(); }
+    if (전.팝업) { 적기("에디터", { 실패: "'작성 중인 글' 팝업이 안 닫혔습니다" }); return 마무리(); }
     적기("시작상태", 전);
 
-    // 3. 제목
+    // 4. 제목
     {
-      const t = await 찾기(F, R.제목칸);
+      const t = await 찾기(R.제목칸);
       if (!t) { 적기("제목", { 실패: "제목 칸을 못 찾음", 시도: R.제목칸 }); return 마무리(); }
-      await t.loc.click();
+      await 좌표클릭(t.loc);
       await 쉬기(400);
-      await 타이핑(입력,원고.제목, 딜레이);
+      await 타이핑(원고.제목);
       await 쉬기(500);
-      const 후 = await 에디터상태(pw, R.프레임);
-      적기("제목", { 셀렉터: t.셀렉터, 넣은것: 원고.제목, 화면: 후.제목, 들어감: 후.제목.includes(원고.제목.slice(0, 8)) });
+      const 후 = await 에디터상태();
+      const 들어감 = 후.제목.includes(원고.제목.slice(0, 8));
+      적기("제목", { 셀렉터: t.셀렉터, 넣은것: 원고.제목, 화면: 후.제목, 들어감 });
+      if (!들어감) { 적기("제목", { 실패: "제목이 화면에 안 들어갔습니다. 크롬 창이 가려져 있거나 다른 창이 앞에 있는지 확인하세요" }); return 마무리(); }
       if (단계 === "제목만") return 마무리();
     }
 
-    // 4. 본문 블록 — 원고 순서대로
+    // 5. 본문 첫 칸 클릭
     {
-      const 본문 = await 찾기(F, R.본문칸);
+      const 본문 = await 찾기(R.본문칸);
       if (!본문) { 적기("본문", { 실패: "본문 칸을 못 찾음" }); return 마무리(); }
-      await 본문.loc.click();
+      await 좌표클릭(본문.loc);
       await 쉬기(400);
     }
 
-    // 인용구·표·구분선·사진 뒤에 '본문 추가' 버튼이 보이면 누른다. 이미 본문 칸이 생겨 버튼이 숨어 있으면 건너뛴다 (2026-09-16 실측).
-    async function 본문추가하기() {
-      const b = await 찾기(F, R.본문추가버튼);
-      if (!b) return "버튼 없음";
-      if (!(await b.loc.isVisible().catch(() => false))) return "버튼 숨김 → 건너뜀";
-      await b.loc.click({ timeout: 5000 });
-      await 쉬기(800);
-      return "누름";
-    }
-
+    // 6. 블록 순서대로
     for (const [i, 블록] of (원고.블록 || []).entries()) {
       const 이름 = `블록${i + 1}·${블록.종류}`;
       try {
         if (블록.종류 === "문단") {
-          for (const 줄 of 블록.글) {
-            if (줄) await 타이핑(입력,줄, 딜레이);
-            await 키(입력,"Enter");
-            await 쉬기(랜덤(150));
-          }
+          for (const 줄 of 블록.글) { if (줄) await 타이핑(줄); await 키("Enter"); await 쉬기(랜덤(150)); }
           적기(이름, { 줄수: 블록.글.length });
 
         } else if (블록.종류 === "소제목") {
-          // 줄을 치고 → 그 줄을 3번 클릭해 잡고 → 문단서식 → 소제목
-          // 단, 네이버가 새 줄을 처음부터 소제목 블록으로 만들어 주는 경우가 있다 (2026-09-16 실측).
-          // 그때는 서식 단계를 건너뛴다.
-          await 타이핑(입력,블록.글, 딜레이);
-          await 쉬기(1000); // 네이버가 블록을 바꿀 시간을 준다
+          await 타이핑(블록.글);
+          await 쉬기(1000);
           const 앞머리 = 블록.글.slice(0, 12);
-          const 이미소제목 = async () => (await 에디터상태(pw, R.프레임)).소제목.some((s) => s.includes(앞머리));
+          const 이미소제목 = async () => (await 에디터상태()).소제목.some((s) => s.includes(앞머리));
           let 방법 = "";
           if (await 이미소제목()) {
             방법 = "이미 소제목 블록";
           } else {
             const 줄 = F.locator(R.본문문단, { hasText: 앞머리 }).last();
-            let 잡음 = false;
-            try { await 줄.click({ clickCount: 3, timeout: 5000 }); 잡음 = true; } catch {}
-            if (!잡음 && (await 이미소제목())) {
-              방법 = "이미 소제목 블록(늦게 바뀜)";
-            } else {
-              if (!잡음) throw new Error(`친 줄을 화면에서 못 찾음: ${앞머리}`);
-              await 쉬기(500);
-              const 서식 = await 찾기(F, R.문단서식버튼);
-              if (!서식) throw new Error("문단 서식 버튼 못 찾음");
-              await 서식.loc.click();
-              await 쉬기(900);
-              const 옵션버튼 = await 찾기(F, R.소제목옵션);
-              if (!옵션버튼) throw new Error("소제목 선택지 못 찾음");
-              await 옵션버튼.loc.click();
-              await 쉬기(700);
-              await 키(입력,"Escape");
-              await 쉬기(200);
-              방법 = "문단서식 → 소제목";
-            }
+            if ((await 줄.count()) === 0) throw new Error(`친 줄을 화면에서 못 찾음: ${앞머리}`);
+            await 좌표클릭(줄, { clickCount: 3 });
+            await 쉬기(600);
+            await 버튼클릭(R.문단서식버튼, "문단 서식");
+            await 쉬기(900);
+            await 버튼클릭(R.소제목옵션, "소제목 선택지");
+            await 쉬기(700);
+            await 키("Escape");
+            await 쉬기(200);
+            방법 = "문단서식 → 소제목";
           }
-          // 소제목 블록 끝에 커서를 두고 다음 줄로 (End → Enter 하면 새 본문 문단이 생긴다 — 2026-09-16 실측)
-          await F.locator(".se-component.se-sectionTitle .se-text-paragraph", { hasText: 앞머리 }).last().click({ timeout: 5000 });
+          const 소제목줄 = F.locator(".se-component.se-sectionTitle .se-text-paragraph", { hasText: 앞머리 }).last();
+          if ((await 소제목줄.count()) > 0) await 좌표클릭(소제목줄);
           await 쉬기(300);
-          // 소제목 줄 끝에서 다음 줄로
-          await 키(입력,"End");
-          await 키(입력,"Enter");
+          await 키("End");
+          await 키("Enter");
           await 쉬기(400);
-          const 후 = await 에디터상태(pw, R.프레임);
+          const 후 = await 에디터상태();
           적기(이름, { 글: 블록.글, 방법, 소제목목록: 후.소제목, 컴포넌트: 후.컴포넌트 });
 
         } else if (블록.종류 === "인용구") {
-          const b = await 찾기(F, R.인용구버튼);
-          if (!b) throw new Error("인용구 버튼 못 찾음");
-          await b.loc.click();
+          await 버튼클릭(R.인용구버튼, "인용구");
           await 쉬기(1300);
-          await 타이핑(입력,블록.글, 딜레이);
+          await 타이핑(블록.글);
           await 쉬기(600);
-          await 키(입력,"Escape");
+          await 키("Escape");
           await 쉬기(300);
           await 본문추가하기();
-          const 후 = await 에디터상태(pw, R.프레임);
+          const 후 = await 에디터상태();
           적기(이름, { 글: 블록.글.slice(0, 30), 인용구목록: 후.인용구 });
 
         } else if (블록.종류 === "표") {
-          const b = await 찾기(F, R.표버튼);
-          if (!b) throw new Error("표 버튼 못 찾음");
-          await b.loc.click();
+          await 버튼클릭(R.표버튼, "표");
           await 쉬기(1800);
           const 칸 = F.locator(R.표칸);
           const 칸수 = await 칸.count();
           for (let k = 0; k < 블록.칸.length && k < 칸수; k++) {
-            await 칸.nth(k).click();
+            await 좌표클릭(칸.nth(k));
             await 쉬기(300);
-            await 타이핑(입력,블록.칸[k], 딜레이);
+            await 타이핑(블록.칸[k]);
             await 쉬기(200);
           }
-          await 키(입력,"Escape");
+          await 키("Escape");
           await 쉬기(300);
           await 본문추가하기();
-          const 후 = await 에디터상태(pw, R.프레임);
+          const 후 = await 에디터상태();
           적기(이름, { 표칸수: 칸수, 넣은칸: 블록.칸.length, 화면칸: 후.표칸 });
 
         } else if (블록.종류 === "구분선") {
-          const b = await 찾기(F, R.구분선버튼);
-          if (!b) throw new Error("구분선 버튼 못 찾음");
-          await b.loc.click();
+          await 버튼클릭(R.구분선버튼, "구분선");
           await 쉬기(1300);
           await 본문추가하기();
-          const 후 = await 에디터상태(pw, R.프레임);
+          const 후 = await 에디터상태();
           적기(이름, { 구분선수: 후.구분선 });
 
         } else if (블록.종류 === "사진") {
           const 파일 = 사진경로(블록.파일);
-          const b = await 찾기(F, R.사진버튼);
+          const b = await 찾기(R.사진버튼);
           if (!b) throw new Error("사진 버튼 못 찾음");
-          const 대기 = pw.waitForEvent("filechooser", { timeoutMs: 10000 });
-          await b.loc.click();
-          const 선택창 = await 대기;
-          await 선택창.setFiles([파일]);
-          await 쉬기(7000); // 네이버 서버 업로드 대기
-          await 본문추가하기();
-          const 후 = await 에디터상태(pw, R.프레임);
-          적기(이름, { 파일: path.basename(파일), 이미지수: 후.이미지 });
+          try {
+            const 대기 = pw.waitForEvent("filechooser", { timeoutMs: 10000 });
+            await 좌표클릭(b.loc);
+            const 선택창 = await 대기;
+            await 선택창.setFiles([파일]);
+            await 쉬기(7000); // 네이버 서버 업로드 대기
+            await 본문추가하기();
+            const 후 = await 에디터상태();
+            적기(이름, { 파일: path.basename(파일), 이미지수: 후.이미지 });
+          } catch (e) {
+            // 사진만 실패하면 글은 계속 쓴다. 가장 흔한 원인은 크롬 확장 설정이다.
+            await 키("Escape").catch(() => {});
+            적기(이름, { 사진건너뜀: String(e?.message || e).slice(0, 100), 안내: "크롬 주소창에 chrome://extensions → ChatGPT 확장 '세부정보' → '파일 URL에 대한 액세스 허용' 을 켜고 다시 하면 사진이 들어갑니다" });
+          }
 
         } else {
           적기(이름, { 건너뜀: `모르는 종류: ${블록.종류}` });
         }
       } catch (e) {
-        적기(이름, { 실패: String(e?.message || e) });
+        적기(이름, { 실패: String(e?.message || e).slice(0, 300) });
         if (옵션.실패시멈춤 !== false) return 마무리();
       }
     }
 
-    // 5. 임시저장 — 발행은 절대 안 한다
+    // 7. 임시저장 — 발행은 절대 안 한다
     {
-      const 저장 = await 찾기(F, R.저장버튼);
+      const 저장 = await 찾기(R.저장버튼);
       if (!저장) { 적기("임시저장", { 실패: "저장 버튼 못 찾음" }); return 마무리(); }
-      const 전 = await 에디터상태(pw, R.프레임);
-      await 저장.loc.click();
+      const 전 = await 에디터상태();
+      await 좌표클릭(저장.loc);
       await 쉬기(3500);
       적기("임시저장", { 셀렉터: 저장.셀렉터, 저장직전: 전 });
     }
-
     return 마무리();
   } catch (e) {
     적기("오류", { 내용: String(e?.message || e), 어디서: (e?.stack || "").split("\n").slice(0, 3).join(" | ") });
@@ -417,12 +385,10 @@ export async function 실행(옵션 = {}) {
       결과: 성공 ? "끝까지 됨" : `멈춤 — ${마지막.단계}`,
       걸린시간초: Math.round((Date.now() - 시작) / 1000),
       기록,
-      다음: 성공
-        ? "네이버 화면에서 글을 확인하고, 괜찮으면 직접 '발행' 을 누르세요."
-        : "위 기록의 '실패' 항목을 그대로 코치에게 보내세요.",
+      다음: 성공 ? "네이버 화면에서 글을 확인하고, 괜찮으면 직접 '발행' 을 누르세요." : "위 기록의 '실패' 항목을 그대로 코치에게 보내세요.",
     };
   }
 }
 
-// 원격 레시피 기본 주소 — 저장소에 올라가면 여기서 최신판을 받는다. 없으면 로컬 recipe.json 을 쓴다.
+// 원격 레시피 기본 주소 — 저장소에서 최신판을 받는다. 없으면 로컬 recipe.json 을 쓴다.
 const R_기본주소 = "https://raw.githubusercontent.com/makeit-edu/makeit-middle-kit/main/%EB%84%A4%EC%9D%B4%EB%B2%84%20%EC%8A%B9%EC%9D%B8%EA%B8%80/99_%ED%94%84%EB%A1%9C%EA%B7%B8%EB%9E%A8/recipe.json";
