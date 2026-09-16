@@ -13,6 +13,9 @@ import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// 고칠 때마다 올린다. 시작.mjs 가 원격 판이 이보다 새 것일 때만 덮어쓴다.
+export const 버전 = "2026-09-17a";
+
 const 여기 = path.dirname(fileURLToPath(import.meta.url));
 const 프로젝트 = path.resolve(여기, "..");
 
@@ -55,11 +58,42 @@ const 원고형식 = {
   required: ["제목", "블록"],
 };
 
-export async function 원고쓰기({ 키, 벤치마크, 사진수 = 5 }) {
+// 네이버 블로그 글 주소를 주면 뼈대(제목·인용구 제목·표·사진 개수·문단 요지)를 뽑는다. 모바일 페이지가 파싱하기 쉽다.
+export async function 벤치마크가져오기(주소) {
+  const m = /blog\.naver\.com\/([^/?#]+)\/(\d+)/.exec(주소) || /blogId=([^&]+).*logNo=(\d+)/.exec(주소);
+  if (!m) throw new Error("네이버 블로그 글 주소가 아닙니다: " + 주소);
+  const r = await fetch(`https://m.blog.naver.com/${m[1]}/${m[2]}`, {
+    headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1" },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!r.ok) throw new Error(`벤치마크 글을 못 읽음: HTTP ${r.status}`);
+  const h = await r.text();
+  const 풀기 = (s) => s.replace(/<[^>]+>/g, " ").replace(/&nbsp;|​/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+  const 제목 = 풀기((/<title>(.*?)<\/title>/s.exec(h) || [, ""])[1]).replace(/\s*:\s*네이버 블로그$/, "");
+  const 컴포넌트 = [...h.matchAll(/<div class="se-component se-([a-zA-Z]+)/g)].map((x) => x[1]).filter((x) => x !== "documentTitle");
+  const 인용구 = [...h.matchAll(/<div class="se-component se-quotation.*?<\/div>\s*<\/div>\s*<\/div>/gs)].map((x) => 풀기(x[0]).slice(0, 60)).filter(Boolean);
+  const 표들 = [...h.matchAll(/<div class="se-component se-table.*?<\/table>/gs)].map((t) => [...t[0].matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((c) => 풀기(c[1])));
+  const 문단 = [...h.matchAll(/<(?:p|span) class="se-text-paragraph[^"]*"[^>]*>(.*?)<\/(?:p|span)>/gs)].map((x) => 풀기(x[1])).filter((x) => x.length > 15);
+  return {
+    출처: 주소, 원문제목: 제목,
+    컴포넌트순서: 컴포넌트,
+    섹션순서_인용구제목: 인용구,
+    표: 표들.filter((t) => t.length >= 6).map((t) => t.slice(0, 24)),
+    사진수: 컴포넌트.filter((c) => c === "image").length,
+    // 문장을 베끼지 않도록 '요지' 로만 넘긴다: 문단 앞 80자
+    문단요지: 문단.slice(0, 40).map((p) => p.slice(0, 80)),
+  };
+}
+
+export async function 원고쓰기({ 키, 벤치마크, 키워드, 사진수 = 5 }) {
+  const 뼈대설명 = 벤치마크
+    ? `아래 '벤치마크 구조' 는 참고할 글의 뼈대다. 섹션 순서와 표 · 사진 배치는 그대로 따르되, 문장은 전부 새로 써라.
+벤치마크 글의 문장을 기억하고 있더라도 절대 그대로 옮기지 마라. '문단요지' 는 어떤 내용을 다뤘는지 알기 위한 것이지 베낄 문장이 아니다. 제목도 새로 짓되 핵심 키워드는 유지한다.
+사실(제도 이름, 금액, 조건, 신청처)은 벤치마크에 나온 것만 쓴다. 없는 수치는 만들지 않는다.`
+    : `주제 키워드: "${키워드}". 이 키워드로 검색해 들어온 독자가 궁금해할 것을 순서대로 푼다.
+섹션(인용구 제목) 5~6개, 그중 하나에 표 1개. 확실하지 않은 금액·날짜·기관명은 쓰지 말고 "주소지 관할 기관에 확인" 처럼 안내한다.`;
   const 지시 = `당신은 한국 네이버 블로그 정보성 글을 쓰는 작가다. 존댓말, 짧은 문장, 40~60대 독자가 읽기 쉬운 말투.
-아래 '벤치마크 구조' 는 참고할 글의 뼈대다. 섹션 순서와 표 · 사진 배치는 그대로 따르되, 문장은 전부 새로 써라.
-벤치마크 글의 문장을 기억하고 있더라도 절대 그대로 옮기지 마라. 제목도 새로 짓되 핵심 키워드는 유지한다.
-사실(제도 이름, 금액, 조건, 신청처)은 '사실 요약' 에 있는 것만 쓴다. 없는 수치는 만들지 않는다.
+${뼈대설명}
 
 블록 규칙
 - 문단: 2~4줄. 줄 사이 빈 줄("") 을 넣어 호흡을 준다.
@@ -71,7 +105,7 @@ export async function 원고쓰기({ 키, 벤치마크, 사진수 = 5 }) {
 - 구분선은 마지막 문단 앞에 한 번.
 - 전체 문단 글자 수는 1,800~2,600자.`;
 
-  const 입력 = `벤치마크 구조:\n${JSON.stringify(벤치마크, null, 1)}`;
+  const 입력 = 벤치마크 ? `벤치마크 구조:\n${JSON.stringify(벤치마크, null, 1)}` : `주제 키워드: ${키워드}`;
   const j = await 오픈AI(키, "/responses", {
     model: 글모델,
     input: [{ role: "developer", content: 지시 }, { role: "user", content: 입력 }],
@@ -97,10 +131,16 @@ export async function 그림그리기({ 키, 프롬프트, 저장경로 }) {
   return 저장경로;
 }
 
-export async function 만들기({ 키, 벤치마크, 원고이름 = "원고2.json", 사진수 = 5, 사진접두 = "그림" }) {
+export async function 만들기({ 키, 벤치마크, 벤치마크URL, 키워드, 원고이름 = "원고2.json", 사진수 = 5, 사진접두 = "그림" }) {
   if (!키) throw new Error("OpenAI 키가 없습니다");
+  if (!벤치마크 && !벤치마크URL && !키워드) throw new Error("키워드나 벤치마크 글 주소가 필요합니다");
   const 기록 = [];
-  const 원고 = await 원고쓰기({ 키, 벤치마크, 사진수 });
+  if (!벤치마크 && 벤치마크URL) {
+    벤치마크 = await 벤치마크가져오기(벤치마크URL);
+    기록.push({ 단계: "벤치마크", 원문제목: 벤치마크.원문제목, 섹션수: 벤치마크.섹션순서_인용구제목.length, 사진수: 벤치마크.사진수 });
+    if (!사진수) 사진수 = Math.min(6, Math.max(3, 벤치마크.사진수));
+  }
+  const 원고 = await 원고쓰기({ 키, 벤치마크, 키워드, 사진수 });
   기록.push({ 단계: "글", 제목: 원고.제목, 블록수: 원고.블록.length });
 
   const 사진폴더 = path.join(프로젝트, "02_사진넣는곳");
