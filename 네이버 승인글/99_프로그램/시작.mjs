@@ -26,7 +26,8 @@ const API폴더 = "https://api.github.com/repos/makeit-edu/makeit-middle-kit/con
 
 async function 받기(이름) {
   const 시도 = [
-    [원격폴더 + encodeURIComponent(이름), {}],
+    // raw 는 몇 분짜리 캐시가 있어 옛 판을 줄 때가 있다. 매번 다른 쿼리를 붙여 캐시를 비켜 간다.
+    [원격폴더 + encodeURIComponent(이름) + "?t=" + Date.now(), {}],
     [API폴더 + encodeURIComponent(이름) + "?ref=main", { headers: { Accept: "application/vnd.github.raw" } }],
   ];
   let 마지막오류 = null;

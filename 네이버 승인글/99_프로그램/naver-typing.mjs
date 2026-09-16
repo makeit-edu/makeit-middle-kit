@@ -125,39 +125,51 @@ async function 타이핑(cdp, 문장, 딜레이) {
   }
 }
 
-// 에디터 iframe 안을 들여다본다. 같은 도메인이라 contentDocument 로 바로 닿는다.
+// 에디터 iframe 안을 들여다본다.
+// 페이지 최상위 evaluate 에서 iframe.contentDocument 를 여는 방식은 Codex 의 읽기 전용 evaluate 에서 막힌다 (2026-09-16 실측).
+// 그래서 frameLocator 로 프레임 안 body 를 잡고, 그 요소의 ownerDocument 로 읽는다. Playwright 에서도 똑같이 돈다.
 async function 에디터상태(pw, 프레임셀렉터) {
-  return pw.evaluate((sel) => {
-    const fr = document.querySelector(sel);
-    const d = fr && fr.contentDocument;
-    if (!d) return { 에디터: false };
-    const 컴포 = [...d.querySelectorAll(".se-component")].map((c) => (c.className.match(/se-\w+/g) || [])[1] || "?");
-    return {
-      에디터: true,
-      제목: (d.querySelector(".se-documentTitle") || {}).innerText?.trim().slice(0, 60) || "",
-      본문글자수: ((d.querySelector(".se-component.se-text") || {}).innerText || "").replace(/\s/g, "").length,
-      컴포넌트: 컴포,
-      소제목: [...d.querySelectorAll(".se-component.se-sectionTitle")].map((e) => (e.innerText || "").trim().slice(0, 30)),
-      인용구: [...d.querySelectorAll(".se-quotation")].map((e) => (e.innerText || "").trim().split("\n")[0].slice(0, 40)),
-      표칸: [...d.querySelectorAll(".se-table td")].map((t) => (t.innerText || "").trim()).filter(Boolean),
-      이미지: d.querySelectorAll(".se-component.se-image").length,
-      구분선: d.querySelectorAll(".se-component.se-horizontalLine").length,
-    };
-  }, 프레임셀렉터);
+  const body = pw.frameLocator(프레임셀렉터).locator("body").first();
+  try {
+    if ((await body.count()) === 0) return { 에디터: false };
+    return await body.evaluate((el) => {
+      const d = el.ownerDocument;
+      if (!d.querySelector(".se-documentTitle") && !d.querySelector(".se-content")) return { 에디터: false };
+      const 컴포 = [...d.querySelectorAll(".se-component")].map((c) => (c.className.match(/se-\w+/g) || [])[1] || "?");
+      return {
+        에디터: true,
+        제목: (d.querySelector(".se-documentTitle") || {}).innerText?.trim().slice(0, 60) || "",
+        본문글자수: ((d.querySelector(".se-component.se-text") || {}).innerText || "").replace(/\s/g, "").length,
+        컴포넌트: 컴포,
+        소제목: [...d.querySelectorAll(".se-component.se-sectionTitle")].map((e) => (e.innerText || "").trim().slice(0, 30)),
+        인용구: [...d.querySelectorAll(".se-quotation")].map((e) => (e.innerText || "").trim().split("\n")[0].slice(0, 40)),
+        표칸: [...d.querySelectorAll(".se-table td")].map((t) => (t.innerText || "").trim()).filter(Boolean),
+        이미지: d.querySelectorAll(".se-component.se-image").length,
+        구분선: d.querySelectorAll(".se-component.se-horizontalLine").length,
+      };
+    });
+  } catch (e) {
+    return { 에디터: false, 오류: String(e?.message || e).slice(0, 120) };
+  }
 }
 
 // "작성 중인 글이 있습니다" 팝업이 뜨면 정해진 버튼을 누른다. 팝업 버튼은 JS 클릭으로도 눌린다(실측).
 async function 팝업정리(pw, 프레임셀렉터, 버튼글자) {
-  return pw.evaluate(({ sel, btn }) => {
-    const d = document.querySelector(sel)?.contentDocument;
-    if (!d) return "에디터 없음";
-    const 팝 = [...d.querySelectorAll("[class*=popup],[class*=layer]")]
-      .find((e) => e.offsetParent && (e.innerText || "").includes("작성 중인 글"));
-    if (!팝) return "팝업 없음";
-    const b = [...팝.querySelectorAll("button")].find((x) => (x.textContent || "").trim() === btn);
-    if (b) { b.click(); return `팝업 → '${btn}' 누름`; }
-    return "팝업 있는데 버튼 못 찾음";
-  }, { sel: 프레임셀렉터, btn: 버튼글자 });
+  const body = pw.frameLocator(프레임셀렉터).locator("body").first();
+  try {
+    if ((await body.count()) === 0) return "에디터 없음";
+    return await body.evaluate((el, btn) => {
+      const d = el.ownerDocument;
+      const 팝 = [...d.querySelectorAll("[class*=popup],[class*=layer]")]
+        .find((e) => e.offsetParent && (e.innerText || "").includes("작성 중인 글"));
+      if (!팝) return "팝업 없음";
+      const b = [...팝.querySelectorAll("button")].find((x) => (x.textContent || "").trim() === btn);
+      if (b) { b.click(); return `팝업 → '${btn}' 누름`; }
+      return "팝업 있는데 버튼 못 찾음";
+    }, 버튼글자);
+  } catch (e) {
+    return "팝업 확인 실패: " + String(e?.message || e).slice(0, 100);
+  }
 }
 
 // 여러 후보 셀렉터 중 화면에 있는 첫 번째를 고른다. 네이버가 클래스명을 바꿔도 하나는 살아남게.
