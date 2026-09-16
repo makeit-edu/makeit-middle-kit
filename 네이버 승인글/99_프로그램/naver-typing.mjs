@@ -74,15 +74,20 @@ export function 점검() {
 
 // ── 레시피 · 원고 읽기 ────────────────────────────────────────────
 async function 레시피읽기(원격주소) {
-  // 원격이 먼저다. 강사가 GitHub 에서 고치면 수강생은 아무것도 안 해도 반영된다.
+  // 원격과 로컬을 둘 다 읽어 '버전' 이 더 큰 쪽을 쓴다.
+  // (GitHub raw 캐시가 몇 분 옛 판을 주는 일이 있어서, 원격 무조건 우선은 위험하다 — 2026-09-16 실측)
+  let 로컬 = null;
+  try { 로컬 = JSON.parse(await readFile(path.join(여기, "recipe.json"), "utf8")); } catch {}
+  let 원격 = null;
   if (원격주소) {
     try {
-      const r = await fetch(원격주소, { signal: AbortSignal.timeout(4000) });
-      if (r.ok) return { 레시피: await r.json(), 출처: "원격" };
+      const r = await fetch(원격주소, { signal: AbortSignal.timeout(4000), cache: "no-store" });
+      if (r.ok) 원격 = await r.json();
     } catch {}
   }
-  const 로컬 = path.join(여기, "recipe.json");
-  return { 레시피: JSON.parse(await readFile(로컬, "utf8")), 출처: "로컬" };
+  if (!로컬 && !원격) throw new Error("recipe.json 을 원격에서도 로컬에서도 못 읽었습니다");
+  if (원격 && (!로컬 || String(원격.버전 || "") >= String(로컬.버전 || ""))) return { 레시피: 원격, 출처: "원격" };
+  return { 레시피: 로컬, 출처: "로컬" };
 }
 
 async function 원고읽기(이름) {
@@ -102,6 +107,7 @@ const 키표 = {
   Enter: { code: "Enter", vk: 13, text: "\r" },
   Escape: { code: "Escape", vk: 27 },
   Tab: { code: "Tab", vk: 9 },
+  End: { code: "End", vk: 35 },
 };
 
 async function 키(cdp, 이름) {
@@ -229,6 +235,16 @@ export async function 실행(옵션 = {}) {
       await 쉬기(400);
     }
 
+    // 인용구·표·구분선·사진 뒤에 '본문 추가' 버튼이 보이면 누른다. 이미 본문 칸이 생겨 버튼이 숨어 있으면 건너뛴다 (2026-09-16 실측).
+    async function 본문추가하기() {
+      const b = await 찾기(F, R.본문추가버튼);
+      if (!b) return "버튼 없음";
+      if (!(await b.loc.isVisible().catch(() => false))) return "버튼 숨김 → 건너뜀";
+      await b.loc.click({ timeout: 5000 });
+      await 쉬기(800);
+      return "누름";
+    }
+
     for (const [i, 블록] of (원고.블록 || []).entries()) {
       const 이름 = `블록${i + 1}·${블록.종류}`;
       try {
@@ -242,27 +258,46 @@ export async function 실행(옵션 = {}) {
 
         } else if (블록.종류 === "소제목") {
           // 줄을 치고 → 그 줄을 3번 클릭해 잡고 → 문단서식 → 소제목
+          // 단, 네이버가 새 줄을 처음부터 소제목 블록으로 만들어 주는 경우가 있다 (2026-09-16 실측).
+          // 그때는 서식 단계를 건너뛴다.
           await 타이핑(cdp, 블록.글, 딜레이);
+          await 쉬기(1000); // 네이버가 블록을 바꿀 시간을 준다
+          const 앞머리 = 블록.글.slice(0, 12);
+          const 이미소제목 = async () => (await 에디터상태(pw, R.프레임)).소제목.some((s) => s.includes(앞머리));
+          let 방법 = "";
+          if (await 이미소제목()) {
+            방법 = "이미 소제목 블록";
+          } else {
+            const 줄 = F.locator(R.본문문단, { hasText: 앞머리 }).last();
+            let 잡음 = false;
+            try { await 줄.click({ clickCount: 3, timeout: 5000 }); 잡음 = true; } catch {}
+            if (!잡음 && (await 이미소제목())) {
+              방법 = "이미 소제목 블록(늦게 바뀜)";
+            } else {
+              if (!잡음) throw new Error(`친 줄을 화면에서 못 찾음: ${앞머리}`);
+              await 쉬기(500);
+              const 서식 = await 찾기(F, R.문단서식버튼);
+              if (!서식) throw new Error("문단 서식 버튼 못 찾음");
+              await 서식.loc.click();
+              await 쉬기(900);
+              const 옵션버튼 = await 찾기(F, R.소제목옵션);
+              if (!옵션버튼) throw new Error("소제목 선택지 못 찾음");
+              await 옵션버튼.loc.click();
+              await 쉬기(700);
+              await 키(cdp, "Escape");
+              await 쉬기(200);
+              방법 = "문단서식 → 소제목";
+            }
+          }
+          // 소제목 블록 끝에 커서를 두고 다음 줄로 (End → Enter 하면 새 본문 문단이 생긴다 — 2026-09-16 실측)
+          await F.locator(".se-component.se-sectionTitle .se-text-paragraph", { hasText: 앞머리 }).last().click({ timeout: 5000 });
           await 쉬기(300);
-          const 줄 = F.locator(R.본문문단, { hasText: 블록.글.slice(0, 12) }).last();
-          await 줄.click({ clickCount: 3 });
-          await 쉬기(500);
-          const 서식 = await 찾기(F, R.문단서식버튼);
-          if (!서식) throw new Error("문단 서식 버튼 못 찾음");
-          await 서식.loc.click();
-          await 쉬기(900);
-          const 옵션버튼 = await 찾기(F, R.소제목옵션);
-          if (!옵션버튼) throw new Error("소제목 선택지 못 찾음");
-          await 옵션버튼.loc.click();
-          await 쉬기(700);
-          // 소제목 줄 끝으로 가서 다음 줄로
-          await 키(cdp, "Escape");
-          await 줄.click();
-          await 쉬기(200);
+          // 소제목 줄 끝에서 다음 줄로
+          await 키(cdp, "End");
           await 키(cdp, "Enter");
-          await 쉬기(300);
+          await 쉬기(400);
           const 후 = await 에디터상태(pw, R.프레임);
-          적기(이름, { 글: 블록.글, 소제목목록: 후.소제목 });
+          적기(이름, { 글: 블록.글, 방법, 소제목목록: 후.소제목, 컴포넌트: 후.컴포넌트 });
 
         } else if (블록.종류 === "인용구") {
           const b = await 찾기(F, R.인용구버튼);
@@ -273,8 +308,7 @@ export async function 실행(옵션 = {}) {
           await 쉬기(600);
           await 키(cdp, "Escape");
           await 쉬기(300);
-          const 본문추가 = await 찾기(F, R.본문추가버튼);
-          if (본문추가) { await 본문추가.loc.click(); await 쉬기(800); }
+          await 본문추가하기();
           const 후 = await 에디터상태(pw, R.프레임);
           적기(이름, { 글: 블록.글.slice(0, 30), 인용구목록: 후.인용구 });
 
@@ -293,8 +327,7 @@ export async function 실행(옵션 = {}) {
           }
           await 키(cdp, "Escape");
           await 쉬기(300);
-          const 본문추가 = await 찾기(F, R.본문추가버튼);
-          if (본문추가) { await 본문추가.loc.click(); await 쉬기(800); }
+          await 본문추가하기();
           const 후 = await 에디터상태(pw, R.프레임);
           적기(이름, { 표칸수: 칸수, 넣은칸: 블록.칸.length, 화면칸: 후.표칸 });
 
@@ -303,8 +336,7 @@ export async function 실행(옵션 = {}) {
           if (!b) throw new Error("구분선 버튼 못 찾음");
           await b.loc.click();
           await 쉬기(1300);
-          const 본문추가 = await 찾기(F, R.본문추가버튼);
-          if (본문추가) { await 본문추가.loc.click(); await 쉬기(800); }
+          await 본문추가하기();
           const 후 = await 에디터상태(pw, R.프레임);
           적기(이름, { 구분선수: 후.구분선 });
 
@@ -317,8 +349,7 @@ export async function 실행(옵션 = {}) {
           const 선택창 = await 대기;
           await 선택창.setFiles([파일]);
           await 쉬기(7000); // 네이버 서버 업로드 대기
-          const 본문추가 = await 찾기(F, R.본문추가버튼);
-          if (본문추가) { await 본문추가.loc.click(); await 쉬기(800); }
+          await 본문추가하기();
           const 후 = await 에디터상태(pw, R.프레임);
           적기(이름, { 파일: path.basename(파일), 이미지수: 후.이미지 });
 
