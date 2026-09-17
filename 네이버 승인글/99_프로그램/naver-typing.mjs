@@ -24,7 +24,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 이 파일을 고칠 때마다 올린다. 시작.mjs 가 원격 판이 이보다 새 것일 때만 덮어쓴다.
-export const 버전 = "2026-09-17c";
+export const 버전 = "2026-09-17d";
 
 const 여기 = path.dirname(fileURLToPath(import.meta.url));
 const 프로젝트 = path.resolve(여기, "..");
@@ -140,8 +140,10 @@ export async function 실행(옵션 = {}) {
           if (R.글쓰기주소패턴.some((p) => new RegExp(p).test(u))) { tab = t; break; }
         }
       } catch {}
-      if (tab) { 이어쓰기 = true; 적기("탭잡기", { 방법: `이어쓰기 — 이 세션의 글쓰기 탭에서 블록${시작블록 + 1}부터` }); }
-      else 적기("탭잡기", { 이어쓰기실패: "이전 탭을 못 찾아 처음부터 새로 씁니다" });
+      // 시작블록이 있으면 무조건 이어쓰기다. 제목·첫 칸을 다시 치면 글이 중복된다 (2026-09-17 실측: 제목이 두 번 들어감).
+      이어쓰기 = true;
+      if (tab) 적기("탭잡기", { 방법: `이어쓰기 — 이 세션의 글쓰기 탭에서 블록${시작블록 + 1}부터` });
+      else 적기("탭잡기", { 안내: "이 세션 탭 목록에 없어 열린 글쓰기 탭을 다시 잡습니다" });
     }
     const 탭들 = tab ? [] : await chrome.user.openTabs();
     const 대상 = 탭들.find((t) => R.글쓰기주소패턴.some((p) => new RegExp(p).test(t.url || "")));
@@ -149,7 +151,8 @@ export async function 실행(옵션 = {}) {
       try { tab = await chrome.user.claimTab(대상); 적기("탭잡기", { 방법: "열린 탭 잡음", 주소: (대상.url || "").slice(0, 80) }); }
       catch (e) { 적기("탭잡기", { 열린탭못잡음: String(e?.message || e).slice(0, 120) }); }
     }
-    if (!tab && !이어쓰기) {
+    if (!tab && 이어쓰기) { 적기("탭잡기", { 실패: "이어 쓸 글쓰기 탭이 없습니다. 크롬에서 글쓰기 탭이 닫혔는지 확인하세요" }); return 마무리(); }
+    if (!tab) {
       tab = await chrome.tabs.new();
       await tab.goto(R.글쓰기주소 || "https://blog.naver.com/GoBlogWrite.naver");
       await 쉬기(5000);
@@ -157,6 +160,9 @@ export async function 실행(옵션 = {}) {
       적기("탭잡기", { 방법: 대상 ? "새 탭으로 다시 열음" : "글쓰기 탭이 없어 새 탭으로 열음", 주소: String(지금주소).slice(0, 80) });
       if (/nid\.naver\.com/.test(String(지금주소))) { 적기("로그인", { 실패: "네이버 로그인이 안 돼 있습니다. 크롬에서 로그인한 뒤 다시 실행하세요" }); return 마무리(); }
     }
+    // Codex 는 에이전트가 연 탭을 턴이 끝나면 자동으로 닫는다. 이어쓰기 도중 탭이 사라져 "Tab not found" 가 났다 (2026-09-17 실측).
+    // '다음 턴에도 쓸 탭' 으로 표시해 두면 남는다.
+    try { if (typeof tab.markHandoff === "function") await tab.markHandoff(); } catch {}
     const pw = tab.playwright;
     const ax = tab.ax;
     if (!ax || typeof ax.typeText !== "function" || typeof ax.click !== "function") { 적기("입력", { 실패: "이 브라우저 연결에는 ax 입력 API 가 없습니다" }); return 마무리(); }
