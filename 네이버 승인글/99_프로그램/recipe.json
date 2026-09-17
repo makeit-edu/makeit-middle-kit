@@ -1,5 +1,6 @@
 {
-  "버전": "2026-09-16c",
+  "버전": "2026-09-17a",
+  "표컨테이너": ".se-component.se-table",
   "글쓰기주소": "https://blog.naver.com/GoBlogWrite.naver",
   "설명": "네이버 스마트에디터 ONE 셀렉터와 동작. 2026-09-15 실측으로 통한 것만 넣었다. 네이버가 화면을 바꾸면 이 파일만 고친다.",
 
@@ -43,7 +44,7 @@
     "button:has-text(\"표 추가\")",
     "button[class*=table-toolbar-button]"
   ],
-  "표칸": ".se-table td",
+  "표칸": "td",
   "구분선버튼": [
     "button:has-text(\"구분선 추가\")",
     "button[aria-label*=\"구분선\"]"

@@ -24,7 +24,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 이 파일을 고칠 때마다 올린다. 시작.mjs 가 원격 판이 이보다 새 것일 때만 덮어쓴다.
-export const 버전 = "2026-09-16g";
+export const 버전 = "2026-09-17a";
 
 const 여기 = path.dirname(fileURLToPath(import.meta.url));
 const 프로젝트 = path.resolve(여기, "..");
@@ -156,15 +156,20 @@ export async function 실행(옵션 = {}) {
       catch { return { x: 0, y: 0, w: 1400, h: 900 }; }
     };
     // 요소의 화면 좌표(프레임 오프셋 포함). 화면 밖이면 스크롤해서 다시 잰다.
+    // 네이버 편집기는 위쪽 툴바(약 150px)가 고정이라, 그 아래 ~ 화면 하단 사이에 있어야 진짜 클릭이 닿는다.
+    // 화면 밖이면 그 방향으로 스크롤하며 최대 6번 다시 잰다 (2026-09-17 실측: 두 번째 표에서 "outside the active tab content viewport").
     const 좌표 = async (loc) => {
       const 재기 = () => loc.evaluate((el) => { const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width, h: b.height }; });
       let r = await 재기();
       let f = await 프레임위치();
-      if (r.y < 0 || r.y > f.h - 10) {
-        try { await ax.scroll([Math.round(f.x + f.w / 2), Math.round(f.y + f.h / 2)], r.y < 0 ? "up" : "down", 1); } catch {}
-        await 쉬기(500);
+      const 위한계 = 160, 아래한계 = () => f.h - 40;
+      for (let i = 0; i < 6 && (r.y < 위한계 || r.y > 아래한계()); i++) {
+        const 위로 = r.y < 위한계;
+        try { await ax.scroll([Math.round(f.x + f.w / 2), Math.round(f.y + f.h / 2)], 위로 ? "up" : "down", 1); } catch {}
+        await 쉬기(450);
         r = await 재기(); f = await 프레임위치();
       }
+      if (r.y < 0 || r.y > f.h) throw new Error(`요소를 화면 안으로 못 가져옴 (y=${Math.round(r.y)}, 화면높이=${f.h})`);
       return { x: Math.round(f.x + r.x), y: Math.round(f.y + r.y), w: r.w, h: r.h };
     };
     const 좌표클릭 = async (loc, 옵션 = {}) => {
@@ -314,7 +319,10 @@ export async function 실행(옵션 = {}) {
         } else if (블록.종류 === "표") {
           await 버튼클릭(R.표버튼, "표");
           await 쉬기(1800);
-          const 칸 = F.locator(R.표칸);
+          // 방금 만든 표 = 문서의 마지막 표. 첫 표를 잡으면 두 번째 표부터 엉뚱한 곳(화면 밖)을 누른다 (2026-09-17 실측).
+          const 표들 = F.locator(R.표컨테이너 || ".se-component.se-table");
+          if ((await 표들.count()) === 0) throw new Error("표가 안 생김");
+          const 칸 = 표들.last().locator(R.표칸 || "td");
           const 칸수 = await 칸.count();
           for (let k = 0; k < 블록.칸.length && k < 칸수; k++) {
             await 좌표클릭(칸.nth(k));
@@ -358,8 +366,10 @@ export async function 실행(옵션 = {}) {
           적기(이름, { 건너뜀: `모르는 종류: ${블록.종류}` });
         }
       } catch (e) {
-        적기(이름, { 실패: String(e?.message || e).slice(0, 300) });
-        if (옵션.실패시멈춤 !== false) return 마무리();
+        // 블록 하나가 안 되면 그 블록만 건너뛰고 글은 끝까지 쓴다. 열린 메뉴·선택 상태는 Escape 로 정리한다.
+        적기(이름, { 건너뜀: String(e?.message || e).slice(0, 300) });
+        try { await 키("Escape"); await 쉬기(300); await 본문추가하기(); } catch {}
+        if (옵션.실패시멈춤 === true) return 마무리();
       }
     }
 
@@ -381,11 +391,16 @@ export async function 실행(옵션 = {}) {
   function 마무리() {
     const 마지막 = 기록[기록.length - 1] || {};
     const 성공 = !기록.some((r) => r.실패 || r.단계 === "오류");
+    const 건너뛴것 = 기록.filter((r) => r.건너뜀 || r.사진건너뜀).map((r) => r.단계);
     return {
-      결과: 성공 ? "끝까지 됨" : `멈춤 — ${마지막.단계}`,
+      결과: !성공 ? `멈춤 — ${마지막.단계}` : 건너뛴것.length ? `끝까지 됨 (건너뜀: ${건너뛴것.join(", ")})` : "끝까지 됨",
       걸린시간초: Math.round((Date.now() - 시작) / 1000),
       기록,
-      다음: 성공 ? "네이버 화면에서 글을 확인하고, 괜찮으면 직접 '발행' 을 누르세요." : "위 기록의 '실패' 항목을 그대로 코치에게 보내세요.",
+      다음: !성공
+        ? "위 기록의 '실패' 항목을 그대로 코치에게 보내세요."
+        : 건너뛴것.length
+          ? "글은 다 들어갔고 위 블록만 빠졌습니다. 네이버 화면에서 확인하고, 괜찮으면 직접 '발행' 을 누르세요. 빠진 블록은 코치에게 알려 주세요."
+          : "네이버 화면에서 글을 확인하고, 괜찮으면 직접 '발행' 을 누르세요.",
     };
   }
 }
