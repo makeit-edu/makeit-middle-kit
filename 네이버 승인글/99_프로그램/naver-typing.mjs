@@ -24,7 +24,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 이 파일을 고칠 때마다 올린다. 시작.mjs 가 원격 판이 이보다 새 것일 때만 덮어쓴다.
-export const 버전 = "2026-09-17d";
+export const 버전 = "2026-09-17e";
 
 const 여기 = path.dirname(fileURLToPath(import.meta.url));
 const 프로젝트 = path.resolve(여기, "..");
@@ -94,9 +94,11 @@ async function 원고읽기(이름) {
   return JSON.parse(await readFile(p, "utf8"));
 }
 
-function 사진경로(파일) {
-  const p = path.isAbsolute(파일) ? 파일 : path.join(프로젝트, "02_사진넣는곳", 파일);
-  if (!existsSync(p)) throw new Error(`사진 파일이 없습니다: ${p}`);
+// 사진은 원고 파일과 같은 폴더(03_쓴글/날짜_키워드/)에서 먼저 찾고, 없으면 02_사진넣는곳 에서 찾는다.
+function 사진경로(파일, 원고폴더) {
+  const 후보 = path.isAbsolute(파일) ? [파일] : [원고폴더 && path.join(원고폴더, 파일), path.join(프로젝트, "02_사진넣는곳", 파일)].filter(Boolean);
+  const p = 후보.find((x) => existsSync(x));
+  if (!p) throw new Error(`사진 파일이 없습니다: ${후보.join(" , ")}`);
   return p;
 }
 
@@ -110,7 +112,9 @@ export async function 실행(옵션 = {}) {
     // 0. 준비
     const { 레시피: R, 출처 } = await 레시피읽기(옵션.레시피주소 ?? R_기본주소);
     적기("레시피", { 출처, 버전: R.버전, 프로그램: 버전 });
-    const 원고 = await 원고읽기(옵션.원고 || "원고1.json");
+    const 원고이름 = 옵션.원고 || "원고1.json";
+    const 원고 = await 원고읽기(원고이름);
+    const 원고폴더 = path.isAbsolute(원고이름) ? path.dirname(원고이름) : null;
     const 딜레이 = 옵션.딜레이 ?? R.타이핑딜레이 ?? 35;
     const 단계 = 옵션.단계 || "전부";
 
@@ -386,7 +390,7 @@ export async function 실행(옵션 = {}) {
           적기(이름, { 구분선수: 후.구분선 });
 
         } else if (블록.종류 === "사진") {
-          const 파일 = 사진경로(블록.파일);
+          const 파일 = 사진경로(블록.파일, 원고폴더);
           const b = await 찾기(R.사진버튼);
           if (!b) throw new Error("사진 버튼 못 찾음");
           try {

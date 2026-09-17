@@ -14,7 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 고칠 때마다 올린다. 시작.mjs 가 원격 판이 이보다 새 것일 때만 덮어쓴다.
-export const 버전 = "2026-09-17c";
+export const 버전 = "2026-09-17d";
 
 const 여기 = path.dirname(fileURLToPath(import.meta.url));
 const 프로젝트 = path.resolve(여기, "..");
@@ -147,7 +147,14 @@ export async function 그림그리기({ 키, 프롬프트, 저장경로 }) {
   return 저장경로;
 }
 
-export async function 만들기({ 키, 벤치마크, 벤치마크URL, 키워드, 원고이름 = "원고2.json", 사진수 = 5, 사진접두 = "그림" }) {
+// 파일명에 넣을 키워드. 한글·영문·숫자만 남기고 띄어쓰기는 '-' 로. (네이버는 이미지 파일명도 본다)
+export function 슬러그(글자, 최대 = 40) {
+  return String(글자 || "").normalize("NFC")
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ").trim().replace(/\s+/g, "-").replace(/-+/g, "-").slice(0, 최대).replace(/-$/, "") || "글";
+}
+
+// 글 하나 = 폴더 하나. 03_쓴글/2026-09-17_키워드/ 안에 원고.json 과 키워드-1.png … 가 들어간다.
+export async function 만들기({ 키, 벤치마크, 벤치마크URL, 키워드, 사진수 = 5, 저장폴더 }) {
   if (!키) throw new Error("OpenAI 키가 없습니다");
   if (!벤치마크 && !벤치마크URL && !키워드) throw new Error("키워드나 벤치마크 글 주소가 필요합니다");
   const 기록 = [];
@@ -159,16 +166,20 @@ export async function 만들기({ 키, 벤치마크, 벤치마크URL, 키워드,
   const 원고 = await 원고쓰기({ 키, 벤치마크, 키워드, 사진수 });
   기록.push({ 단계: "글", 제목: 원고.제목, 블록수: 원고.블록.length });
 
-  const 사진폴더 = path.join(프로젝트, "02_사진넣는곳");
-  await mkdir(사진폴더, { recursive: true });
+  // 폴더 이름: 날짜_키워드. 키워드가 없으면(벤치마크 모드) 새 제목의 앞부분을 쓴다.
+  const 핵심 = 슬러그(키워드 || 원고.제목.split(/[,|(:·]/)[0], 30);
+  const 날짜 = new Date().toISOString().slice(0, 10);
+  const 폴더 = 저장폴더 || path.join(프로젝트, "03_쓴글", `${날짜}_${핵심}`);
+  await mkdir(폴더, { recursive: true });
+
   let n = 0;
   const 사진블록 = 원고.블록.filter((b) => b.종류 === "사진");
-  // 그림은 동시에 만든다 (장당 30초~1분)
+  // 그림은 동시에 만든다 (장당 30초~1분). 파일명에 키워드가 들어간다.
   await Promise.all(사진블록.map(async (b) => {
     const 번호 = ++n;
-    const 파일 = `${사진접두}${번호}.png`;
+    const 파일 = `${핵심}-${번호}.png`;
     try {
-      await 그림그리기({ 키, 프롬프트: b.프롬프트, 저장경로: path.join(사진폴더, 파일) });
+      await 그림그리기({ 키, 프롬프트: b.프롬프트, 저장경로: path.join(폴더, 파일) });
       b.파일 = 파일;
       기록.push({ 단계: `사진${번호}`, 파일, 프롬프트: b.프롬프트.slice(0, 60) });
     } catch (e) {
@@ -187,9 +198,11 @@ export async function 만들기({ 키, 벤치마크, 벤치마크URL, 키워드,
     return null;
   }).filter(Boolean);
 
-  const 원고경로 = path.join(프로젝트, "01_원고넣는곳", 원고이름);
-  await mkdir(path.dirname(원고경로), { recursive: true });
-  await writeFile(원고경로, JSON.stringify({ 제목: 원고.제목, 블록 }, null, 2), "utf8");
-  기록.push({ 단계: "저장", 원고: 원고경로 });
-  return { 제목: 원고.제목, 원고: 원고이름, 기록 };
+  const 원고경로 = path.join(폴더, "원고.json");
+  await writeFile(원고경로, JSON.stringify({ 제목: 원고.제목, 키워드: 키워드 || 핵심, 만든날: 날짜, 벤치마크: 벤치마크URL || null, 블록 }, null, 2), "utf8");
+  // 사람이 읽기 편한 사본도 같이 둔다
+  const 읽기용 = [`# ${원고.제목}`, ""].concat(블록.map((b) => b.종류 === "문단" ? b.글.join("\n") : b.종류 === "소제목" ? `\n## ${b.글}` : b.종류 === "인용구" ? `> ${b.글}` : b.종류 === "표" ? "[표] " + b.칸.join(" | ") : b.종류 === "사진" ? `[사진] ${b.파일}` : "---")).join("\n\n");
+  await writeFile(path.join(폴더, "원고.md"), 읽기용, "utf8");
+  기록.push({ 단계: "저장", 폴더, 원고: 원고경로, 사진: 블록.filter((b) => b.종류 === "사진").map((b) => b.파일) });
+  return { 제목: 원고.제목, 폴더, 원고: 원고경로, 기록 };
 }

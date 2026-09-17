@@ -133,9 +133,9 @@ export async function 글만들기({ 키워드, 벤치마크URL, 사진수 = 3 }
   const 키 = await 키읽기();
   const 주소 = pathToFileURL(path.join(여기, "글만들기.mjs")).href + "?t=" + Date.now();
   const 글 = await import(주소);
-  const 이름 = "원고_" + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "") + ".json";
-  const 결과 = await 글.만들기({ 키, 키워드, 벤치마크URL, 원고이름: 이름, 사진수, 사진접두: 이름.replace(".json", "_") });
-  return { ...결과, 다음: `이제 시작.실행({ agent, 원고: "${이름}" }) 으로 네이버에 쓰세요` };
+  const 결과 = await 글.만들기({ 키, 키워드, 벤치마크URL, 사진수 });
+  // 원고는 03_쓴글/날짜_키워드/원고.json 에 있다. 실행() 에는 이 절대경로를 그대로 넘긴다.
+  return { ...결과, 다음: `이제 시작.실행({ agent, 원고: ${JSON.stringify(결과.원고)} }) 으로 네이버에 쓰세요` };
 }
 
 // 3b단계는 실행({ agent, 원고 }) 그대로다.

@@ -39,7 +39,7 @@ export async function 설치(뿌리 = path.resolve(".")) {
       기록[로컬경로] = "실패: " + String(e?.message || e).slice(0, 60);
     }
   }
-  for (const d of ["00_설정", "01_원고넣는곳", "02_사진넣는곳"]) await mkdir(path.join(뿌리, 폴더, d), { recursive: true });
+  for (const d of ["00_설정", "01_원고넣는곳", "02_사진넣는곳", "03_쓴글"]) await mkdir(path.join(뿌리, 폴더, d), { recursive: true });
 
   // 코덱스 '앱' 은 작업 폴더의 AGENTS.md 를 읽지 않을 때가 있다 (2026-09-17 실측: 전역 ~/.codex/AGENTS.md 만 들어감).
   // 그래서 대본을 전역 AGENTS.md 에도 넣는다. 기존 내용은 그대로 두고 표식 사이에만 넣는다(다시 설치하면 그 부분만 교체).
