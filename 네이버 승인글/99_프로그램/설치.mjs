@@ -41,5 +41,5 @@ export async function 설치(뿌리 = path.resolve(".")) {
   }
   for (const d of ["00_설정", "01_원고넣는곳", "02_사진넣는곳"]) await mkdir(path.join(뿌리, 폴더, d), { recursive: true });
   const 전부됨 = Object.values(기록).every((v) => v === "받음");
-  return { 폴더: path.join(뿌리, 폴더), 기록, 결과: 전부됨 ? "설치 끝" : "일부 실패 — 이 화면을 코치에게", 다음: 전부됨 ? "이제 수강생에게 OpenAI 키를 붙여넣어 달라고 하세요" : "" };
+  return { 폴더: path.join(뿌리, 폴더), 기록, 결과: 전부됨 ? "설치 끝" : "일부 실패 — 이 화면을 코치에게", 다음: 전부됨 ? "설치가 끝났습니다. 이 채팅을 닫고, 같은 폴더로 새 채팅을 연 다음 '네이버 글 쓰고 싶어요' 라고 말하세요." : "" };
 }
