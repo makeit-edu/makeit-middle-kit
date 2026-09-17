@@ -24,7 +24,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 이 파일을 고칠 때마다 올린다. 시작.mjs 가 원격 판이 이보다 새 것일 때만 덮어쓴다.
-export const 버전 = "2026-09-17b";
+export const 버전 = "2026-09-17c";
 
 const 여기 = path.dirname(fileURLToPath(import.meta.url));
 const 프로젝트 = path.resolve(여기, "..");
@@ -128,15 +128,28 @@ export async function 실행(옵션 = {}) {
     }
     const chrome = await agent.browsers.get("chrome");
 
-    // 2. 탭 — 열려 있는 글쓰기 탭을 잡고, 못 잡으면 새 탭으로 글쓰기 주소를 연다
+    // 2. 탭 — 이어쓰기면 이 세션이 연 글쓰기 탭을 다시 잡는다. 아니면 열려 있는 글쓰기 탭을 잡고, 못 잡으면 새 탭으로 연다
     let tab = null;
-    const 탭들 = await chrome.user.openTabs();
+    let 이어쓰기 = false;
+    const 시작블록 = Number(옵션.시작블록 || 0);
+    if (시작블록 > 0) {
+      try {
+        const 내탭들 = await chrome.tabs.list();
+        for (const t of 내탭들) {
+          const u = String(await Promise.resolve(t.url()).catch(() => ""));
+          if (R.글쓰기주소패턴.some((p) => new RegExp(p).test(u))) { tab = t; break; }
+        }
+      } catch {}
+      if (tab) { 이어쓰기 = true; 적기("탭잡기", { 방법: `이어쓰기 — 이 세션의 글쓰기 탭에서 블록${시작블록 + 1}부터` }); }
+      else 적기("탭잡기", { 이어쓰기실패: "이전 탭을 못 찾아 처음부터 새로 씁니다" });
+    }
+    const 탭들 = tab ? [] : await chrome.user.openTabs();
     const 대상 = 탭들.find((t) => R.글쓰기주소패턴.some((p) => new RegExp(p).test(t.url || "")));
     if (대상) {
       try { tab = await chrome.user.claimTab(대상); 적기("탭잡기", { 방법: "열린 탭 잡음", 주소: (대상.url || "").slice(0, 80) }); }
       catch (e) { 적기("탭잡기", { 열린탭못잡음: String(e?.message || e).slice(0, 120) }); }
     }
-    if (!tab) {
+    if (!tab && !이어쓰기) {
       tab = await chrome.tabs.new();
       await tab.goto(R.글쓰기주소 || "https://blog.naver.com/GoBlogWrite.naver");
       await 쉬기(5000);
@@ -192,7 +205,17 @@ export async function 실행(옵션 = {}) {
       await 좌표클릭(b.loc);
       return b.셀렉터;
     };
-    const 타이핑 = async (문장) => { for (const 글자 of 문장) { await ax.typeText(글자); await 쉬기(랜덤(딜레이)); } };
+    // 어절(띄어쓰기) 단위로 톡톡 친다. 글자마다 치면 한 글자에 한 번씩 브라우저를 왕복해서 2,500자에 3분 넘게 걸린다 (2026-09-17 실측).
+    // 긴 어절은 4자씩 끊는다. 화면에서는 여전히 사람이 치는 것처럼 보인다.
+    const 타이핑 = async (문장) => {
+      const 조각들 = [];
+      for (const 어절 of String(문장).split(/(?<=\s)/)) {
+        for (let i = 0; i < 어절.length; i += 4) 조각들.push(어절.slice(i, i + 4));
+      }
+      for (const 조각 of 조각들) { await ax.typeText(조각); await 쉬기(랜덤(딜레이)); }
+    };
+    const 시간예산초 = 옵션.시간예산초 ?? R.시간예산초 ?? 180;
+    const 시간초과 = () => (Date.now() - 시작) / 1000 > 시간예산초;
     const 키 = async (이름) => { await ax.pressKey(키이름(이름)); };
     const 에디터상태 = async () => {
       const body = F.locator("body").first();
@@ -237,15 +260,25 @@ export async function 실행(옵션 = {}) {
     };
 
     // 3. 팝업 → 시작 상태
-    적기("팝업", { 결과: await 팝업정리() });
+    if (!이어쓰기) 적기("팝업", { 결과: await 팝업정리() });
     await 쉬기(600);
     const 전 = await 에디터상태();
     if (!전.에디터) { 적기("에디터", { 실패: "편집기 프레임을 못 찾았습니다. 화면이 다 떴는지 확인하세요", 상세: 전.오류 }); return 마무리(); }
     if (전.팝업) { 적기("에디터", { 실패: "'작성 중인 글' 팝업이 안 닫혔습니다" }); return 마무리(); }
     적기("시작상태", 전);
 
+    // 이어쓰기면 제목·첫 칸은 건너뛰고 글 끝에 커서를 둔다
+    if (이어쓰기) {
+      const 추가 = await 본문추가하기();
+      if (추가 !== "누름") {
+        const 마지막문단 = F.locator(R.본문문단).last();
+        if ((await 마지막문단.count()) > 0) { await 좌표클릭(마지막문단); await 키("End"); await 키("Enter"); }
+      }
+      await 쉬기(400);
+    }
+
     // 4. 제목
-    {
+    if (!이어쓰기) {
       const t = await 찾기(R.제목칸);
       if (!t) { 적기("제목", { 실패: "제목 칸을 못 찾음", 시도: R.제목칸 }); return 마무리(); }
       await 좌표클릭(t.loc);
@@ -260,15 +293,18 @@ export async function 실행(옵션 = {}) {
     }
 
     // 5. 본문 첫 칸 클릭
-    {
+    if (!이어쓰기) {
       const 본문 = await 찾기(R.본문칸);
       if (!본문) { 적기("본문", { 실패: "본문 칸을 못 찾음" }); return 마무리(); }
       await 좌표클릭(본문.loc);
       await 쉬기(400);
     }
 
-    // 6. 블록 순서대로
+    // 6. 블록 순서대로 (시간 예산을 넘기면 임시저장하고 '이어서' 로 넘긴다 — REPL 한 번 실행에 시간 한도가 있다)
+    let 이어서 = null;
     for (const [i, 블록] of (원고.블록 || []).entries()) {
+      if (i < 시작블록) continue;
+      if (시간초과()) { 이어서 = { 원고: 옵션.원고 || "원고1.json", 시작블록: i }; break; }
       const 이름 = `블록${i + 1}·${블록.종류}`;
       try {
         if (블록.종류 === "문단") {
@@ -357,7 +393,10 @@ export async function 실행(옵션 = {}) {
             const 결과 = await 대기;
             if (결과.오류) throw new Error("파일 선택창이 안 열림: " + String(결과.오류?.message || 결과.오류).slice(0, 80));
             await 결과.선택창.setFiles([파일]);
-            await 쉬기(7000); // 네이버 서버 업로드 대기
+            // 업로드가 끝나 이미지 블록이 하나 늘 때까지 기다린다 (최대 12초)
+            const 전이미지 = (await 에디터상태()).이미지;
+            for (let t = 0; t < 12; t++) { await 쉬기(1000); if ((await 에디터상태()).이미지 > 전이미지) break; }
+            await 쉬기(800);
             await 본문추가하기();
             const 후 = await 에디터상태();
             적기(이름, { 파일: path.basename(파일), 이미지수: 후.이미지 });
@@ -384,19 +423,29 @@ export async function 실행(옵션 = {}) {
       if (!저장) { 적기("임시저장", { 실패: "저장 버튼 못 찾음" }); return 마무리(); }
       const 전 = await 에디터상태();
       await 좌표클릭(저장.loc);
-      await 쉬기(3500);
+      await 쉬기(3000);
       적기("임시저장", { 셀렉터: 저장.셀렉터, 저장직전: 전 });
     }
+    if (이어서) { 적기("이어서", { ...이어서, 남은블록: (원고.블록 || []).length - 이어서.시작블록 }); return 마무리(이어서); }
     return 마무리();
   } catch (e) {
     적기("오류", { 내용: String(e?.message || e), 어디서: (e?.stack || "").split("\n").slice(0, 3).join(" | ") });
     return 마무리();
   }
 
-  function 마무리() {
+  function 마무리(이어서 = null) {
     const 마지막 = 기록[기록.length - 1] || {};
     const 성공 = !기록.some((r) => r.실패 || r.단계 === "오류");
     const 건너뛴것 = 기록.filter((r) => r.건너뜀 || r.사진건너뜀).map((r) => r.단계);
+    if (성공 && 이어서) {
+      return {
+        결과: "이어서 필요",
+        이어서,
+        걸린시간초: Math.round((Date.now() - 시작) / 1000),
+        기록,
+        다음: `아직 안 끝났습니다. 묻지 말고 바로 시작.실행({ agent, 원고: "${이어서.원고}", 시작블록: ${이어서.시작블록} }) 을 실행하세요.`,
+      };
+    }
     return {
       결과: !성공 ? `멈춤 — ${마지막.단계}` : 건너뛴것.length ? `끝까지 됨 (건너뜀: ${건너뛴것.join(", ")})` : "끝까지 됨",
       걸린시간초: Math.round((Date.now() - 시작) / 1000),
