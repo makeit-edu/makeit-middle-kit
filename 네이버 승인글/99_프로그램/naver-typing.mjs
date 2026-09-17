@@ -24,7 +24,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 이 파일을 고칠 때마다 올린다. 시작.mjs 가 원격 판이 이보다 새 것일 때만 덮어쓴다.
-export const 버전 = "2026-09-17a";
+export const 버전 = "2026-09-17b";
 
 const 여기 = path.dirname(fileURLToPath(import.meta.url));
 const 프로젝트 = path.resolve(여기, "..");
@@ -348,10 +348,15 @@ export async function 실행(옵션 = {}) {
           const b = await 찾기(R.사진버튼);
           if (!b) throw new Error("사진 버튼 못 찾음");
           try {
-            const 대기 = pw.waitForEvent("filechooser", { timeoutMs: 10000 });
-            await 좌표클릭(b.loc);
-            const 선택창 = await 대기;
-            await 선택창.setFiles([파일]);
+            // 좌표(스크롤 포함)를 먼저 재고, 선택창 대기를 건 '직후' 클릭한다. Codex 의 대기는 3초라 그 안에 눌러야 한다.
+            // 대기 약속에 바로 catch 를 붙인다. 안 붙이면 거부가 '처리 안 됨' 이 되어 REPL 커널이 리셋된다 (2026-09-17 실측).
+            const p = await 좌표(b.loc);
+            if (!(p.w > 0 && p.h > 0)) throw new Error("사진 버튼이 화면에 없음");
+            const 대기 = pw.waitForEvent("filechooser", { timeoutMs: 10000 }).then((c) => ({ 선택창: c }), (e) => ({ 오류: e }));
+            await ax.click([p.x, p.y]);
+            const 결과 = await 대기;
+            if (결과.오류) throw new Error("파일 선택창이 안 열림: " + String(결과.오류?.message || 결과.오류).slice(0, 80));
+            await 결과.선택창.setFiles([파일]);
             await 쉬기(7000); // 네이버 서버 업로드 대기
             await 본문추가하기();
             const 후 = await 에디터상태();
