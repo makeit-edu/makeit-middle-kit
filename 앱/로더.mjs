@@ -83,6 +83,7 @@ export async function 불러오기({
         if (정리됨) return;
         정리됨 = true;
         await rm(작업폴더, {recursive: true, force: true});
+        return true;
       },
     };
   } catch (error) {
