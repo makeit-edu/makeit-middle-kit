@@ -1,4 +1,4 @@
-import {mkdtemp, mkdir, rm, writeFile} from "node:fs/promises";
+import {mkdtemp, mkdir, readFile, rm, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {dirname, join} from "node:path";
 
@@ -24,7 +24,11 @@ async function 요청(url) {
 }
 
 async function 원격텍스트(options) {
-  if (options.기준경로) return await (await 요청(기준주소(options))).text();
+  if (options.기준경로) {
+    const 주소 = 기준주소(options);
+    if (주소.startsWith("file://")) return readFile(new URL(주소), "utf8");
+    return await (await 요청(주소)).text();
+  }
   try {
     return await (await 요청(raw주소(options))).text();
   } catch (rawError) {
