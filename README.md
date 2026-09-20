@@ -37,6 +37,16 @@ Windows: ChatGPT 앱 설치 폴더 안의 `node.exe` 를 찾아(`Get-ChildItem -
 ---
 
 
+## 📖 수강생 안내서 (2기 · 코덱스 앱 판)
+
+### 👉 **https://makeit-edu.github.io/makeit-middle-kit/app.html**
+
+ChatGPT 앱(Plus 이상)만 있으면 됩니다. 파일 두 개(키설정.txt · 제목.txt)를 코덱스 채팅에 던지면 끝. 공지문은 `수강생_공지문_앱판.txt`.
+
+---
+
+## (예비) 코드스페이스 판 안내 — 아래는 2기 1차안. 앱 판이 안 될 때만 씁니다.
+
 내 컴퓨터에는 **아무것도 설치하지 않습니다.** 크롬만 있으면 됩니다.
 
 <br>

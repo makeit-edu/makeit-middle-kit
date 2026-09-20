@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>메킷 키트 시작하기 (코덱스 앱) — 월부월백 중급반</title>
+<style>
+:root{
+  --ink:#111418;
+  --ink-2:#4d5560;
+  --ink-3:#8b939d;
+  --bg:#fff;
+  --box:#f4f6f8;
+  --line:#e3e7ec;
+  --blue:#1155cc;
+  --blue-bg:#eaf1fe;
+  --warn:#b45309;
+  --warn-bg:#fdf4e7;
+  --stop:#c62828;
+  --stop-bg:#fdeeed;
+  --ok:#0f7b4f;
+  --ok-bg:#e8f5ee;
+  --font:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#e9edf2;--ink-2:#aeb7c2;--ink-3:#7b8490;
+    --bg:#101317;--box:#191d23;--line:#282e36;
+    --blue:#7cadff;--blue-bg:#16233a;
+    --warn:#dfa44f;--warn-bg:#241c10;
+    --stop:#f0736b;--stop-bg:#2a1513;
+    --ok:#4dbd8a;--ok-bg:#102019;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:var(--font);font-size:19px;line-height:1.75;
+  word-break:keep-all;-webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:740px;margin:0 auto;padding:56px 24px 120px}
+
+/* 표지 */
+header{margin:0 0 44px}
+header .eyebrow{
+  font-size:15px;color:var(--blue);font-weight:700;margin:0 0 10px;letter-spacing:.02em;
+}
+header h1{
+  font-size:44px;line-height:1.2;margin:0 0 16px;font-weight:800;letter-spacing:-.03em;
+}
+header p{margin:0;font-size:21px;color:var(--ink-2);line-height:1.65}
+header b{color:var(--ink)}
+
+/* 준비물 */
+.prep{
+  background:var(--box);border-radius:14px;padding:24px 26px;margin:0 0 12px;
+}
+.prep h2{font-size:19px;margin:0 0 14px;font-weight:800}
+.prep ul{margin:0;padding:0;list-style:none}
+.prep li{
+  padding:7px 0 7px 30px;position:relative;font-size:18.5px;color:var(--ink-2);line-height:1.6;
+}
+.prep li::before{
+  content:"";position:absolute;left:4px;top:16px;
+  width:8px;height:8px;border-radius:50%;background:var(--blue);
+}
+.prep li b{color:var(--ink)}
+.tiny{font-size:16.5px;color:var(--ink-3);margin:14px 0 40px;line-height:1.6}
+
+/* 단계 */
+.step{
+  display:flex;gap:22px;padding:30px 0;border-top:1px solid var(--line);
+}
+.step:first-of-type{border-top:2px solid var(--ink)}
+.num{
+  flex:0 0 auto;width:58px;
+  font-family:var(--mono);font-size:42px;font-weight:700;line-height:1.1;
+  color:var(--blue);font-variant-numeric:tabular-nums;letter-spacing:-.04em;
+}
+.body{flex:1;min-width:0;padding-top:4px}
+.body h3{
+  font-size:25px;line-height:1.35;margin:0 0 12px;font-weight:800;letter-spacing:-.02em;
+}
+.body p{margin:0 0 10px;font-size:18.5px;color:var(--ink-2);line-height:1.7}
+.body p:last-child{margin-bottom:0}
+.body b{color:var(--ink);font-weight:700}
+.path{
+  display:inline-block;font-family:var(--mono);font-size:17px;
+  background:var(--box);padding:2px 9px;border-radius:6px;color:var(--ink);
+  word-break:break-all;
+}
+.type{
+  display:inline-block;font-family:var(--mono);font-size:19px;font-weight:700;
+  background:var(--ink);color:var(--bg);padding:4px 13px;border-radius:7px;
+  letter-spacing:-.01em;
+}
+a{color:var(--blue);font-weight:600}
+.linkbig{
+  display:block;margin:14px 0;padding:16px 18px;
+  background:var(--blue-bg);border-radius:12px;
+  font-family:var(--mono);font-size:16px;font-weight:600;
+  word-break:break-all;line-height:1.55;text-decoration:none;
+}
+.linkbig:hover{filter:brightness(.97)}
+
+/* 알림 */
+.note{
+  margin:14px 0 0;padding:15px 18px;border-radius:12px;font-size:17.5px;line-height:1.65;
+}
+.note b{font-weight:700}
+.note>b:first-child{display:block;margin-bottom:3px;font-weight:800}
+.note.stop{background:var(--stop-bg);color:var(--ink)}
+.note.stop>b:first-child{color:var(--stop)}
+.note.warn{background:var(--warn-bg);color:var(--ink)}
+.note.warn>b:first-child{color:var(--warn)}
+.note.ok{background:var(--ok-bg);color:var(--ink)}
+.note.ok>b:first-child{color:var(--ok)}
+
+/* 터미널 */
+.term{
+  background:#0e1116;color:#cfd6de;border-radius:12px;
+  padding:16px 18px;margin:14px 0 0;
+  font-family:var(--mono);font-size:15px;line-height:1.6;
+  overflow-x:auto;white-space:pre;
+}
+.term .hi{background:#22c55e;color:#06240f;font-weight:700;padding:1px 7px;border-radius:4px}
+
+/* 브라우저 화면 재현 (ChatGPT 로그인 절차) */
+.web{
+  margin:14px 0 0;border:1px solid var(--line);border-radius:12px;
+  background:var(--box);overflow:hidden;
+}
+.web .bar{display:flex;gap:6px;align-items:center;padding:9px 13px;border-bottom:1px solid var(--line)}
+.web .bar i{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var(--ink-3);opacity:.35}
+.web .bar span{
+  margin-left:7px;font-family:var(--mono);font-size:13px;color:var(--ink-3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.web .scr{padding:24px 20px;text-align:center;background:var(--bg)}
+.web .scr h4{font-size:20px;margin:0 0 7px;font-weight:800;line-height:1.35;letter-spacing:-.02em}
+.web .scr p{font-size:16.5px;margin:0;color:var(--ink-3);line-height:1.55}
+.web .acct{
+  display:flex;align-items:center;gap:11px;
+  margin:17px auto 0;max-width:330px;padding:11px 16px;
+  border:1px solid var(--line);border-radius:99px;text-align:left;
+}
+.web .acct i{
+  flex:0 0 auto;width:32px;height:32px;border-radius:50%;
+  background:var(--blue-bg);color:var(--blue);
+  font-size:13.5px;font-weight:800;font-style:normal;
+  display:flex;align-items:center;justify-content:center;
+}
+.web .acct em{display:block;font-style:normal;font-size:16px;font-weight:700;line-height:1.4}
+.web .acct small{display:block;font-size:14px;color:var(--ink-3);line-height:1.4;word-break:break-all}
+.web .btn{
+  display:inline-block;margin:17px 0 0;padding:10px 44px;border-radius:99px;
+  background:var(--ink);color:var(--bg);font-size:16.5px;font-weight:700;
+}
+.web .code9{display:flex;gap:6px;justify-content:center;margin:18px 0 0;flex-wrap:wrap}
+.web .code9 u{
+  width:33px;height:44px;border:1.5px solid var(--line);border-radius:9px;
+  display:flex;align-items:center;justify-content:center;text-decoration:none;
+  font-family:var(--mono);font-size:18px;font-weight:700;color:var(--ink-3);
+}
+.web .code9 u.gap{border:none;width:10px}
+.web .cap{
+  padding:12px 17px;font-size:16.5px;color:var(--ink-2);line-height:1.6;
+  border-top:1px solid var(--line);background:var(--box);
+}
+.web .cap b{color:var(--ink);font-weight:700}
+.scrnum{
+  margin:26px 0 0;font-size:16px;font-weight:800;color:var(--blue);letter-spacing:.02em;
+}
+
+
+/* 마무리 */
+.tail{margin-top:56px;padding-top:36px;border-top:2px solid var(--ink)}
+.tail h2{font-size:27px;margin:0 0 20px;font-weight:800;letter-spacing:-.02em}
+.cmds{margin:0 0 34px}
+.cmd{
+  display:flex;gap:16px;align-items:baseline;
+  padding:13px 0;border-bottom:1px solid var(--line);
+}
+.cmd .k{
+  flex:0 0 118px;font-family:var(--mono);font-size:18.5px;font-weight:700;
+}
+.cmd .v{font-size:18px;color:var(--ink-2);line-height:1.5}
+footer{
+  margin-top:44px;padding-top:26px;border-top:1px solid var(--line);
+  font-size:17px;color:var(--ink-3);line-height:1.7;
+}
+footer a{font-weight:600}
+
+@media (max-width:620px){
+  body{font-size:18px}
+  .wrap{padding:36px 18px 90px}
+  header h1{font-size:33px}
+  header p{font-size:19px}
+  .step{gap:15px;padding:26px 0}
+  .num{width:40px;font-size:32px}
+  .body h3{font-size:21px}
+  .body p{font-size:17.5px}
+  .cmd{flex-direction:column;gap:2px}
+  .cmd .k{flex:none}
+  /* 코드 9칸이 두 줄로 쪼개지지 않게 — 실제 화면처럼 한 줄로 */
+  .web .code9{gap:5px;flex-wrap:nowrap}
+  .web .code9 u{width:25px;height:38px;font-size:16px;border-radius:7px}
+  .web .code9 u.gap{width:8px}
+  .web .scr{padding:20px 14px}
+  .web .scr h4{font-size:18px}
+}
+@media print{
+  body{font-size:11.5pt;background:#fff;color:#000}
+  .wrap{max-width:none;padding:0}
+  .step{page-break-inside:avoid}
+  .term{background:#f2f2f2;color:#000;border:1px solid #999}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">월부월백 중급반 · 2기</p>
+  <h1>메킷 키트<br>시작하기</h1>
+  <p>컴퓨터에 <b>아무것도 설치하지 않습니다.</b><br>
+  ChatGPT 앱만 있으면 됩니다. <b>파일 두 개 던지면 끝나요.</b></p>
+</header>
+
+<div class="prep">
+  <h2>먼저 챙길 것</h2>
+  <ul>
+    <li><b>ChatGPT 앱</b>이 깔린 컴퓨터 (윈도우·맥) — <b>Plus 이상</b> 계정 <b style="color:var(--stop)">(무료 계정은 안 됩니다)</b></li>
+    <li><b>OpenAI API 키</b> — <a href="./key.html">받는 법 (10분)</a></li>
+    <li><b>워드프레스 정보</b> — 주소 · 관리자 ID · 애플리케이션 비밀번호</li>
+    <li><b>수강 코드</b> — 자료실 공지</li>
+    <li>공지에서 받은 <b>키설정.txt</b> · <b>제목.txt</b> 두 파일</li>
+  </ul>
+</div>
+<p class="tiny">휴대폰·태블릿으로는 작업할 수 없습니다. 이 안내서는 휴대폰으로 봐도 됩니다.</p>
+
+<div class="step">
+  <div class="num">1</div>
+  <div class="body">
+    <h3>키설정.txt 채우기</h3>
+    <p>공지에서 받은 <b>키설정.txt</b> 를 메모장(맥은 텍스트 편집기)으로 열고 <b>=</b> 뒤에 붙여넣은 뒤 저장하세요.</p>
+    <pre style="background:#f4f1ea;border-radius:10px;padding:14px 16px;font-size:16px;line-height:1.7;overflow:auto">수강코드=weolbumakeitmiddle
+OpenAI키=sk-여기에붙여넣기
+사이트주소=https://내사이트.com
+관리자아이디=워드프레스관리자아이디
+앱비밀번호=xxxx xxxx xxxx xxxx xxxx xxxx
+충전한달러=10</pre>
+    <div class="note ok"><b>충전한달러는 선택입니다</b>
+    OpenAI 에 충전한 금액을 숫자로 넣으면 글마다 <b>남은 돈</b>을 보여 드려요. 모르면 비워 두세요.</div>
+    <div class="note warn"><b>사이트가 여러 개면</b>
+    아래처럼 번호를 붙여 이어서 적으세요 (최대 10개). 적은 개수만큼 등록됩니다.<br>
+    <span class="path">사이트주소2=</span> <span class="path">관리자아이디2=</span> <span class="path">앱비밀번호2=</span></div>
+    <div class="note stop"><b>이 파일은 비밀번호입니다</b>
+    단톡방·채팅방에 올리지 마세요. 코덱스 채팅창에만 넣습니다.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">2</div>
+  <div class="body">
+    <h3>제목.txt 준비하기</h3>
+    <p>승인글 제목을 <b>한 줄에 하나씩</b> 적은 txt 파일. 1개만 있어도 되고 150개여도 됩니다.</p>
+    <div class="note ok"><b>형식은 아무거나 됩니다</b>
+    <b>1. 제목</b> 처럼 번호가 붙어 있어도, 카테고리·설명이 섞여 있어도 프로그램이 <b>번호 붙은 제목만 알아서 골라냅니다.</b>
+    "주제 뽑기" 로 받은 150개 파일을 그대로 던지면 됩니다.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">3</div>
+  <div class="body">
+    <h3>코덱스 열고 빈 폴더 고르기</h3>
+    <p>ChatGPT 앱 → 왼쪽 <b>Codex</b> → <b>새 채팅</b>.<br>
+    바탕화면에 빈 폴더 하나 만들고(이름은 아무거나, 예: 메킷키트) 작업 폴더로 그 폴더를 고릅니다.</p>
+    <div class="note warn"><b>폴더는 한 번 만들면 계속 같은 폴더</b>
+    다음부터는 새 채팅에서 이 폴더를 다시 고르면 됩니다. 폴더 안 파일은 건드리지 마세요.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">4</div>
+  <div class="body">
+    <h3>설치 — 이 한 줄</h3>
+    <p style="text-align:center;margin:14px 0"><span class="type" style="font-size:19px;padding:8px 14px;display:inline-block;line-height:1.5">깃허브 makeit-edu/makeit-middle-kit 저장소의 README 를 읽고 거기 적힌 대로 설치해</span></p>
+    <p>30초쯤 뒤 코덱스가 이렇게 말합니다.</p>
+    <div class="note ok">“설치가 끝났어요. 이제 처음 한 번만 하는 키 설정입니다.<br>공지에서 받은 키설정.txt 파일을 여기에 끌어다 놓거나, 그 내용을 그대로 붙여넣어 주세요.”</div>
+    <div class="note stop"><b>"README 를 읽고" 가 꼭 들어가야 합니다</b>
+    주소만 주고 "설치해" 라고 하면 코덱스가 저장소를 통째로 내려받으려다 실패합니다.</div>
+    <div class="note warn"><b>"준비 중입니다. 10초 뒤 다시" 가 나오면</b>
+    앱을 막 켠 직후에 그럽니다. 10초 뒤 같은 문장을 다시 치세요. 계속 그러면 ChatGPT 앱을 완전히 끄고(Cmd+Q / 창 닫기) 다시 켜세요.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">5</div>
+  <div class="body">
+    <h3>키설정.txt 끌어다 놓기</h3>
+    <p>1번에서 채운 <b>키설정.txt</b> 를 채팅창에 <b>끌어다 놓거나</b>, 내용을 복사해 붙여넣고 엔터.</p>
+    <div class="note ok">코덱스가 읽어서 확인하고 저장합니다.<br>
+    “수강 코드 확인 · OpenAI 키 확인 · 워드프레스 연결 확인. 키 설정이 끝났어요!<br>이제 승인글 제목 파일(txt)을 여기에 끌어다 놓거나, 제목을 한 줄에 하나씩 붙여넣어 주세요.”</div>
+    <div class="note warn"><b>틀린 줄이 있으면</b>
+    "OpenAI키가 올바르지 않아요", "워드프레스에 연결이 안 돼요: …" 처럼 <b>어느 줄인지</b> 알려 줍니다.
+    그 줄만 고쳐 저장하고 다시 끌어다 놓으세요. 사이트가 여러 개면 "1번 사이트: …" 처럼 사이트별로 알려 줍니다.</div>
+    <div class="note stop"><b>워드프레스가 계속 안 될 때</b>
+    비밀번호를 연속으로 틀리면 사이트가 잠시 문을 잠급니다. <b>20~30분 뒤에</b> 다시 끌어다 놓으세요.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">6</div>
+  <div class="body">
+    <h3>제목.txt 끌어다 놓기</h3>
+    <p>2번에서 준비한 <b>제목.txt</b> 를 채팅창에 끌어다 놓거나 제목을 붙여넣고 엔터.</p>
+    <div class="note ok">“제목 150개 받았어요. (카테고리 5개)<br>워드프레스에 이미 있는 글 12개는 빼고, 새로 쓸 수 있는 제목이 138개예요.<br>임시글 몇 개 뽑아드릴까요? (예: 1개, 10개)”</div>
+    <div class="note warn"><b>이미 쓴 글은 알아서 빠집니다</b>
+    워드프레스에 같은 제목이 있으면(임시글·비공개 포함) 세지 않고, 만들 때도 새 제목만 고릅니다. 다른 기수에서 쓴 글도 마찬가지예요.</div>
+    <div class="note warn"><b>사이트가 여러 개면</b>
+    "먼저 1번 사이트 제목부터 주세요" → 다음 "2번 사이트 제목" 순서로 사이트마다 따로 받습니다.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">7</div>
+  <div class="body">
+    <h3>몇 개 만들지 답하기</h3>
+    <p>처음에는 <b>1개</b>로 확인하고, 괜찮으면 <b>10개</b>, <b>20개</b>씩 늘리세요. 사이트가 여러 개면 사이트마다 그 개수씩 만듭니다.</p>
+    <p>글 하나에 2~4분 걸리고, 글마다 이렇게 보입니다.</p>
+    <pre style="background:#f4f1ea;border-radius:10px;padding:14px 16px;font-size:15px;line-height:1.7;overflow:auto">[■■■■■■□□□□□□□□□□□□□□]  30% │ 3/10번째 글 │ 완료 ✅
+💰 이 글: 토큰 12,500개 · 약 46원 = 충전액의 0.3%
+   지금까지 3개 · 약 140원 (0.9% 씀) │ 남은 돈 약 15,300원 (99% 남음)</pre>
+    <div class="note warn"><b>날짜를 나눠 올리고 싶으면 그냥 말하세요</b>
+    “오늘부터 하루에 1개씩 10개 만들어줘”, “날짜도 무작위로 흩어서 20개”. 말 안 하면 지금 시각으로 들어갑니다.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">8</div>
+  <div class="body">
+    <h3>끝나면 확인하고 발행</h3>
+    <p>다 끝나면 코덱스가 <b>제목·발행 날짜 표</b>, <b>이번에 쓴 돈</b>, <b>API 크레딧 남은 돈</b>을 정리해 줍니다.</p>
+    <p>글은 전부 <b>임시글</b>입니다. 워드프레스 관리자 → 글 → 임시글에서 확인한 뒤 <b>발행 버튼은 직접</b> 누르세요.</p>
+    <div class="note ok"><b>다음부터는</b>
+    코덱스 새 채팅 → 같은 폴더 → <span class="type">승인글 자동화 시작해</span> → "몇 개?" → 개수. 그게 전부입니다.<br>
+    제목이 떨어지면 코덱스가 제목 파일을 다시 달라고 합니다.</div>
+    <div class="note warn"><b>ChatGPT Plus 사용량은</b>
+    코덱스 앱 왼쪽 아래 계정 → 설정 → 사용량에서 볼 수 있어요. 프로그램은 이 숫자를 읽을 수 없습니다.</div>
+  </div>
+</div>
+
+<div class="cmds-wrap" style="margin-top:36px">
+  <h2>코덱스에게 하는 말은 이게 전부</h2>
+  <div class="cmds">
+    <div class="cmd"><div class="k">설치 문장</div><div class="v">처음 한 번 (4번)</div></div>
+    <div class="cmd"><div class="k">키설정.txt</div><div class="v">처음 한 번 · 키나 사이트를 바꿀 때</div></div>
+    <div class="cmd"><div class="k">제목.txt</div><div class="v">키 설정 직후 · 제목이 떨어졌을 때</div></div>
+    <div class="cmd"><div class="k">10개</div><div class="v">만들 개수</div></div>
+    <div class="cmd"><div class="k">승인글 자동화 시작해</div><div class="v">두 번째부터 시작할 때</div></div>
+    <div class="cmd"><div class="k">진단해줘</div><div class="v">뭔가 이상할 때 제일 먼저</div></div>
+  </div>
+
+  <h2>막혔을 때</h2>
+  <p style="font-size:18.5px;color:var(--ink-2);margin:0 0 12px">
+  코덱스에게 <span class="type">진단해줘</span> → 설정 상태·사이트 연결·지금까지 만든 글과 쓴 돈이 나옵니다.
+  그 화면을 <b>글자로 복사</b>해서 문의 채널에 올리세요 (키는 가려져 나옵니다).<br>
+  자주 있는 일 → <a href="./faq.html"><b>자주 묻는 질문</b></a></p>
+  <div class="note ok"><b>프로그램은 내 컴퓨터에 남지 않습니다</b>
+  실행할 때마다 최신판을 인터넷에서 읽어 옵니다. 업데이트를 따로 받을 일이 없습니다.
+  폴더에 남는 건 내 키설정·제목·결과뿐입니다.</div>
+  <div class="note stop"><b>인증샷은 결과 화면만</b>
+  키설정.txt 나 키가 보이는 화면은 올리지 마세요.</div>
+</div>
+
+<footer>
+  자주 묻는 질문 → <a href="./faq.html">막혔을 때 보는 곳</a> · OpenAI 키 → <a href="./key.html">받는 법</a><br>
+  메킷 키트 · 월부월백 중급반
+</footer>
+
+</div>
+</body>
+</html>
