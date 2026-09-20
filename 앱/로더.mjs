@@ -13,6 +13,10 @@ function api주소({저장소 = 기본저장소, 브랜치 = 기본브랜치, �
   return `https://api.github.com/repos/${저장소}/contents/${파일.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(브랜치)}`;
 }
 
+function 기준주소({기준경로, 파일}) {
+  return `${기준경로.replace(/\/$/, "")}/${파일.split("/").map(encodeURIComponent).join("/")}`;
+}
+
 async function 요청(url) {
   const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`);
   if (!response.ok) throw new Error(`GitHub 응답 오류 (${response.status})`);
@@ -20,6 +24,7 @@ async function 요청(url) {
 }
 
 async function 원격텍스트(options) {
+  if (options.기준경로) return await (await 요청(기준주소(options))).text();
   try {
     return await (await 요청(raw주소(options))).text();
   } catch (rawError) {
@@ -42,13 +47,16 @@ async function 목록읽기(options) {
 }
 
 export async function 불러오기({
+  기준경로 = "",
   저장소 = 기본저장소,
   브랜치 = 기본브랜치,
   이전버전 = "",
 } = {}) {
   let 목록;
   try {
-    목록 = await 목록읽기({저장소, 브랜치, 이전버전});
+    목록 = 기준경로
+      ? JSON.parse(await 원격텍스트({기준경로, 파일: "목록.json"}))
+      : await 목록읽기({저장소, 브랜치, 이전버전});
   } catch {
     return {정지: true, 안내: "인터넷 연결을 확인해 주세요."};
   }
@@ -65,7 +73,7 @@ export async function 불러오기({
     for (const 파일 of 목록.파일 || []) {
       const 목적지 = join(작업폴더, 파일);
       await mkdir(dirname(목적지), {recursive: true});
-      await writeFile(목적지, await 원격텍스트({저장소, 브랜치, 파일}), "utf8");
+      await writeFile(목적지, await 원격텍스트(기준경로 ? {기준경로, 파일} : {저장소, 브랜치, 파일}), "utf8");
     }
 
     const 모듈 = {};
