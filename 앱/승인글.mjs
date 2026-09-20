@@ -61,7 +61,8 @@ function 키설정파일읽기(text) {
   for (const 원줄 of String(text || "").split(/\r?\n/)) {
     const 줄 = 원줄.trim();
     if (!줄 || 줄.startsWith("#")) continue;
-    const i = 줄.indexOf("=");
+    let i = 줄.indexOf("=");
+    if (i < 0) i = 줄.indexOf(":");
     if (i < 0) continue;
     const k = 줄.slice(0, i).trim().replace(/\s+/g, "");
     const v = 줄.slice(i + 1).trim().replace(/^["']|["']$/g, "");
@@ -70,10 +71,19 @@ function 키설정파일읽기(text) {
   return 값;
 }
 
-// "다 넣었어요" 때 부른다. 파일을 읽어 항목마다 확인하고 설정에 저장한다. 파일 자체는 그대로 둔다.
-export async function 키설정적용({작업폴더, 수강코드목록 = 기본수강코드}) {
+// 수강생이 채팅에 붙여넣거나 끌어다 놓은 txt 내용(`내용`)을 읽어 항목마다 확인하고 설정에 저장한다.
+// `내용` 이 없으면 폴더의 키설정.txt 를 읽는다. 받은 내용은 키설정.txt 에도 저장해 둔다 (다음에 고칠 때 참고).
+export async function 키설정적용({작업폴더, 내용 = "", 수강코드목록 = 기본수강코드}) {
   const 파일 = await 키설정파일만들기({작업폴더});
-  const 값 = 키설정파일읽기(await readFile(파일, "utf8"));
+  let 원문 = String(내용 || "").trim();
+  if (원문) {
+    // 붙여넣기 때 섞이는 코드펜스·전각 = 정리
+    원문 = 원문.replace(/^```[a-z]*\s*|```$/g, "").replace(/＝/g, "=").replace(/：/g, ":");
+    await writeFile(파일, 원문 + "\n", "utf8");
+  } else {
+    원문 = await readFile(파일, "utf8");
+  }
+  const 값 = 키설정파일읽기(원문);
   const 결과 = {수강코드: "", openai키: "", 충전액: "", 사이트: [], 전부됨: false};
 
   // 수강 코드

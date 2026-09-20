@@ -1,0 +1,6 @@
+수강코드=weolbumakeitmiddle
+OpenAI키=
+사이트주소=
+관리자아이디=
+앱비밀번호=
+충전한달러=
