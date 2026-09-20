@@ -31,7 +31,14 @@ async function 원격텍스트(options) {
 }
 
 async function 목록읽기(options) {
-  return JSON.parse(await 원격텍스트({...options, 파일: "앱/목록.json"}));
+  const raw = JSON.parse(await 원격텍스트({...options, 파일: "앱/목록.json"}));
+  if (!options.이전버전 || String(raw.버전).localeCompare(String(options.이전버전), undefined, {numeric: true}) >= 0) {
+    return raw;
+  }
+  const apiResponse = await 요청(api주소({...options, 파일: "앱/목록.json"}));
+  const body = await apiResponse.json();
+  if (!body.content) return raw;
+  return JSON.parse(Buffer.from(body.content.replace(/\s/g, ""), "base64").toString("utf8"));
 }
 
 export async function 불러오기({
@@ -41,7 +48,7 @@ export async function 불러오기({
 } = {}) {
   let 목록;
   try {
-    목록 = await 목록읽기({저장소, 브랜치});
+    목록 = await 목록읽기({저장소, 브랜치, 이전버전});
   } catch {
     return {정지: true, 안내: "인터넷 연결을 확인해 주세요."};
   }
