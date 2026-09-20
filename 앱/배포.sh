@@ -11,7 +11,7 @@ sha=$(git rev-parse HEAD)
 python3 - "$sha" "$VER" <<'PY'
 import json,sys,os
 sha,ver=sys.argv[1],sys.argv[2]
-files=["앱/승인글.mjs"]
+files=["앱/승인글.mjs","앱/AGENTS.md"]
 for root,_,names in os.walk("99_절대_건들지마세요_프로그램파일/scripts"):
     for n in sorted(names):
         if n.endswith(".mjs"): files.append(os.path.join(root,n).replace(os.sep,"/"))

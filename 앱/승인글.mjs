@@ -13,6 +13,7 @@ import {existsSync} from "node:fs";
 import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {Worker} from "node:worker_threads";
+import {homedir} from "node:os";
 
 export const 버전 = "2026-09-21a";
 
@@ -391,9 +392,35 @@ export async function 진단({작업폴더, 수강코드목록 = 기본수강코
   return {설정: 상태, 제목, 돈, 워드프레스연결: 연결};
 }
 
+// 대본 최신화 — 로더가 임시폴더에 받아 둔 앱/AGENTS.md 를 작업폴더와 전역 ~/.codex/AGENTS.md(마커 사이)에 덮어쓴다.
+// 설치를 다시 하지 않아도 다음 채팅부터 새 대본이 적용된다. 실패해도 본 작업은 계속.
+async function 대본최신화(작업폴더) {
+  try {
+    const 대본 = await readFile(join(여기, "AGENTS.md"), "utf8");
+    if (!대본.includes("메킷 키트")) return "건너뜀";
+    await writeFile(join(작업폴더, "AGENTS.md"), 대본, "utf8");
+    const 시작표 = "<!-- 메킷키트 시작 (설치.mjs 가 관리. 손으로 고치지 마세요) -->";
+    const 끝표 = "<!-- 메킷키트 끝 -->";
+    const 전역파일 = join(homedir(), ".codex", "AGENTS.md");
+    let 기존 = "";
+    try { 기존 = await readFile(전역파일, "utf8"); } catch {}
+    const 덩어리 = `${시작표}\n${대본.trim()}\n${끝표}`;
+    const a = 기존.indexOf(시작표), b = 기존.indexOf(끝표);
+    const 새것 = a >= 0 && b > a ? 기존.slice(0, a) + 덩어리 + 기존.slice(b + 끝표.length) : (기존.trim() ? 기존.trimEnd() + "\n\n" : "") + 덩어리 + "\n";
+    if (새것 !== 기존) {
+      await mkdir(join(homedir(), ".codex"), {recursive: true});
+      await writeFile(전역파일, 새것, "utf8");
+    }
+    return "갱신";
+  } catch (e) {
+    return "실패: " + String(e?.message || e).slice(0, 60);
+  }
+}
+
 // 준비 — 대본이 첫 호출에서 부른다. 폴더를 만들고 상태를 돌려준다.
 export async function 준비({작업폴더, 수강코드목록 = 기본수강코드}) {
   for (const d of ["00_설정", "01_제목넣는곳", "02_생성결과_확인용"]) await mkdir(join(승인글폴더(작업폴더), d), {recursive: true});
+  const 대본 = await 대본최신화(작업폴더);
   await 키설정파일만들기({작업폴더});
   const 상태 = await 설정상태(작업폴더, 수강코드목록);
   const 설정 = await 설정읽기(작업폴더);
@@ -401,5 +428,5 @@ export async function 준비({작업폴더, 수강코드목록 = 기본수강코
   for (const s of 설정.사이트 || []) 제목.push(await 제목상태({작업폴더, 사이트: s.번호}));
   if (제목.length === 0) 제목.push(await 제목상태({작업폴더, 사이트: 1}));
   const 키설정끝 = Boolean(설정.수강코드 && 설정.openai키 && (설정.사이트 || []).length > 0);
-  return {버전, 키설정끝, 키설정파일: "애드센스 승인글/00_설정/키설정.txt", 설정: 상태, 제목};
+  return {버전, 대본, 키설정끝, 키설정파일: "애드센스 승인글/00_설정/키설정.txt", 설정: 상태, 제목};
 }
