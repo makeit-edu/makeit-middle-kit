@@ -260,16 +260,47 @@ function 제목파일(작업폴더, 사이트) {
   return join(제목폴더(작업폴더), `사이트${사이트}제목.txt`);
 }
 
-export async function 제목추가({작업폴더, 사이트 = 1, 제목들}) {
-  const 줄들 = (Array.isArray(제목들) ? 제목들 : String(제목들 || "").split(/\r?\n/))
-    .map((t) => String(t).trim())
-    .filter((t) => t && !t.startsWith("#"));
-  if (줄들.length === 0) return {추가: 0, 이유: "제목이 비어 있습니다."};
+// 수강생이 주는 제목 파일은 제각각이다 — "주제" 기능이 만든 카테고리 형식(설명문·진행 상황·"다음" 같은 잡줄 포함)일 수도,
+// 그냥 한 줄에 제목 하나일 수도 있다. 여기서 알아서 골라낸다:
+//   1) `1. 제목` / `12) 제목` 처럼 번호가 붙은 줄이 하나라도 있으면 → 번호 줄만 제목으로 (번호는 뗀다). 카테고리 헤더 줄은 함께 남겨 카테고리 매핑을 살린다.
+//   2) 번호 줄이 하나도 없으면 → 빈 줄·# 줄을 뺀 나머지 전부를 제목으로.
+export function 제목정제(text) {
+  const 줄 = String(text || "").replace(/^```[a-z]*\s*|```$/g, "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const 번호줄 = /^(\d{1,4})\s*[.)]\s*(\S.*)$/;
+  const 대분류 = /^(\[\d+\s*\/\s*\d+\]\s*)?카테고리\s*\d+\s*:/;
+  const 소분류 = /^세부\s*카테고리\s*\d+\s*-\s*\d+\s*:/;
+  const 번호있음 = 줄.some((l) => 번호줄.test(l));
+  const 남김 = [];
+  let 제목수 = 0;
+  if (번호있음) {
+    for (const l of 줄) {
+      if (대분류.test(l) || 소분류.test(l)) { 남김.push(l); continue; }
+      const m = l.match(번호줄);
+      if (m) { 남김.push(l); 제목수 += 1; }
+    }
+  } else {
+    for (const l of 줄) {
+      if (l.startsWith("#")) continue;
+      남김.push(l); 제목수 += 1;
+    }
+  }
+  const 카테고리수 = 남김.filter((l) => 대분류.test(l)).length;
+  return {정제: 남김.join("\n"), 제목수, 카테고리수, 방식: 번호있음 ? "번호 줄만" : "한 줄 하나"};
+}
+
+// 제목 받기 — `제목들`(붙여넣은 글) 또는 `파일경로`(첨부 파일) 중 하나를 준다.
+export async function 제목추가({작업폴더, 사이트 = 1, 제목들 = "", 파일경로 = ""}) {
+  let 원문 = String(제목들 || "");
+  if (!원문.trim() && 파일경로) {
+    try { 원문 = await readFile(String(파일경로).replace(/^~/, homedir()), "utf8"); } catch (e) { return {추가: 0, 이유: `파일을 읽지 못했습니다: ${파일경로}`}; }
+  }
+  const {정제, 제목수, 카테고리수, 방식} = 제목정제(원문);
+  if (제목수 === 0) return {추가: 0, 이유: "제목을 찾지 못했습니다. 한 줄에 제목 하나, 또는 '1. 제목' 처럼 번호가 붙은 형식이어야 합니다."};
   await mkdir(제목폴더(작업폴더), {recursive: true});
   const 파일 = 제목파일(작업폴더, 사이트);
   const 앞 = existsSync(파일) ? (await readFile(파일, "utf8")).trimEnd() : "";
-  await writeFile(파일, (앞 ? 앞 + "\n" : "") + 줄들.join("\n") + "\n", "utf8");
-  return {추가: 줄들.length, ...(await 제목상태({작업폴더, 사이트}))};
+  await writeFile(파일, (앞 ? 앞 + "\n" : "") + 정제 + "\n", "utf8");
+  return {추가: 제목수, 카테고리수, 방식, ...(await 제목상태({작업폴더, 사이트}))};
 }
 
 export async function 제목상태({작업폴더, 사이트 = 1}) {
