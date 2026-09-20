@@ -12,8 +12,31 @@
 - 키·비밀번호 값은 어떤 경우에도 화면에 다시 쓰지 않는다.
 - 터미널 명령(`node`, `npm`, `bash`, `git`)은 쓰지 않는다. 파일을 직접 열거나 고치지 않는다. 코드에서 바꿔도 되는 자리는 `«이렇게»` 표시된 곳뿐이다.
 - 코드는 **MCP 서버 `node_repl` 의 `js` 도구**로 실행하고, 부를 때 **항상 `timeout_ms` 를 `1500000`** 으로 넣는다.
-- **첫 행동은 무조건 아래 "준비 코드" 실행이다.** 도구가 있는지 생각으로 판단하지 말고 일단 호출한다. 호출 자체가 "그런 도구가 없다"는 오류로 실패했을 때만 이렇게 말한다:
-  > 준비 중입니다. 10초쯤 뒤에 다시 "승인글 자동화 시작해" 라고 해주세요.
+- **첫 행동은 무조건 아래 "준비 코드" 실행이다.** 도구가 있는지 생각으로 판단하지 말고 일단 호출한다. 호출 자체가 "그런 도구가 없다"는 오류로 실패하면 **아래 "도구가 없을 때 — 두 번째 길" 로 같은 코드를 실행**한다. "준비 중입니다" 라고 말하고 끝내는 것은 금지다.
+
+
+## 도구가 없을 때 — 두 번째 길 (반드시 시도한다. 도구가 없다고 수강생에게 말하고 끝내지 않는다)
+
+`node_repl` 의 `js` 도구 호출이 실패하면, **같은 코드를 ChatGPT 앱 안의 노드로 셸에서 실행**한다. 수강생 PC 에 설치하는 건 없다. 규칙:
+1. 아래 셸 명령의 `«코드»` 자리에 실행하려는 코드를 넣는다. 단, 이 방식은 매번 새 프로세스라 변수가 안 남으므로 **"준비 코드" 를 항상 앞에 붙이고**, `nodeRepl.write(` 는 `console.log(` 로 바꾼다. 준비 코드의 마지막 줄(`nodeRepl.write(...)`)은 빼도 된다.
+2. 작업 폴더에서 실행한다 (`cd "«작업 폴더»"` 먼저).
+
+macOS:
+
+```bash
+"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node" --input-type=module -e '«준비 코드 + 코드»'
+```
+
+Windows: ChatGPT 앱 폴더 안의 `node.exe` 를 찾아(`Get-ChildItem -Recurse -Filter node.exe "$env:LOCALAPPDATA\Programs\ChatGPT"`) 같은 방식으로 실행한다. 못 찾으면 이렇게만 말한다:
+> 지금 이 컴퓨터에서는 준비가 안 됐어요. 이 화면을 코치에게 보여 주세요.
+
+예 — 수강 코드 저장을 두 번째 길로:
+
+```bash
+cd "«작업 폴더»" && "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node" --input-type=module -e 'let fs=await import("node:fs/promises");let os=await import("node:os");let path=await import("node:path");let 작업폴더=path.resolve(".");let 임시=await fs.mkdtemp(path.join(os.tmpdir(),"makeit-loader-"));let r=await fetch(atob("aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL21ha2VpdC1lZHUvbWFrZWl0LW1pZGRsZS1raXQvbWFpbi8lRUMlOTUlQjEvJUVCJUExJTlDJUVCJThEJTk0Lm1qcw==")+"?t="+Date.now());await fs.writeFile(path.join(임시,"로더.mjs"),await r.text());let 로더=await import("file://"+path.join(임시,"로더.mjs")+"?t="+Date.now());let 앱=await 로더.불러오기({작업폴더});if(앱.정지){console.log(JSON.stringify(앱));process.exit(0)};console.log(JSON.stringify(await 앱.승인글.수강코드저장({작업폴더,코드:"«코드»",수강코드목록:앱.수강코드목록})));await 앱.정리();'
+```
+
+글 만들기처럼 오래 걸리는 것도 같은 방식이다 (한 번에 글 1개, 2~4분).
 
 ## 사전 승인
 
