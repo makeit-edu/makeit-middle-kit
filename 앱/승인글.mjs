@@ -347,6 +347,16 @@ export async function 글만들기({작업폴더, 사이트 = 1, 개수 = 1, 날
   const 건너뜀 = 줄.filter((l) => /^\s*건너뜀:/.test(l)).map((l) => l.trim());
   const 뒤상태 = await 제목상태({작업폴더, 사이트});
   const 만든수 = Math.max(뒤상태.만든수 - 앞상태.만든수, 0);
+  // 이번에 만든 글의 제목·발행 날짜·편집 링크 (프로그램이 남긴 last-run.json 에서)
+  let 이번글 = [];
+  try {
+    const rows = JSON.parse(await readFile(join(결과폴더(작업폴더), `site-${String(사이트).padStart(2, "0")}`, "last-run.json"), "utf8"));
+    이번글 = (Array.isArray(rows) ? rows : []).filter((x) => x && x.ok && !x.skipped).map((x) => {
+      const d = x.date ? new Date(x.date) : null;
+      const 날짜 = d && !Number.isNaN(d.getTime()) ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}` : String(x.date || "");
+      return {제목: x.title, 발행날짜: 날짜, 상태: "임시글", 링크: x.editLink || ""};
+    });
+  } catch {}
   let 결과 = "됨";
   if (r.종료코드 === 124) 결과 = "시간 초과";
   else if (만든수 === 0 && 실패.length) 결과 = "실패";
@@ -360,6 +370,7 @@ export async function 글만들기({작업폴더, 사이트 = 1, 개수 = 1, 날
     완료,
     실패,
     건너뜀,
+    이번글,
     남은제목: 뒤상태.남은수,
     지금까지만든수: 뒤상태.만든수,
     다음: 뒤상태.남은수 > 0 ? `앱.승인글.글만들기({ 작업폴더, 사이트: ${사이트}, 개수: 1 })` : "",
