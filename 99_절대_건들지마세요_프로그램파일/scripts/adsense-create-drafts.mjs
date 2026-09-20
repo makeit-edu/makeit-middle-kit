@@ -460,9 +460,36 @@ function applyTimeOfDay(date, fixedTime) {
   return date;
 }
 
-function postDateForIndex(index, mode, startDate, {randomDays = 30, fixedTime = "", stepDays = 1, hourGap = 0} = {}) {
-  // 기본값. 날짜를 아예 보내지 않으면 워드프레스가 지금 시각으로 저장한다.
+// 기본 배치 "spread" — 하루에 perDay개, 슬롯 사이 최소 minGapHours 시간, 시각은 슬롯 안에서 무작위.
+//
+// 2026-09-21 실측: 기본이 '지금 시각' 이라 3개가 00:13·00:14·00:14 로 붙어 나왔다 (진현님: "따닥따닥").
+// 슬롯 = 08:00(KST) + k × (최소간격+1)시간 + 0~60분 무작위 → 이웃 글 사이가 항상 최소간격 이상 벌어진다.
+// 오늘 이미 지나간 슬롯은 건너뛴다(지금+10분보다 앞이면 예약이 안 걸림). 날짜는 KST 기준.
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+function spreadDate(index, {perDay = 3, minGapHours = 3, startDate = null} = {}) {
+  const per = Math.max(1, Math.floor(perDay));
+  const gapMs = (Math.max(1, minGapHours) + 1) * 60 * 60 * 1000;
+  const now = Date.now();
+  const 최소 = now + 10 * 60 * 1000;
+  // 기준 날(KST 자정, UTC 로는 전날 15:00)
+  const kstNow = new Date((startDate ? startDate.getTime() : now) + KST_OFFSET_MS);
+  const dayStartUtc = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate()) - KST_OFFSET_MS;
+  const slotStart = (day, k) => dayStartUtc + day * 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000 + k * gapMs;
+  // 오늘 이미 지난 슬롯 수만큼 앞으로 민다 (startDate 를 미래로 준 경우엔 0)
+  let skipped = 0;
+  for (let k = 0; k < per; k += 1) if (slotStart(0, k) < 최소) skipped += 1;
+  const i = index + skipped;
+  const day = Math.floor(i / per);
+  const k = i % per;
+  const jitter = Math.floor(Math.random() * 60) * 60 * 1000; // 0~59분
+  return new Date(slotStart(day, k) + jitter).toISOString();
+}
+
+function postDateForIndex(index, mode, startDate, {randomDays = 30, fixedTime = "", stepDays = 1, hourGap = 0, perDay = 3, minGapHours = 3} = {}) {
+  // 날짜를 아예 보내지 않으면 워드프레스가 지금 시각으로 저장한다 (--date-mode=now 로만).
   if (mode === "now" || mode === "none") return null;
+  // 기본값: 하루 3개, 최소 3시간 간격, 시각 무작위
+  if (mode === "spread") return spreadDate(index, {perDay, minGapHours, startDate: mode === "spread" && startDate && startDate.getTime() > Date.now() ? startDate : null});
 
   // 시간 간격 모드 — 글마다 N시간씩 미룬다.
   //
@@ -1490,7 +1517,9 @@ const visibleOutputDir = join(
 // 기본은 'now' — 수강생이 돌리는 그 시각으로 저장된다.
 // 예전 기본값은 past-daily(30일 전부터 하루 1개)였는데, 아무도 그렇게 설정한 적이
 // 없는데 갑자기 한 달 전 날짜가 찍혀 나와 혼란스러웠다.
-const dateMode = argValue("date-mode", "now");
+const dateMode = argValue("date-mode", "spread"); // 기본: 하루 3개 · 최소 3시간 간격 · 무작위 시각 (예전 기본 now 는 --date-mode=now)
+const perDay = Math.max(1, Number(argValue("per-day", "3")) || 3);
+const minGapHours = Math.max(1, Number(argValue("min-gap-hours", "3")) || 3);
 const randomDays = Number(argValue("random-days", "30")) || 30;
 // 시간은 기본적으로 무작위다. 굳이 고정하려면 --fixed-time=18:00 처럼 붙인다.
 const fixedTime = argValue("fixed-time", "");
@@ -1588,6 +1617,9 @@ if (titleCatalog.warnings.length > 0) {
 }
 console.log(`워드프레스 카테고리 ${wordpressCategories.length}개 확인 / 글마다 제목에 맞춰 자동 선택`);
 console.log("본문 전체는 화면에 출력하지 않고, 워드프레스 임시글과 outputs 폴더에만 저장함.");
+if (dateMode === "spread") {
+  console.log(`임시글 날짜: 하루 ${perDay}개 · 최소 ${minGapHours}시간 간격 · 시각 무작위 (오늘 지난 시간대는 건너뜀) — 발행을 누르면 그 시각에 예약 공개됩니다`);
+}
 if (dateMode === "random") {
   console.log(`임시글 날짜: 최근 ${randomDays}일 안에서 무작위${fixedTime ? ` / 시각 ${fixedTime} 고정` : " (시간도 무작위)"}`);
 } else if (dateMode !== "now" && dateMode !== "none") {
@@ -1688,7 +1720,7 @@ for (let index = 0; index < titles.length; index += 1) {
     writeFileSync(localPath, htmlWithImage, "utf8");
     writeFileSync(visiblePath, htmlWithImage, "utf8");
 
-    const postDate = postDateForIndex(index + dateOffset, dateMode, startDate, {randomDays, fixedTime, stepDays, hourGap});
+    const postDate = postDateForIndex(index + dateOffset, dateMode, startDate, {randomDays, fixedTime, stepDays, hourGap, perDay, minGapHours});
     let post = await createDraftPost({siteUrl, username, appPassword, title, html: htmlWithImage, date: postDate, meta, featuredMediaId: featuredMedia.id, selectedCategory});
     if (!postHasInlineImage(post, featuredMedia)) {
       post = await updateDraftPostContent({siteUrl, username, appPassword, postId: post.id, html: htmlWithImage, featuredMediaId: featuredMedia.id, selectedCategory});

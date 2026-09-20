@@ -392,7 +392,7 @@ function 마지막줄들(text, n) {
 }
 
 // 글 만들기 — 한 번 부르면 글 `개수`개 (대본은 1개씩 반복해서 부른다: 25분 한도 + 글마다 게이지·💰 보고)
-export async function 글만들기({작업폴더, 사이트 = 1, 개수 = 1, 날짜모드 = "", 시작날짜 = "", 무작위일수 = 0, 시간간격 = 0}) {
+export async function 글만들기({작업폴더, 사이트 = 1, 개수 = 1, 날짜모드 = "", 시작날짜 = "", 무작위일수 = 0, 시간간격 = 0, 하루개수 = 0, 최소간격시간 = 0}) {
   const 설정 = await 설정읽기(작업폴더);
   const 빠진 = [];
   if (!설정.수강코드) 빠진.push("수강 코드");
@@ -404,10 +404,23 @@ export async function 글만들기({작업폴더, 사이트 = 1, 개수 = 1, 날
 
   const argv = [`--site=${사이트}`, `--limit=${개수}`];
   if (날짜모드) argv.push(`--date-mode=${날짜모드}`);
+  if (하루개수) argv.push(`--per-day=${하루개수}`);
+  if (최소간격시간) argv.push(`--min-gap-hours=${최소간격시간}`);
   if (시작날짜) argv.push(`--start-date=${시작날짜}`);
   if (무작위일수) argv.push(`--random-days=${무작위일수}`);
   if (시간간격) argv.push(`--hour-gap=${시간간격}`);
-  if (날짜모드 && 날짜모드 !== "now") argv.push(`--date-offset=${앞상태.만든수}`); // 글 1개씩 불러도 날짜 순번이 이어지게
+  if (날짜모드 && 날짜모드 !== "now" && 날짜모드 !== "spread") argv.push(`--date-offset=${앞상태.만든수}`); // 글 1개씩 불러도 날짜 순번이 이어지게
+  if (!날짜모드 || 날짜모드 === "spread") {
+    // 기본(spread): 오늘 이 사이트에서 이미 만든 글 수만큼 슬롯을 건너뛴다 — 1개씩 불러도 하루 3개·최소 3시간 간격이 유지된다
+    let 오늘만든 = 0;
+    try {
+      const {원장읽기} = await import(`file://${스크립트("lib/usage.mjs")}`);
+      const 원장 = 원장읽기(join(결과폴더(작업폴더), "사용량.json"));
+      const kst = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+      오늘만든 = 원장.글.filter((g) => Number(g.site) === Number(사이트) && new Date(new Date(g.때).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10) === kst).length;
+    } catch {}
+    if (오늘만든 > 0) argv.push(`--date-offset=${오늘만든}`);
+  }
   const r = await 실행({작업폴더, 스크립트이름: "adsense-create-drafts.mjs", argv});
 
   const 줄 = r.출력.split("\n");
