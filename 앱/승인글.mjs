@@ -267,7 +267,7 @@ function 제목파일(작업폴더, 사이트) {
 export function 제목정제(text) {
   const 줄 = String(text || "").replace(/^```[a-z]*\s*|```$/g, "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const 번호줄 = /^(\d{1,4})\s*[.)]\s*(\S.*)$/;
-  const 대분류 = /^(\[\d+\s*\/\s*\d+\]\s*)?카테고리\s*\d+\s*:/;
+  const 대분류 = /^(\[?\d+\s*\/\s*\d+\]?\s*)?카테고리\s*\d+\s*:/; // "[1/5] 카테고리 1:" 도, 괄호가 빠진 "1/5] 카테고리 1:" 도
   const 소분류 = /^세부\s*카테고리\s*\d+\s*-\s*\d+\s*:/;
   const 번호있음 = 줄.some((l) => 번호줄.test(l));
   const 남김 = [];
