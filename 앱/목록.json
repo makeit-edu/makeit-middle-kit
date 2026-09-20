@@ -1,8 +1,8 @@
 {
-  "버전": "2026-09-20m",
+  "버전": "2026-09-20n",
   "정지": false,
   "정지안내": "",
-  "커밋": "3c0f6aac8ade0fb23a13d3d8ea1da3d364634937",
+  "커밋": "e359628e23ee588007fe0bb5a60c96b79b806ba3",
   "파일": [
     "99_절대_건들지마세요_프로그램파일/scripts/adsense-auto-drafts.mjs",
     "99_절대_건들지마세요_프로그램파일/scripts/adsense-create-drafts.mjs",
@@ -19,6 +19,7 @@
     "99_절대_건들지마세요_프로그램파일/scripts/title-files.mjs",
     "99_절대_건들지마세요_프로그램파일/scripts/update-kit.mjs",
     "99_절대_건들지마세요_프로그램파일/scripts/wordpress-connection-check.mjs",
+    "앱/AGENTS.md",
     "앱/승인글.mjs"
   ],
   "수강코드": [
