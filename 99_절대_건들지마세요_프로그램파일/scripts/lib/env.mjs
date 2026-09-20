@@ -9,7 +9,9 @@ import {fileURLToPath} from "node:url";
 
 // scripts/lib/ 기준 두 단계 위 = 프로그램 루트(99_절대_건들지마세요_프로그램파일)
 export const PROGRAM_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-export const PROJECT_ROOT = path.dirname(PROGRAM_ROOT);
+// 앱 판(코덱스 앱)은 프로그램을 임시 폴더에 풀어 실행하므로, 수강생 작업 폴더를 MAKEIT_PROJECT_ROOT 로 따로 알려준다.
+// 코드스페이스 판에서는 이 변수가 없으니 예전처럼 프로그램 폴더의 부모가 작업 폴더다.
+export const PROJECT_ROOT = String(process.env.MAKEIT_PROJECT_ROOT || "").trim() || path.dirname(PROGRAM_ROOT);
 export const ENV_LOCAL_PATH = path.join(PROGRAM_ROOT, ".env.local");
 export const ENV_EXAMPLE_PATH = path.join(PROGRAM_ROOT, ".env.example");
 

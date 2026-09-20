@@ -4,7 +4,7 @@ import {readTitleEntries, resolveTitleFile} from "./title-files.mjs";
 import {keysGuideMessage, requireLicense} from "./lib/env.mjs";
 
 const programRoot = resolve(process.cwd());
-const projectRoot = resolve(programRoot, "..");
+const projectRoot = String(process.env.MAKEIT_PROJECT_ROOT || "").trim() || resolve(programRoot, "..");
 
 function argValue(name, fallback = "") {
   const prefix = `--${name}=`;

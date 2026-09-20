@@ -1,105 +1,143 @@
-import {mkdtemp, mkdir, readFile, rm, writeFile} from "node:fs/promises";
+// 앱/로더.mjs — 코덱스 앱에서 GitHub 의 프로그램을 읽어 임시 폴더에서 실행하고, 끝나면 지운다.
+//
+// 이 파일은 수강생 폴더에 남지 않는다. 대본(AGENTS.md)의 준비 코드가 매번 GitHub 에서 받아 임시 폴더에서 import 한다.
+// 그래서 이 파일은 되도록 바꾸지 않는다. 바뀌는 건 목록.json 과 프로그램 파일들이다.
+//
+// 캐시 대응 (2026-09-16 실측: raw 는 5분 CDN 캐시라 옛 판이 올 수 있다)
+//   1) 목록.json 은 GitHub API(contents) 로 읽는다 — 캐시 없음. 실패하면 raw 로.
+//   2) 목록.json 의 "커밋"(프로그램 파일들이 담긴 커밋 sha) 으로 raw 주소를 만든다.
+//      raw.githubusercontent.com/<저장소>/<sha>/<파일> 은 내용이 절대 안 바뀌는 주소라 캐시가 문제 되지 않는다.
+//   3) "커밋" 이 없으면 main 브랜치 + ?t= 로 받는다 (예비).
+//
+// 정지: 목록.json 의 "정지": true 면 아무것도 내려받지 않고 안내만 돌려준다. 기수가 끝나면 이걸로 전원 정지.
+
+import {mkdtemp, mkdir, readdir, rm, stat, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {dirname, join} from "node:path";
 
-const 기본저장소 = "makeit-edu/makeit-middle-kit";
-const 기본브랜치 = "main";
+export const 버전 = "2026-09-21a";
+const 저장소 = "makeit-edu/makeit-middle-kit";
+const 브랜치 = "main";
+const 목록파일 = "앱/목록.json";
+const 진입파일 = "앱/승인글.mjs";
 
-function raw주소({저장소 = 기본저장소, 브랜치 = 기본브랜치, 파일}) {
-  return `https://raw.githubusercontent.com/${저장소}/${브랜치}/${파일.split("/").map(encodeURIComponent).join("/")}`;
+function 인코딩(파일) {
+  return 파일.split("/").map(encodeURIComponent).join("/");
 }
 
-function api주소({저장소 = 기본저장소, 브랜치 = 기본브랜치, 파일}) {
-  return `https://api.github.com/repos/${저장소}/contents/${파일.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(브랜치)}`;
+async function 받기(url, {timeout = 20000} = {}) {
+  const r = await fetch(url, {cache: "no-store", signal: AbortSignal.timeout(timeout)});
+  if (!r.ok) throw new Error(`HTTP ${r.status} ${url.slice(0, 80)}`);
+  return r;
 }
 
-function 기준주소({기준경로, 파일}) {
-  return `${기준경로.replace(/\/$/, "")}/${파일.split("/").map(encodeURIComponent).join("/")}`;
+// GitHub API 로 파일 내용 읽기 (캐시 없음, 비인증 시간당 60회 제한 — 목록 한 개에만 쓴다)
+async function API텍스트(파일, ref = 브랜치) {
+  const r = await 받기(`https://api.github.com/repos/${저장소}/contents/${인코딩(파일)}?ref=${encodeURIComponent(ref)}`);
+  const body = await r.json();
+  if (!body.content) throw new Error("API 응답에 내용 없음");
+  return Buffer.from(String(body.content).replace(/\s/g, ""), "base64").toString("utf8");
 }
 
-async function 요청(url) {
-  const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`);
-  if (!response.ok) throw new Error(`GitHub 응답 오류 (${response.status})`);
-  return response;
+async function raw텍스트(파일, ref = 브랜치) {
+  const 고정 = /^[0-9a-f]{40}$/.test(ref);
+  const url = `https://raw.githubusercontent.com/${저장소}/${ref}/${인코딩(파일)}${고정 ? "" : `?t=${Date.now()}`}`;
+  return (await 받기(url)).text();
 }
 
-async function 원격텍스트(options) {
-  if (options.기준경로) {
-    const 주소 = 기준주소(options);
-    if (주소.startsWith("file://")) return readFile(new URL(주소), "utf8");
-    return await (await 요청(주소)).text();
+export async function 목록읽기() {
+  const 오류 = [];
+  try {
+    return {목록: JSON.parse(await API텍스트(목록파일)), 경로: "api"};
+  } catch (e) {
+    오류.push("api: " + (e?.message || e));
   }
   try {
-    return await (await 요청(raw주소(options))).text();
-  } catch (rawError) {
-    const response = await 요청(api주소(options));
-    const body = await response.json();
-    if (!body.content) throw rawError;
-    return Buffer.from(body.content.replace(/\s/g, ""), "base64").toString("utf8");
+    return {목록: JSON.parse(await raw텍스트(목록파일)), 경로: "raw"};
+  } catch (e) {
+    오류.push("raw: " + (e?.message || e));
   }
+  throw new Error("목록을 받지 못했습니다 — " + 오류.join(" / "));
 }
 
-async function 목록읽기(options) {
-  const raw = JSON.parse(await 원격텍스트({...options, 파일: "앱/목록.json"}));
-  if (!options.이전버전 || String(raw.버전).localeCompare(String(options.이전버전), undefined, {numeric: true}) >= 0) {
-    return raw;
-  }
-  const apiResponse = await 요청(api주소({...options, 파일: "앱/목록.json"}));
-  const body = await apiResponse.json();
-  if (!body.content) return raw;
-  return JSON.parse(Buffer.from(body.content.replace(/\s/g, ""), "base64").toString("utf8"));
-}
-
-export async function 불러오기({
-  기준경로 = "",
-  저장소 = 기본저장소,
-  브랜치 = 기본브랜치,
-  이전버전 = "",
-} = {}) {
-  let 목록;
+// 지난 실행이 커널 리셋 등으로 정리() 를 못 불렀을 때 남은 임시 폴더를 치운다. 실패는 무시.
+async function 옛폴더청소() {
+  let 지움 = 0;
   try {
-    목록 = 기준경로
-      ? JSON.parse(await 원격텍스트({기준경로, 파일: "목록.json"}))
-      : await 목록읽기({저장소, 브랜치, 이전버전});
-  } catch {
-    return {정지: true, 안내: "인터넷 연결을 확인해 주세요."};
-  }
+    const 부모 = tmpdir();
+    for (const 이름 of await readdir(부모)) {
+      if (!이름.startsWith("makeit-app-")) continue;
+      try {
+        const s = await stat(join(부모, 이름));
+        if (Date.now() - s.mtimeMs > 10 * 60 * 1000) {
+          await rm(join(부모, 이름), {recursive: true, force: true});
+          지움 += 1;
+        }
+      } catch {}
+    }
+  } catch {}
+  return 지움;
+}
 
+// 프로그램 파일 전부를 임시 폴더에 풀고 진입 모듈을 돌려준다.
+// 반환: {정지:false, 버전, 커밋, 임시폴더, 승인글: <모듈>, 정리()}  또는  {정지:true, 안내}
+export async function 불러오기({작업폴더} = {}) {
+  if (!작업폴더) throw new Error("작업폴더 를 넘겨야 합니다 (수강생 폴더의 절대경로)");
+  await 옛폴더청소();
+
+  let 목록, 경로;
+  try {
+    ({목록, 경로} = await 목록읽기());
+  } catch (e) {
+    return {정지: true, 안내: "인터넷에서 프로그램 목록을 받지 못했습니다. 인터넷 연결을 확인하고 잠시 후 다시 해주세요.", 상세: String(e?.message || e)};
+  }
   if (목록.정지 === true) {
-    return {정지: true, 안내: 목록.정지안내 || "현재 자동화가 잠시 중지되어 있습니다."};
+    return {정지: true, 안내: 목록.정지안내 || "지금은 프로그램이 잠시 멈춰 있습니다. 강의 공지를 확인해 주세요."};
   }
-  if (이전버전 && String(목록.버전).localeCompare(String(이전버전), undefined, {numeric: true}) < 0) {
-    return {정지: true, 안내: "원격 프로그램 버전이 이전 버전이라 실행하지 않았습니다."};
-  }
+  const ref = /^[0-9a-f]{40}$/.test(String(목록.커밋 || "")) ? 목록.커밋 : 브랜치;
+  const 파일들 = Array.isArray(목록.파일) ? 목록.파일 : [];
+  if (!파일들.includes(진입파일)) return {정지: true, 안내: "프로그램 목록이 비어 있습니다. 강사에게 알려 주세요.", 상세: `목록에 ${진입파일} 없음`};
 
-  const 작업폴더 = await mkdtemp(join(tmpdir(), "makeit-app-"));
+  const 임시폴더 = await mkdtemp(join(tmpdir(), "makeit-app-"));
+  const 받은 = [];
   try {
-    for (const 파일 of 목록.파일 || []) {
-      const 목적지 = join(작업폴더, 파일);
+    for (const 파일 of 파일들) {
+      let 내용;
+      try {
+        내용 = await raw텍스트(파일, ref);
+      } catch (e1) {
+        // 고정 커밋 raw 가 안 되면 브랜치 raw, 그다음 API 로 한 번씩 더
+        try {
+          내용 = await raw텍스트(파일, 브랜치);
+        } catch {
+          내용 = await API텍스트(파일, ref);
+        }
+      }
+      const 목적지 = join(임시폴더, 파일);
       await mkdir(dirname(목적지), {recursive: true});
-      await writeFile(목적지, await 원격텍스트(기준경로 ? {기준경로, 파일} : {저장소, 브랜치, 파일}), "utf8");
+      await writeFile(목적지, 내용, "utf8");
+      받은.push(파일);
     }
-
-    const 모듈 = {};
-    for (const 파일 of 목록.파일 || []) {
-      if (!파일.endsWith(".mjs")) continue;
-      모듈[파일] = await import(`file://${join(작업폴더, 파일)}?t=${Date.now()}`);
-    }
-
+    const 승인글 = await import(`file://${join(임시폴더, 진입파일)}?t=${Date.now()}`);
     let 정리됨 = false;
     return {
       정지: false,
       버전: 목록.버전,
-      모듈,
+      커밋: ref,
+      목록경로: 경로,
+      임시폴더,
+      받은파일수: 받은.length,
+      수강코드목록: Array.isArray(목록.수강코드) ? 목록.수강코드 : [],
+      승인글,
       정리: async () => {
-        if (정리됨) return;
+        if (정리됨) return true;
         정리됨 = true;
-        await rm(작업폴더, {recursive: true, force: true});
+        await rm(임시폴더, {recursive: true, force: true});
         return true;
       },
     };
-  } catch (error) {
-    await rm(작업폴더, {recursive: true, force: true});
-    throw error;
+  } catch (e) {
+    await rm(임시폴더, {recursive: true, force: true});
+    return {정지: true, 안내: "프로그램을 받는 중 실패했습니다. 잠시 후 다시 해주세요.", 상세: String(e?.message || e), 받은파일수: 받은.length};
   }
 }

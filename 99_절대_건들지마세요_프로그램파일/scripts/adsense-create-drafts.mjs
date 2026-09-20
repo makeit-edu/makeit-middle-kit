@@ -10,7 +10,8 @@ import {wpFetch} from "./lib/wp.mjs";
 import {돈줄, 예산상태, 원장기록, 진행표시, 천단위, 퍼센트, 퍼센트문구} from "./lib/usage.mjs";
 
 const programRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const projectRoot = dirname(programRoot);
+// 앱 판은 MAKEIT_PROJECT_ROOT 로 수강생 작업 폴더를 넘긴다 (lib/env.mjs 와 같은 규칙)
+const projectRoot = String(process.env.MAKEIT_PROJECT_ROOT || "").trim() || dirname(programRoot);
 const GPT54_MINI_INPUT_PER_1M = 0.75;
 const GPT54_MINI_OUTPUT_PER_1M = 4.5;
 const DEFAULT_USD_KRW = 1543.57527;
@@ -1503,6 +1504,9 @@ const stepDays = (() => {
 
 // 글 사이 시간 간격(시간 단위). 예: --hour-gap=2 면 2시간씩 벌려 예약한다.
 const hourGap = Math.max(0, Number(argValue("hour-gap", "0")) || 0);
+// 앱 판은 글을 1개씩 따로 부른다. 그러면 index 가 매번 0 이라 "하루에 1개씩" 이 전부 같은 날이 된다.
+// 그래서 지금까지 만든 개수를 --date-offset 으로 받아 날짜 순번을 이어 간다. 코드스페이스 판은 0.
+const dateOffset = Math.max(0, Number(argValue("date-offset", "0")) || 0);
 const startDate = parseDate(argValue("start-date", "")) || defaultStartDate(dateMode);
 const usdKrw = Number(env.ARTICLE_USD_KRW || DEFAULT_USD_KRW);
 
@@ -1684,7 +1688,7 @@ for (let index = 0; index < titles.length; index += 1) {
     writeFileSync(localPath, htmlWithImage, "utf8");
     writeFileSync(visiblePath, htmlWithImage, "utf8");
 
-    const postDate = postDateForIndex(index, dateMode, startDate, {randomDays, fixedTime, stepDays, hourGap});
+    const postDate = postDateForIndex(index + dateOffset, dateMode, startDate, {randomDays, fixedTime, stepDays, hourGap});
     let post = await createDraftPost({siteUrl, username, appPassword, title, html: htmlWithImage, date: postDate, meta, featuredMediaId: featuredMedia.id, selectedCategory});
     if (!postHasInlineImage(post, featuredMedia)) {
       post = await updateDraftPostContent({siteUrl, username, appPassword, postId: post.id, html: htmlWithImage, featuredMediaId: featuredMedia.id, selectedCategory});
