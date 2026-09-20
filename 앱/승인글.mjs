@@ -300,24 +300,64 @@ export async function 제목추가({작업폴더, 사이트 = 1, 제목들 = "",
   const 파일 = 제목파일(작업폴더, 사이트);
   const 앞 = existsSync(파일) ? (await readFile(파일, "utf8")).trimEnd() : "";
   await writeFile(파일, (앞 ? 앞 + "\n" : "") + 정제 + "\n", "utf8");
-  return {추가: 제목수, 카테고리수, 방식, ...(await 제목상태({작업폴더, 사이트}))};
+  return {추가: 제목수, 카테고리수, 방식, ...(await 제목상태({작업폴더, 사이트, 워드프레스대조: true}))};
 }
 
-export async function 제목상태({작업폴더, 사이트 = 1}) {
+function 제목키(t) {
+  return String(t || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().normalize("NFC").toLowerCase();
+}
+
+// 워드프레스에 이미 올라가 있는 글 제목 전부 (임시글·비공개 포함). 글 만드는 프로그램의 fetchAllPostTitles 와 같은 규칙.
+async function 워드프레스제목들({주소, 아이디, 앱비밀번호}) {
+  const {wpFetch} = await import(`file://${스크립트("lib/wp.mjs")}`);
+  const base = 주소정리(주소);
+  const cred = Buffer.from(`${아이디}:${앱비밀번호}`).toString("base64");
+  const titles = [];
+  for (let page = 1; page <= 30; page += 1) {
+    const url = `${base}/wp-json/wp/v2/posts?context=edit&status=draft,pending,future,publish,private&per_page=100&page=${page}&orderby=id&order=asc&_fields=title`;
+    let r;
+    try { r = await wpFetch(url, {headers: {Authorization: `Basic ${cred}`, Accept: "application/json"}}); } catch (e) { return {titles, 완료: false, 이유: String(e?.message || e)}; }
+    if (r.status === 400) break;
+    if (!r.ok) return {titles, 완료: false, 이유: `상태 코드 ${r.status}`};
+    let data; try { data = await r.json(); } catch { return {titles, 완료: false, 이유: "응답 해석 실패"}; }
+    if (!Array.isArray(data) || data.length === 0) break;
+    for (const p of data) { const t = String(p?.title?.raw || p?.title?.rendered || "").replace(/<[^>]+>/g, " ").trim(); if (t) titles.push(t); }
+    if (data.length < 100) break;
+  }
+  return {titles, 완료: true};
+}
+
+// 제목 상태. `워드프레스대조: true` 면 그 사이트에 이미 있는 글과 제목을 맞춰 보고, 이미 있는 건 "남은수" 에서 뺀다.
+export async function 제목상태({작업폴더, 사이트 = 1, 워드프레스대조 = false}) {
   const 파일 = 제목파일(작업폴더, 사이트);
-  let 전체 = 0;
+  let 제목들 = [];
   try {
     const {readTitleEntries} = await import(`file://${스크립트("title-files.mjs")}`);
-    전체 = existsSync(파일) ? (readTitleEntries(파일).entries || []).length : 0;
+    제목들 = existsSync(파일) ? (readTitleEntries(파일).entries || []).map((e) => e.title) : [];
   } catch {
-    if (existsSync(파일)) 전체 = (await readFile(파일, "utf8")).split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#")).length;
+    if (existsSync(파일)) 제목들 = (await readFile(파일, "utf8")).split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
   }
-  let 만든수 = 0;
+  const 전체 = 제목들.length;
+  const 쓴키 = new Set();
   try {
     const rows = JSON.parse(await readFile(join(결과폴더(작업폴더), `site-${String(사이트).padStart(2, "0")}`, "draft-history.json"), "utf8"));
-    if (Array.isArray(rows)) 만든수 = rows.filter((r) => r && r.title).length;
+    if (Array.isArray(rows)) for (const r of rows) if (r && r.title) 쓴키.add(제목키(r.title));
   } catch {}
-  return {사이트, 제목수: 전체, 만든수, 남은수: Math.max(전체 - 만든수, 0)};
+  const 만든수 = 쓴키.size;
+  let 워드프레스에이미있음 = null, 대조 = "안 함";
+  if (워드프레스대조) {
+    const 설정 = await 설정읽기(작업폴더);
+    const s = (설정.사이트 || []).find((x) => Number(x.번호) === Number(사이트));
+    if (s) {
+      const r = await 워드프레스제목들(s);
+      const wp = new Set(r.titles.map(제목키));
+      워드프레스에이미있음 = 제목들.filter((t) => wp.has(제목키(t)) && !쓴키.has(제목키(t))).length;
+      for (const t of 제목들) if (wp.has(제목키(t))) 쓴키.add(제목키(t));
+      대조 = r.완료 ? `됨 (워드프레스 글 ${r.titles.length}개 확인)` : `일부만 (${r.이유})`;
+    } else 대조 = "사이트 정보 없음";
+  }
+  const 남은수 = 제목들.filter((t) => !쓴키.has(제목키(t))).length;
+  return {사이트, 제목수: 전체, 만든수, 워드프레스에이미있음, 대조, 남은수};
 }
 
 // ───────── 실행 (코드스페이스 판 스크립트를 Worker 로) ─────────
