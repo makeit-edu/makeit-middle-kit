@@ -337,8 +337,12 @@ footer a{font-weight:600}
   <div class="body">
     <h3>열쇠(키) 넣기</h3>
     <p>검은 창을 한 번 클릭하고 <span class="type">키설정</span> 치고 엔터.</p>
-    <p>수강 코드 → OpenAI 키 → 워드프레스 사이트 정보 순서로 물어봅니다.
+    <p>수강 코드 → OpenAI 키 → <b>충전한 금액</b> → 워드프레스 사이트 정보 순서로 물어봅니다.
     <b>아직 없는 건 엔터로 건너뛰면 됩니다.</b></p>
+    <div class="note ok"><b>충전한 금액(달러)을 넣으면 글마다 남은 돈이 보입니다</b>
+    OpenAI 에 충전한 금액을 숫자로 넣어 두면(예: 10), 글 하나 만들 때마다
+    <b>이 글에 쓴 토큰과 돈 · 충전액의 몇 % · 지금까지 쓴 돈 · 남은 돈</b>을 보여 드려요.
+    다시 충전했으면 <span class="type">키설정</span> 을 다시 돌려 새 금액을 넣으면 그때부터 새로 셉니다.</div>
     <div class="note warn"><b>OpenAI 키를 아직 안 받았다면</b>
     먼저 받고 오세요. 10분이면 됩니다.
     <a href="./key.html" style="display:inline-block;margin-top:6px">→ OpenAI 키 받는 법 (별도 페이지)</a></div>
@@ -465,6 +469,11 @@ footer a{font-weight:600}
     <p style="text-align:center;margin:14px 0"><span class="type" style="font-size:22px;padding:8px 18px">승인글 자동화 시작해</span></p>
     <p>처음에는 <b>1개만</b> 만들어 확인하고, 괜찮으면 5개 → 20개씩 늘리세요.
     글은 <b>임시글</b>로만 저장되고 공개 발행되지 않습니다.</p>
+    <div class="note ok"><b>진행 게이지와 돈이 글마다 보입니다</b>
+    <code>[■■■■□□□□□□] 40% │ 2/5번째 글 │ 3/5단계 본문 쓰는 중</code> 처럼 어디까지 왔는지 보이고,
+    글 하나가 끝날 때마다 <b>💰 이 글에 쓴 토큰·돈 · 지금까지 쓴 돈 · 남은 돈</b>이 찍힙니다.
+    남은 돈은 <span class="type">키설정</span> 에서 충전 금액을 넣었을 때만 나와요.<br>
+    왼쪽 탐색기의 <b>애드센스 승인글 → 02_생성결과_확인용 → 지금_진행상황.md</b> 를 열어 두면 게이지가 실시간으로 바뀝니다.</div>
     <div class="note ok"><b>이미 쓴 글은 알아서 빠집니다</b>
     워드프레스에 이미 있는 제목(임시글 포함)은 건너뜁니다.
     다른 기수에서 쓴 글도 마찬가지예요. <b>제목 파일은 그대로 두시면 됩니다.</b></div>
@@ -494,7 +503,7 @@ footer a{font-weight:600}
   <div class="cmds">
     <div class="cmd"><div class="k">시작</div><div class="v">AI 비서(코덱스) 켜기</div></div>
     <div class="cmd"><div class="k">진단</div><div class="v">뭔가 이상할 때 제일 먼저</div></div>
-    <div class="cmd"><div class="k">키설정</div><div class="v">API 키·워드프레스 정보·수강 코드 입력</div></div>
+    <div class="cmd"><div class="k">키설정</div><div class="v">API 키·충전 금액·워드프레스 정보·수강 코드 입력</div></div>
     <div class="cmd"><div class="k">저장</div><div class="v">작업물 보관하기</div></div>
     <div class="cmd"><div class="k">업데이트</div><div class="v">프로그램 최신판 받기</div></div>
   </div>

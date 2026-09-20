@@ -24,6 +24,7 @@ function sitePrefix(siteNumber) {
   return `ADSENSE_SITE_${String(siteNumber).padStart(2, "0")}`;
 }
 import {siteNumbers} from "./lib/sites.mjs";
+import {예산상태, 천단위, 퍼센트문구} from "./lib/usage.mjs";
 
 function siteEnvReady(env, siteNumber) {
   const prefix = sitePrefix(siteNumber);
@@ -159,4 +160,13 @@ if (실패한사이트.length > 0) {
   process.exitCode = 1;
 } else {
   console.log("사이트별 제목 파일 자동 매핑 실행 완료");
+}
+// 사이트가 여러 개면 돈은 마지막에 한 번 더 합쳐서 보여 준다.
+if (!dryRun && targetSites.length > 1) {
+  try {
+    const 예산 = 예산상태({env});
+    console.log(`💰 전체 누적 ${예산.전체.글수}개 · 약 ${천단위(예산.전체.krw)}원` + (예산.있음 ? ` · 남은 돈 약 ${천단위(예산.남은krw)}원 (${퍼센트문구(예산.남은퍼센트)} 남음)` : " · 남은 돈은 '키설정'에서 충전 금액을 넣으면 보여 드려요"));
+  } catch {
+    // 요약은 덤
+  }
 }

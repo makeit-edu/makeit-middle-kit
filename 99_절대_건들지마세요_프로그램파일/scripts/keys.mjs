@@ -516,6 +516,7 @@ console.log("");
 console.log("현재 상태");
 console.log(`- 수강 코드: ${VALID_LICENSE_CODES.includes(String(values.MAKEIT_MIDDLE_LICENSE || "").trim()) ? "입력됨" : "미입력"}`);
 console.log(`- OpenAI API 키: ${ready("OPENAI_API_KEY", values.OPENAI_API_KEY) ? `입력됨 ${maskValue(values.OPENAI_API_KEY)}` : "미입력"}`);
+console.log(`- OpenAI 충전 금액: ${Number(values.OPENAI_BUDGET_USD) > 0 ? `${values.OPENAI_BUDGET_USD}달러 (남은 돈 계산 기준)` : "미입력 (넣으면 글마다 남은 돈을 보여 드려요)"}`);
 
 // 이미 등록된 사이트를 번호·주소까지 보여 준다.
 // 수강생이 "내가 몇 번까지 넣었더라" 를 기억할 필요가 없게 하기 위해서다.
@@ -573,6 +574,34 @@ updates.OPENAI_API_KEY = await askApiKeyUntilValid(rl, {
   looksWrong: (key) => (key.startsWith("sk-") ? null : "OpenAI 키는 보통 sk- 로 시작해요. 앞뒤가 잘리지 않았는지 확인해주세요."),
   test: testOpenAi,
 });
+
+// 2-1) OpenAI 에 충전한 금액 — 남은 돈·퍼센트 계산의 기준
+//
+// OpenAI 는 일반 키로 잔액을 알려 주지 않는다. 그래서 수강생이 충전한 달러를 한 번 적어 두고,
+// 그 뒤로 이 키트가 쓴 만큼만 빼서 "남은 돈 약 N원 (M%)" 을 글마다 보여 준다.
+// 금액을 바꾸면(다시 충전) 그 시각을 같이 저장해서 그때부터 새로 센다.
+{
+  console.log("");
+  console.log("OpenAI 에 충전한 금액을 달러로 적어 주세요. (예: 10) 그러면 글을 만들 때마다 남은 돈을 보여 드려요.");
+  console.log("모르거나 나중에 넣으려면 그냥 엔터. 다시 충전했으면 '키설정' 을 다시 돌려 새 금액을 넣으면 됩니다.");
+  const 현재 = Number(values.OPENAI_BUDGET_USD) > 0 ? String(values.OPENAI_BUDGET_USD) : "";
+  let 답 = "";
+  for (let tries = 1; tries <= 3; tries += 1) {
+    답 = await askVisible(rl, "충전한 금액(달러, 숫자만)", 현재, {normalize: (v) => v.replace(/[$,\s달러]/g, "").trim()});
+    if (!답 || (Number(답) > 0 && Number(답) < 100000)) break;
+    console.log("  숫자만 넣어 주세요. 예: 10 또는 25.5");
+    답 = "";
+  }
+  if (답 && 답 !== 현재) {
+    updates.OPENAI_BUDGET_USD = String(Number(답));
+    updates.OPENAI_BUDGET_SET_AT = new Date().toISOString();
+    console.log(`  → ${Number(답)}달러 기준으로 지금부터 쓰는 돈을 빼서 남은 돈을 계산할게요.`);
+  } else if (답) {
+    console.log(`  → ${Number(답)}달러 그대로 둡니다.`);
+  } else {
+    console.log("  → 건너뜀. 남은 돈 대신 쓴 돈만 보여 드려요.");
+  }
+}
 
 // 3) 승인글을 올릴 워드프레스 사이트 (최대 MAX_SITES 개)
 const savedSiteNumbers = [];

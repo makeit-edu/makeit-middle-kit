@@ -11,6 +11,7 @@ import {join} from "node:path";
 import {listTitleFileCandidates} from "./title-files.mjs";
 import {MAX_SITES, siteNumbers, sitePrefix} from "./lib/sites.mjs";
 import {PROGRAM_ROOT, PROJECT_ROOT, ENV_LOCAL_PATH, hasEnvLocal, loadEnv, valueReady} from "./lib/env.mjs";
+import {예산상태, 천단위, 퍼센트문구} from "./lib/usage.mjs";
 
 const rootDir = PROGRAM_ROOT;
 const projectRoot = PROJECT_ROOT;
@@ -239,6 +240,34 @@ if (진행.length === 0) {
   }
 }
 console.log("=".repeat(44));
+
+// 돈 — 글마다 찍는 것과 같은 기준. 비서가 "지금까지 얼마 썼어요?" 에 여기 숫자로 답한다.
+{
+  let 예산 = null;
+  try {
+    예산 = 예산상태({env});
+  } catch {
+    예산 = null;
+  }
+  console.log("");
+  console.log("OpenAI 쓴 돈");
+  console.log("=".repeat(44));
+  if (!예산) {
+    console.log("사용량 기록을 읽지 못했어요.");
+  } else if (예산.전체.글수 === 0) {
+    console.log("아직 OpenAI 를 쓴 기록이 없어요.");
+    console.log(예산.있음 ? `충전액 ${천단위(예산.예산krw)}원(${예산.예산usd}달러) 기준으로 셉니다.` : "'키설정'에서 충전한 금액을 넣으면 글마다 남은 돈을 보여 드려요.");
+  } else {
+    console.log(`전체 누적: 글 ${예산.전체.글수}개 · 토큰 ${천단위(예산.전체.total_tokens)}개 · 약 ${천단위(예산.전체.krw)}원`);
+    if (예산.있음) {
+      console.log(`충전액 ${천단위(예산.예산krw)}원(${예산.예산usd}달러) 중 ${천단위(예산.쓴krw)}원 씀 (${퍼센트문구(예산.쓴퍼센트)})`);
+      console.log(`남은 돈: 약 ${천단위(예산.남은krw)}원 (${퍼센트문구(예산.남은퍼센트)} 남음)`);
+    } else {
+      console.log("남은 돈: '키설정'에서 충전한 금액을 넣으면 보여 드려요.");
+    }
+  }
+  console.log("=".repeat(44));
+}
 // 비서가 이 한 줄을 보고 갈라 진행한다. 사람에게도 뜻이 통하는 문장이어야 한다.
 console.log(총만든수 > 0 ? "상태: 이어하기 (이미 만든 글이 있어요)" : "상태: 처음 (아직 만든 글이 없어요)");
 

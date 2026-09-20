@@ -7,6 +7,7 @@ import {fileURLToPath} from "node:url";
 import {readTitleEntries, resolveTitleFile} from "./title-files.mjs";
 import {keysGuideMessage, requireLicense} from "./lib/env.mjs";
 import {wpFetch} from "./lib/wp.mjs";
+import {돈줄, 예산상태, 원장기록, 진행표시, 천단위, 퍼센트, 퍼센트문구} from "./lib/usage.mjs";
 
 const programRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const projectRoot = dirname(programRoot);
@@ -529,9 +530,12 @@ function estimateCost({model, inputTokens, outputTokens, usdKrw}) {
 // 글 하나를 만드는 데 1~3분이 걸리는데 예전에는 시작·끝 두 줄뿐이라
 // 그 사이가 통째로 침묵이었다. 수강생은 멈춘 줄 알고 창을 닫는다.
 // 자주 찍으면 AI 비서 화면이 그 줄로 가득 차므로 단계가 바뀔 때만 찍는다.
-function 단계(글번호, 전체, 문구, 덧말 = "") {
-  const 머리 = `[${글번호}/${전체}]`;
-  console.log(`${머리} ${문구}${덧말 ? ` · ${덧말}` : ""}`);
+// 이제는 게이지가 그 줄을 대신한다 (lib/usage.mjs 진행표시). 문구로 단계 번호를 정한다.
+const 단계번호표 = {"같은 글이 있는지 확인 중": 1, "제목·키워드 정리하는 중": 2, "본문 쓰는 중 (보통 1~2분)": 3, "그림 만드는 중 (20~40초)": 4, "워드프레스에 올리는 중": 5};
+let 진행 = null;
+function 단계(글번호, 전체, 문구, 제목 = "") {
+  if (진행) 진행.단계(글번호, 단계번호표[문구] || 0, 문구, 제목);
+  else console.log(`[${글번호}/${전체}] ${문구}`);
 }
 
 function openAiResponsesUrl() {
@@ -1597,16 +1601,30 @@ if (dryRun) {
   process.exit(0);
 }
 
+// 돈 계산 준비 — 글마다 토큰·비용·남은 돈을 무조건 보여 준다.
+let 예산 = 예산상태({env, usdKrw});
+if (예산.있음) {
+  console.log(`충전액 ${천단위(예산.예산krw)}원(${예산.예산usd}달러) 기준 · 지금까지 ${예산.쓴글수}개 · 약 ${천단위(예산.쓴krw)}원 씀 · 남은 돈 약 ${천단위(예산.남은krw)}원 (${퍼센트문구(예산.남은퍼센트)})`);
+} else {
+  console.log("남은 돈 표시: '키설정'에서 OpenAI 에 충전한 금액을 넣으면 글마다 남은 돈과 퍼센트를 보여 드려요. (지금은 쓴 돈만 보여 드립니다)");
+}
+console.log("진행 게이지는 화면과 '애드센스 승인글/02_생성결과_확인용/지금_진행상황.md' 파일에 같이 표시됩니다.");
+console.log("");
+진행 = new 진행표시({전체: titles.length, 라벨: `사이트${site} · 글 ${titles.length}개 만드는 중`});
+const 이번실행 = {글수: 0, krw: 0, usd: 0, total_tokens: 0};
+
 const results = [];
 for (let index = 0; index < titles.length; index += 1) {
   const titleEntry = titleEntries[index];
   const title = titleEntry.title;
   try {
     console.log(`[${index + 1}/${titles.length}] 생성 중: ${title}`);
+    단계(index + 1, titles.length, "같은 글이 있는지 확인 중", title);
     const existingPost = await findExistingPostByTitle({siteUrl, username, appPassword, title});
     if (existingPost) {
       results.push({site, title, ok: true, skipped: true, reason: "duplicate-on-wordpress", postId: existingPost.id, status: existingPost.status});
       console.log(`  건너뜀: 워드프레스에 같은 제목의 글이 이미 있음 (ID ${existingPost.id} / 상태 ${existingPost.status})`);
+      진행.글건너뜀();
       continue;
     }
     단계(index + 1, titles.length, "제목·키워드 정리하는 중");
@@ -1735,8 +1753,24 @@ for (let index = 0; index < titles.length; index += 1) {
     // (실측에서 1개를 만들었는데 "지금까지 2개 · 약 73원" 으로 찍혔다)
     const 지금까지완료 = results.filter((item) => item.ok && !item.skipped).length;
     const 지금까지비용 = results.reduce((sum, item) => sum + Number(item.estimated_krw || 0), 0);
+    // 원장에 적고, 남은 돈을 다시 계산한다. 이 두 줄은 실패해도 글은 이미 올라갔으니 조용히 넘어가지 않고 이유를 남긴다.
+    const 이글 = {input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, total_tokens: usage.totalTokens, usd: estimatedUsd, krw: estimatedKrw};
+    이번실행.글수 += 1;
+    이번실행.krw += estimatedKrw;
+    이번실행.usd += estimatedUsd;
+    이번실행.total_tokens += usage.totalTokens;
+    try {
+      원장기록({site, title, model, ...이글});
+      예산 = 예산상태({env, usdKrw});
+    } catch (ledgerError) {
+      console.log(`     (사용량 기록 실패: ${ledgerError instanceof Error ? ledgerError.message : String(ledgerError)})`);
+    }
     console.log(`  ✅ 완료 · 이 글 약 ${estimatedKrw}원 · 지금까지 ${지금까지완료}개 · 약 ${Math.round(지금까지비용)}원`);
     console.log(`     (임시글 ID ${post.id} / 키워드 ${meta.focusKeyword}${categoryLabel} / 날짜 ${post.date || postDate || "기본값"})`);
+    const [돈1, 돈2] = 돈줄({이글, 이번실행, 예산});
+    console.log(돈1);
+    console.log(돈2);
+    진행.글완료(예산.있음 ? `지금까지 ${예산.쓴글수}개 · 약 ${천단위(예산.쓴krw)}원 (${퍼센트문구(예산.쓴퍼센트)}) · 남은 돈 약 ${천단위(예산.남은krw)}원 (${퍼센트문구(예산.남은퍼센트)})` : `이번 실행 ${이번실행.글수}개 · 약 ${천단위(이번실행.krw)}원`);
   } catch (error) {
     let message = error instanceof Error ? error.message : String(error);
     if (/fetch failed|ENOTFOUND|ECONNREFUSED|certificate/i.test(message)) {
@@ -1744,8 +1778,10 @@ for (let index = 0; index < titles.length; index += 1) {
     }
     results.push({site, title, ok: false, error: message});
     console.log(`  실패: ${message}`);
+    if (진행) 진행.글실패();
   }
 }
+if (진행) 진행.끝(results.filter((item) => item.ok && !item.skipped).length > 0 ? "다 됐어요 ✅" : "끝 (새로 만든 글 없음)");
 
 writeFileSync(join(outputDir, "last-run.json"), JSON.stringify(results, null, 2), "utf8");
 writeFileSync(join(visibleOutputDir, "last-run.json"), JSON.stringify(results, null, 2), "utf8");
@@ -1805,7 +1841,13 @@ console.log("============================================");
 if (success > 0) {
   console.log(`  ✅ 다 됐어요! 새 글 ${success}개를 저장했어요`);
   console.log("     워드프레스 임시글에 들어 있어요. 글을 확인한 뒤 발행하세요");
-  console.log(`     이번에 든 돈: 약 ${Math.round(costSummary.estimated_krw)}원`);
+  console.log(`     이번에 든 돈: 약 ${Math.round(costSummary.estimated_krw)}원 · 토큰 ${천단위(costSummary.total_tokens)}개 (글 1개 평균 약 ${천단위(costSummary.estimated_krw / success)}원, 토큰 ${천단위(costSummary.total_tokens / success)}개)`);
+  if (예산.있음) {
+    console.log(`     💰 충전액 ${천단위(예산.예산krw)}원 중 ${퍼센트문구(퍼센트(costSummary.estimated_usd, 예산.예산usd))} 를 이번에 씀 · 지금까지 ${예산.쓴글수}개 · 약 ${천단위(예산.쓴krw)}원 (${퍼센트문구(예산.쓴퍼센트)})`);
+    console.log(`     💰 남은 돈 약 ${천단위(예산.남은krw)}원 (${퍼센트문구(예산.남은퍼센트)} 남음)${예산.남은usd > 0 ? ` → 지금 속도면 약 ${Math.floor(예산.남은usd / (costSummary.estimated_usd / success))}개 더 만들 수 있어요` : " → 충전이 필요해요"}`);
+  } else {
+    console.log(`     💰 전체 누적 ${예산.전체.글수}개 · 약 ${천단위(예산.전체.krw)}원 · 남은 돈은 '키설정'에서 충전한 금액을 넣으면 보여 드려요`);
+  }
 } else {
   console.log("  새로 만든 글이 없어요");
 }
