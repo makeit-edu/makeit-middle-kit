@@ -1,8 +1,27 @@
 {
-  "버전": "2026-09-21a",
+  "버전": "2026-09-20a",
   "정지": false,
   "정지안내": "",
-  "커밋": "",
-  "파일": [],
-  "수강코드": ["weolbumakeitmiddle"]
+  "커밋": "a279ec9754dd3aac3e3b136668e51e6cc7abbfca",
+  "파일": [
+    "99_절대_건들지마세요_프로그램파일/scripts/adsense-auto-drafts.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/adsense-create-drafts.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/check-kit.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/create-env-local.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/doctor.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/keys.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/lib/env.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/lib/paste.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/lib/sites.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/lib/usage.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/lib/wp.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/save.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/title-files.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/update-kit.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/wordpress-connection-check.mjs",
+    "앱/승인글.mjs"
+  ],
+  "수강코드": [
+    "weolbumakeitmiddle"
+  ]
 }
