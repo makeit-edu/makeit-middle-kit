@@ -710,7 +710,8 @@ function ensureMetaDefaults(meta, title) {
   const categoryHint = normalizeSpaces(meta?.categoryHint || focusKeyword).slice(0, 40) || focusKeyword;
   const featuredImageAlt = ensureKeywordInAlt(meta?.featuredImageAlt, focusKeyword, title);
   const featuredImageCaption = normalizeSpaces(meta?.featuredImageCaption || `${focusKeyword}의 핵심 내용을 시각적으로 정리한 이미지입니다.`).slice(0, 140);
-  const imageLabel = normalizeSpaces(meta?.imageLabel || focusKeyword || compactKoreanPhrase(title)).slice(0, 24);
+  // 이미지 장면은 영어만 받는다. 한글이 섞이면 모델이 글자로 그리므로(2026-09-21 진현님: 이미지에 어떤 언어 글자도 금지) 한글이 있으면 버린다.
+  const imageScene = /[\u3131-\uD79D]/.test(String(meta?.imageScene || "")) ? "" : normalizeSpaces(meta?.imageScene || "").slice(0, 400);
 
   return {
     slug,
@@ -719,7 +720,7 @@ function ensureMetaDefaults(meta, title) {
     categoryHint,
     featuredImageAlt,
     featuredImageCaption,
-    imageLabel,
+    imageScene,
   };
 }
 
@@ -1075,6 +1076,7 @@ async function generatePostMeta({apiKey, model, title, 고정키워드 = ""}) {
     "slug는 한국어 로마자 표기가 아니라 의미 번역이어야 하며, 3~6개 영어 단어와 하이픈만 사용한다.",
     "focusKeyword는 제목에서 가장 중요한 한국어 대표키워드 1개 또는 짧은 키워드구여야 한다.",
     "categoryHint는 글을 넣을 워드프레스 카테고리를 고르기 위한 한국어 주제 힌트여야 한다.",
+    "imageScene은 대표이미지로 그릴 장면을 영어로 1~2문장 묘사한 것이어야 한다. 사물·상황·분위기만 쓰고, 글자·간판·문서·화면·책 등 읽을 수 있는 텍스트가 나올 만한 장면은 피한다. 사람 얼굴은 넣지 않는다.",
   ].join("\n");
 
   const userPrompt = [
@@ -1088,7 +1090,7 @@ async function generatePostMeta({apiKey, model, title, 고정키워드 = ""}) {
     '  "categoryHint": "카테고리 선택용 한국어 주제 힌트",',
     '  "featuredImageAlt": "대표키워드를 자연스럽게 1회 포함한 대표이미지 대체 텍스트 한국어 1문장",',
     '  "featuredImageCaption": "대표이미지 캡션 한국어 1문장",',
-    '  "imageLabel": "이미지 안에 넣기 좋은 6~14자 한국어 핵심 문구"',
+    '  "imageScene": "English description of a text-free scene for the featured image, 1-2 sentences"',
     "}",
   ].join("\n");
 
@@ -1135,7 +1137,7 @@ function fallbackPostMeta(title) {
     excerpt: `${title}에 대해 핵심 개념과 확인할 점을 정리한 글입니다.`,
     featuredImageAlt: `${title} 주제를 설명하는 대표 이미지`,
     featuredImageCaption: `${title}의 핵심 내용을 시각적으로 정리한 이미지입니다.`,
-    imageLabel: compactKoreanPhrase(title),
+    imageScene: "",
   }, title);
 }
 
@@ -1169,16 +1171,17 @@ function estimateImageCostUsd({model, quality, size}) {
 }
 
 function buildImagePrompt({title, meta}) {
+  // 2026-09-21 진현님 지시: 대표이미지·본문 이미지에 어떤 언어의 글자도 넣지 않는다.
+  // 그래서 한글 제목·키워드는 프롬프트에 아예 넣지 않는다 (한글이 있으면 모델이 그 글자를 그려 넣는다). 장면은 영어 묘사(imageScene)만 쓴다.
+  const topic = String(meta.slug || "").replace(/-/g, " ").trim();
+  const scene = meta.imageScene || `A calm, realistic editorial scene that visually represents the topic "${topic}", shown through objects, places and everyday situations only`;
   return [
-    "Create one original WordPress featured thumbnail image for a Korean informational article.",
-    `Article title: ${title}`,
-    `Representative keyword for relevance and alt text: ${meta.focusKeyword || compactKoreanPhrase(title)}`,
-    `Core visual phrase: ${meta.imageLabel || compactKoreanPhrase(title)}`,
-    "Style: clean, trustworthy, editorial thumbnail, useful for an AdSense approval preparation site.",
-    "Aspect ratio and composition: landscape 3:2 WordPress featured image, safe for blog-card thumbnail cropping, with the main subject centered and enough clean margin on all sides.",
-    "Composition: one clear visual metaphor or scene that matches the article topic, simple background, strong focal point, mobile-readable at small size.",
-    "Do not include any visible text, letters, logos, brand marks, real person faces, copyrighted characters, fake official documents, medical/legal/financial claims, sensational before-after imagery, or clickbait elements.",
-    "Use a calm educational mood. Make it look like a relevant article thumbnail, not a generic stock image.",
+    "Create one original editorial thumbnail image for a blog article.",
+    `Scene: ${scene}`,
+    "Style: clean, trustworthy, calm educational mood, realistic lighting, simple uncluttered background, one strong focal point.",
+    "Composition: landscape 3:2 featured image, main subject centered, clean margins on all sides, clearly readable as a small thumbnail.",
+    "STRICT RULE - NO TEXT AT ALL: the image must contain absolutely no text of any kind in any language or script. No Korean, no English, no numbers, no letters, no words, no signs, no labels, no captions, no subtitles, no watermarks, no logos, no UI text, no writing on paper, screens, boards, packaging, clothing or walls. If the scene would naturally include a sign, screen, document, book or label, render it blank, blurred or turned away so that nothing readable appears anywhere.",
+    "Also do not include real person faces, copyrighted characters, fake official documents, brand marks, medical, legal or financial claims, before-and-after imagery, or clickbait elements.",
   ].join("\n");
 }
 
