@@ -630,12 +630,15 @@ function normalizeSpaces(value) {
 function 대주제키워드(titles) {
   const 목록 = (titles || []).map((t) => normalizeSpaces(t)).filter(Boolean);
   if (목록.length < 2) return "";
-  // 어절로 나누고 끝의 조사를 뗀다 ("공간의/공간으로/공간에서" → "공간"). 그런 다음 2~5어절 연속 구를 세어,
+  // 어절로 나누고, 비교용으로만 끝의 조사를 뗀다 ("공간의/공간으로" → "공간"). 2~5어절 연속 구를 세어
   // 제목의 70% 이상에 들어 있는 것 중 가장 긴 구를 고른다. 제목 앞이 아니라 중간에 있어도 잡힌다.
-  const 조사 = /(으로부터|에서는|에서|으로|로서|로써|에게|한테|까지|부터|처럼|보다|이라|이란|라는|이란|을|를|이|가|은|는|의|에|로|과|와|도|만|나|랑)$/;
-  const 어절들 = 목록.map((t) => t.replace(/[()[\]{}"'“”‘’!?.,:;|/\\]+/g, " ").split(/\s+/).filter(Boolean).map((w) => (w.length > 2 ? w.replace(조사, "") : w)).filter(Boolean));
+  // 최종 문구는 원문 어절 그대로 쓰고(“사칭과” 유지) 마지막 어절의 조사만 뗀다 — 그래야 제목에 실제로 들어 있는 문구가 된다.
+  const 조사 = /(으로부터|에서는|에서|으로|로서|로써|에게|한테|까지|부터|처럼|보다|이라|이란|라는|을|를|이|가|은|는|의|에|로|과|와|도|만|나|랑)$/;
+  const 뗀다 = (w) => (w.length > 2 ? w.replace(조사, "") : w);
+  const 원문어절 = 목록.map((t) => t.replace(/[()[\]{}"'“”‘’!?.,:;|/\\]+/g, " ").split(/\s+/).filter(Boolean));
+  const 비교어절 = 원문어절.map((ws) => ws.map(뗀다));
   const 카운트 = new Map();
-  for (const ws of 어절들) {
+  for (const ws of 비교어절) {
     const 본것 = new Set();
     for (let n = 2; n <= 5; n += 1) for (let i = 0; i + n <= ws.length; i += 1) {
       const key = ws.slice(i, i + n).join(" ");
@@ -645,14 +648,32 @@ function 대주제키워드(titles) {
     }
   }
   const 기준 = Math.ceil(목록.length * 0.7);
-  let best = "";
+  let bestKey = "";
   for (const [key, c] of 카운트) {
-    if (c < 기준) continue;
-    if (key.length < 4 || key.length > 30) continue;
-    const n = key.split(" ").length, bn = best.split(" ").length;
-    if (!best || n > bn || (n === bn && key.length > best.length)) best = key;
+    if (c < 기준 || key.length < 4 || key.length > 30) continue;
+    const n = key.split(" ").length, bn = bestKey.split(" ").length;
+    if (!bestKey || n > bn || (n === bn && key.length > bestKey.length)) bestKey = key;
   }
-  return best;
+  if (!bestKey) return "";
+  // 원문 복원: 첫 매칭 제목에서 그 위치의 원문 어절을 가져오고 마지막 어절 조사만 뗀다
+  const 부분 = bestKey.split(" ");
+  for (let t = 0; t < 비교어절.length; t += 1) {
+    const ws = 비교어절[t];
+    for (let i = 0; i + 부분.length <= ws.length; i += 1) {
+      if (부분.every((w, j) => ws[i + j] === w)) {
+        const 원 = 원문어절[t].slice(i, i + 부분.length);
+        원[원.length - 1] = 뗀다(원[원.length - 1]);
+        const 후보 = 원.join(" ");
+        // 실제로 제목 70% 이상에 그대로 들어 있는지 확인. 아니면 마지막 어절을 하나씩 줄여 본다
+        for (let k = 원.length; k >= 2; k -= 1) {
+          const 문구 = 원.slice(0, k).join(" ");
+          if (목록.filter((x) => x.includes(문구)).length >= 기준 && 문구.length >= 4) return 문구;
+        }
+        return 후보.length >= 4 ? 후보 : "";
+      }
+    }
+  }
+  return "";
 }
 
 function normalizeFocusKeyword(value, title) {
