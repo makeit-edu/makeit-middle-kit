@@ -1381,8 +1381,46 @@ async function generateArticle({apiKey, model, title, minChars}) {
 
   const html = normalizeArticleHtml(extractOutputText(data), title);
   if (!html) throw new Error("OpenAI가 빈 본문을 반환함");
-  validateArticleHtml(html, title, {minChars});
-  return {html, usage: extractUsage(data)};
+  // 분량은 여기서 실패시키지 않는다. 짧으면 호출한 쪽이 이어 써서 채운다 (2026-09-21 진현님: 짧다고 임시글을 안 만드는 일은 없어야 한다)
+  validateArticleHtml(html, title, {minChars: 0});
+  const 글자수 = stripTags(html).replace(/\s/g, "").length;
+  return {html, usage: extractUsage(data), 글자수, 짧음: minChars > 0 && 글자수 < minChars};
+}
+
+// 짧은 본문에 새 소제목 단락을 이어 붙여 분량을 채운다. 기존 내용은 그대로 두고 뒤에만 덧붙인다.
+// 수강생에게는 알리지 않는다 — 로그도 한 줄로만.
+async function extendArticle({apiKey, model, title, html, 부족자수}) {
+  const 목표 = Math.max(600, Math.ceil(부족자수 * 1.3));
+  const systemPrompt = [
+    "너는 애드센스 승인용 정보성 글을 작성하는 한국어 에디터다.",
+    "이미 쓰인 글의 뒤에 이어 붙일 새 단락만 쓴다. 이미 있는 내용을 반복하거나 요약하지 않는다.",
+    "출력은 Gutenberg 블록 주석으로 감싼 HTML 본문만 쓴다. h1은 쓰지 않는다. 마크다운·설명문·코드블록은 쓰지 않는다.",
+    "표는 <!-- wp:table --> 블록으로만 쓰고, 마크다운 표(|)는 쓰지 않는다.",
+  ].join("\n");
+  const userPrompt = [
+    `글 제목: ${title}`,
+    `아래는 이미 쓰인 본문이다. 이 뒤에 이어 붙일 새 h2 소제목 단락을 2~3개 써라. 합쳐서 한국어 기준 ${목표}자 이상.`,
+    "새 단락 예: 자주 하는 실수, 상황별 적용 예시, 더 알아두면 좋은 점, 자주 묻는 질문(Q&A 형식의 h3 + p).",
+    "기존 소제목과 같은 주제는 다시 쓰지 않는다. 첫 블록은 h2로 시작한다.",
+    "",
+    "----- 이미 쓰인 본문 -----",
+    stripTags(html).slice(0, 6000),
+  ].join("\n");
+  const response = await fetch(openAiResponsesUrl(), {
+    method: "POST",
+    headers: {Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json"},
+    body: JSON.stringify({model, input: [{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], max_output_tokens: Number(env.ARTICLE_MAX_OUTPUT_TOKENS || 12000)}),
+  });
+  const body = await response.text();
+  let data;
+  try { data = JSON.parse(body); } catch { throw new Error(`OpenAI 응답을 해석하지 못함: ${body.slice(0, 200)}`); }
+  if (!response.ok) throw new Error(`OpenAI API 실패: ${data.error?.message || body.slice(0, 300)}`);
+  if (data.status === "incomplete") throw new Error("보충 본문이 중간에 끊겼어요");
+  let 추가 = cleanHtml(extractOutputText(data) || "").replace(/<h1\b[^>]*>[\s\S]*?<\/h1>/gi, "").trim();
+  if (!추가) throw new Error("보충 본문이 비어 있음");
+  // 블록 주석이 없으면 태그 단위로 감싼다 (normalizeArticleHtml 이 하는 일과 같은 규칙)
+  if (!/<!--\s*wp:/i.test(추가)) 추가 = normalizeArticleHtml(추가, title);
+  return {추가, usage: extractUsage(data)};
 }
 
 async function createDraftPost({siteUrl, username, appPassword, title, html, date, meta, featuredMediaId, selectedCategory}) {
@@ -1681,11 +1719,13 @@ for (let index = 0; index < titles.length; index += 1) {
     단계(index + 1, titles.length, "본문 쓰는 중 (보통 1~2분)");
     let html;
     let articleUsage;
+    let 짧음 = false;
     for (let 시도 = 1; 시도 <= 2; 시도 += 1) {
       try {
         const made = await generateArticle({apiKey: env.OPENAI_API_KEY, model, title, minChars});
         html = made.html;
         articleUsage = made.usage;
+        짧음 = made.짧음;
         break;
       } catch (articleError) {
         const message = articleError instanceof Error ? articleError.message : String(articleError);
@@ -1694,8 +1734,23 @@ for (let index = 0; index < titles.length; index += 1) {
         if (시도 === 2) {
           throw new Error(`두 번 만들어 봤지만 점검을 통과하지 못했어요: ${message}`);
         }
-        console.log(`  글 점검에서 걸렸어요: ${message}`);
-        console.log("  한 번만 더 만들어 볼게요.");
+        console.log("  본문을 다시 쓰는 중");
+      }
+    }
+    // 분량이 모자라면 실패시키지 않고 이어 써서 채운다 (최대 2번). 그래도 모자라면 그대로 올린다 — 임시글은 무조건 만든다.
+    for (let 보충 = 1; 보충 <= 2 && 짧음; 보충 += 1) {
+      const 현재 = stripTags(html).replace(/\s/g, "").length;
+      try {
+        const 더 = await extendArticle({apiKey: env.OPENAI_API_KEY, model, title, html, 부족자수: minChars - 현재});
+        const 합침 = `${html.trim()}\n\n${더.추가}`;
+        validateArticleHtml(합침, title, {minChars: 0}); // 표·끊긴 태그 검사만 (분량은 따지지 않는다)
+        html = 합침;
+        articleUsage = mergeUsage(articleUsage, 더.usage);
+        짧음 = stripTags(html).replace(/\s/g, "").length < minChars;
+      } catch (extendError) {
+        const message = extendError instanceof Error ? extendError.message : String(extendError);
+        if (/OpenAI API 실패|응답을 해석하지 못함/.test(message)) throw extendError;
+        break; // 보충이 안 되면 지금 본문 그대로 올린다
       }
     }
     const usage = mergeUsage(metaUsage, articleUsage);
