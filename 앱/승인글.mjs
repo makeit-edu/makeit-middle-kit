@@ -57,17 +57,53 @@ export async function 키설정파일만들기({작업폴더}) {
   return 파일;
 }
 
-function 키설정파일읽기(text) {
+// 두 가지 형식을 다 읽는다.
+//   ① 라벨 있음: `수강코드=값` 또는 `수강코드: 값`
+//   ② 라벨 없음(2026-09-21 진현님): 값만 한 줄에 하나씩 (빈 줄로 띄어도 됨). 순서는 수강코드 → OpenAI키 → 사이트주소 → 관리자아이디 → 앱비밀번호,
+//      사이트가 더 있으면 주소·아이디·비밀번호를 같은 순서로 반복. 순서가 섞여도 값 모양(sk-, 주소, 24자 비밀번호)으로 최대한 알아본다.
+const 알려진라벨 = /^(수강코드|OpenAI키|openai키|OPENAI키|오픈AI키|사이트주소\d*|관리자아이디\d*|앱비밀번호\d*|충전한달러|도메인|사이트|아이디|워드프레스아이디|애플리케이션비밀번호|비밀번호)$/;
+function 키설정파일읽기(text, 수강코드목록 = 기본수강코드) {
   const 값 = {};
+  const 무라벨 = [];
   for (const 원줄 of String(text || "").split(/\r?\n/)) {
     const 줄 = 원줄.trim();
     if (!줄 || 줄.startsWith("#")) continue;
     let i = 줄.indexOf("=");
     if (i < 0) i = 줄.indexOf(":");
-    if (i < 0) continue;
-    const k = 줄.slice(0, i).trim().replace(/\s+/g, "");
-    const v = 줄.slice(i + 1).trim().replace(/^["']|["']$/g, "");
-    if (k) 값[k] = v;
+    // "https://..." 의 콜론은 라벨이 아니다
+    const k = i > 0 ? 줄.slice(0, i).trim().replace(/\s+/g, "") : "";
+    if (i > 0 && 알려진라벨.test(k)) {
+      값[k] = 줄.slice(i + 1).trim().replace(/^["']|["']$/g, "");
+    } else {
+      무라벨.push(줄.replace(/^["']|["']$/g, ""));
+    }
+  }
+  if (무라벨.length) {
+    // 모양으로 먼저 골라낸다
+    const 남은 = [];
+    for (const v of 무라벨) {
+      const 붙인 = v.replace(/\s+/g, "");
+      if (!값.수강코드 && 수강코드목록.includes(v)) { 값.수강코드 = v; continue; }
+      if (!값.OpenAI키 && /^sk-[A-Za-z0-9_-]{16,}$/.test(붙인)) { 값.OpenAI키 = 붙인; continue; }
+      if (/^\d+(\.\d+)?$/.test(v) && !값.충전한달러 && Number(v) < 100000) { 값.충전한달러 = v; continue; }
+      남은.push(v);
+    }
+    // 남은 줄: 주소(도메인 모양) → 그 뒤 아이디 → 그 뒤 비밀번호 순으로 사이트 묶음
+    let n = 0;
+    for (let i = 0; i < 남은.length; i += 1) {
+      const v = 남은[i];
+      const 주소같음 = /^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)+(\/.*)?$/i.test(v.replace(/\s+/g, ""));
+      if (주소같음) {
+        n += 1;
+        const 접미 = n === 1 ? "" : String(n);
+        값[`사이트주소${접미}`] = v;
+        if (i + 1 < 남은.length) 값[`관리자아이디${접미}`] = 남은[i + 1];
+        if (i + 2 < 남은.length) 값[`앱비밀번호${접미}`] = 남은[i + 2];
+        i += 2;
+      } else if (!값.수강코드) {
+        값.수강코드 = v; // 목록에 없는 코드라도 일단 넣어 "틀림" 으로 알려 준다
+      }
+    }
   }
   return 값;
 }
@@ -84,7 +120,7 @@ export async function 키설정적용({작업폴더, 내용 = "", 수강코드�
   } else {
     원문 = await readFile(파일, "utf8");
   }
-  const 값 = 키설정파일읽기(원문);
+  const 값 = 키설정파일읽기(원문, 수강코드목록);
   const 결과 = {수강코드: "", openai키: "", 충전액: "", 사이트: [], 전부됨: false};
 
   // 수강 코드
