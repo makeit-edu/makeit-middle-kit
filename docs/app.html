@@ -368,8 +368,24 @@ xxxx xxxx xxxx xxxx xxxx xxxx ← 애플리케이션 비밀번호</pre>
 
   <h2>막혔을 때</h2>
   <p style="font-size:18.5px;color:var(--ink-2);margin:0 0 12px">
-  코덱스에게 <span class="type">진단해줘</span> → 설정 상태·사이트 연결·지금까지 만든 글과 쓴 돈이 나옵니다.
-  그 화면을 <b>글자로 복사</b>해서 문의 채널에 올리세요 (키는 가려져 나옵니다).</p>
+  코덱스에게 <span class="type">진단해줘</span> → 설정 상태·사이트 연결·만든 글·쓴 돈과 함께 <b>"할 일"</b>이 나옵니다.
+  거의 다 내가 바로 고칠 수 있는 것들이라, 할 일대로 하고 다시 시작하면 됩니다.</p>
+  <div class="cmds">
+    <div class="cmd"><div class="k">OpenAI 키가 틀렸어요</div><div class="v">platform.openai.com → API keys 에서 새 키 → 키설정.txt 첫 줄 바꿔 다시 끌어다 놓기</div></div>
+    <div class="cmd"><div class="k">OpenAI 크레딧이 없어요</div><div class="v">platform.openai.com → Billing 에서 충전(5달러부터) → 다시 시작</div></div>
+    <div class="cmd"><div class="k">워드프레스 아이디·앱 비밀번호가 틀렸어요</div><div class="v">워드프레스 관리자 → 사용자 → 프로필 → 애플리케이션 비밀번호 '새로 추가' → 키설정.txt 비밀번호 줄 바꿔 다시</div></div>
+    <div class="cmd"><div class="k">사이트가 접속을 막았어요 (403)</div><div class="v">20~30분 뒤 다시. 계속 그러면 보안 플러그인의 'REST API 제한' 끄기, 아이디 역할이 '관리자'인지 확인</div></div>
+    <div class="cmd"><div class="k">글쓰기 통로가 안 열려 있어요 (404)</div><div class="v">워드프레스 관리자 → 설정 → 고유주소 → '글 이름' 선택 후 저장 → 다시</div></div>
+    <div class="cmd"><div class="k">사이트 주소가 틀렸거나 인터넷이 안 돼요</div><div class="v">키설정.txt 주소 줄이 https:// 로 시작하는지, 브라우저에서 열리는지 확인</div></div>
+    <div class="cmd"><div class="k">워드프레스 서버 오류 (500)</div><div class="v">관리자에서 글 하나 직접 임시저장해 보기 → 안 되면 호스팅 문의</div></div>
+    <div class="cmd"><div class="k">잠깐 몰림·시간 초과</div><div class="v">10분 뒤 다시 시작. 이미 만든 글은 그대로, 안 쓴 제목부터 이어서</div></div>
+    <div class="cmd"><div class="k">처방 목록에 없는 오류</div><div class="v">프로그램 문제일 수 있음 → 진단 화면을 글자로 복사해 문의 채널에. 고쳐지면 새 채팅에서 '승인글 자동화 시작해'만</div></div>
+  </div>
+  <p style="font-size:18.5px;color:var(--ink-2);margin:12px 0 12px">
+  "프로그램 문제일 수 있어요" 라고 나올 때만 그 화면을 <b>글자로 복사</b>해서 문의 채널에 올리세요 (키는 가려져 나옵니다).
+  고쳐지면 따로 설치할 것 없이 새 채팅에서 <span class="type">승인글 자동화 시작해</span> 만 하면 됩니다.</p>
+  <div class="note stop"><b>폴더 안 파일은 지우지 마세요</b>
+  설정 파일을 지우면 키 설정을 처음부터 다시 해야 합니다.</div>
   <div class="note ok"><b>프로그램은 내 컴퓨터에 남지 않습니다</b>
   실행할 때마다 최신판을 인터넷에서 읽어 옵니다. 업데이트를 따로 받을 일이 없습니다.
   폴더에 남는 건 내 키설정·제목·결과뿐입니다.</div>
