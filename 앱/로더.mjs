@@ -15,7 +15,7 @@ import {mkdtemp, mkdir, readdir, rm, stat, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {dirname, join} from "node:path";
 
-export const 버전 = "2026-09-21a";
+export const 버전 = "2026-09-21b";
 const 저장소 = "makeit-edu/makeit-middle-kit";
 const 브랜치 = "main";
 const 목록파일 = "앱/목록.json";
@@ -81,9 +81,9 @@ async function 옛폴더청소() {
 
 // 프로그램 파일 전부를 임시 폴더에 풀고 진입 모듈을 돌려준다.
 // 반환: {정지:false, 버전, 커밋, 임시폴더, 승인글: <모듈>, 정리()}  또는  {정지:true, 안내}
-export async function 불러오기({작업폴더} = {}) {
+export async function 불러오기({작업폴더, _재귀 = false} = {}) {
   if (!작업폴더) throw new Error("작업폴더 를 넘겨야 합니다 (수강생 폴더의 절대경로)");
-  await 옛폴더청소();
+  if (!_재귀) await 옛폴더청소();
 
   let 목록, 경로;
   try {
@@ -118,8 +118,38 @@ export async function 불러오기({작업폴더} = {}) {
       await writeFile(목적지, 내용, "utf8");
       받은.push(파일);
     }
-    const 승인글 = await import(`file://${join(임시폴더, 진입파일)}?t=${Date.now()}`);
+    const 모듈 = await import(`file://${join(임시폴더, 진입파일)}?t=${Date.now()}`);
     let 정리됨 = false;
+    // 같은 채팅에서 `앱` 을 계속 재사용하면 그 사이에 GitHub 가 바뀌어도 옛 코드로 돈다 (2026-09-21 실측: 날짜 배치가 옛 판으로 만들어짐).
+    // 그래서 승인글의 함수를 부를 때마다 목록의 커밋이 바뀌었는지 보고, 바뀌었으면 새 판을 받아 그쪽으로 넘긴다.
+    const 상태 = {모듈, 커밋: ref, 임시폴더, 마지막확인: Date.now()};
+    async function 최신확인() {
+      if (Date.now() - 상태.마지막확인 < 20000) return; // 연달아 부를 때 API 를 매번 때리지 않는다
+      상태.마지막확인 = Date.now();
+      let 최신;
+      try { ({목록: 최신} = await 목록읽기()); } catch { return; }
+      const 새ref = /^[0-9a-f]{40}$/.test(String(최신.커밋 || "")) ? 최신.커밋 : "";
+      if (!새ref || 새ref === 상태.커밋) return;
+      const 다시 = await 불러오기({작업폴더, _재귀: true});
+      if (다시.정지) return;
+      const 옛폴더 = 상태.임시폴더;
+      상태.모듈 = 다시._모듈;
+      상태.커밋 = 다시.커밋;
+      상태.임시폴더 = 다시.임시폴더;
+      rm(옛폴더, {recursive: true, force: true}).catch(() => {});
+    }
+    const 승인글 = new Proxy({}, {
+      get(_, prop) {
+        const 값 = 상태.모듈[prop];
+        if (typeof 값 !== "function") return 값;
+        return async (...args) => {
+          await 최신확인();
+          return 상태.모듈[prop](...args);
+        };
+      },
+      has(_, prop) { return prop in 상태.모듈; },
+      ownKeys() { return Reflect.ownKeys(상태.모듈); },
+    });
     return {
       정지: false,
       버전: 목록.버전,
@@ -129,10 +159,11 @@ export async function 불러오기({작업폴더} = {}) {
       받은파일수: 받은.length,
       수강코드목록: Array.isArray(목록.수강코드) ? 목록.수강코드 : [],
       승인글,
+      _모듈: 모듈,
       정리: async () => {
         if (정리됨) return true;
         정리됨 = true;
-        await rm(임시폴더, {recursive: true, force: true});
+        await rm(상태.임시폴더, {recursive: true, force: true});
         return true;
       },
     };

@@ -466,7 +466,7 @@ function applyTimeOfDay(date, fixedTime) {
 // 슬롯 = 08:00(KST) + k × (최소간격+1)시간 + 0~60분 무작위 → 이웃 글 사이가 항상 최소간격 이상 벌어진다.
 // 오늘 이미 지나간 슬롯은 건너뛴다(지금+10분보다 앞이면 예약이 안 걸림). 날짜는 KST 기준.
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-function spreadDate(index, {perDay = 3, minGapHours = 3, startDate = null} = {}) {
+function spreadDate(index, {perDay = 3, minGapHours = 3, startDate = null, 피할시각들 = []} = {}) {
   const per = Math.max(1, Math.floor(perDay));
   const gapMs = (Math.max(1, minGapHours) + 1) * 60 * 60 * 1000;
   const now = Date.now();
@@ -478,18 +478,29 @@ function spreadDate(index, {perDay = 3, minGapHours = 3, startDate = null} = {})
   // 오늘 이미 지난 슬롯 수만큼 앞으로 민다 (startDate 를 미래로 준 경우엔 0)
   let skipped = 0;
   for (let k = 0; k < per; k += 1) if (slotStart(0, k) < 최소) skipped += 1;
-  const i = index + skipped;
-  const day = Math.floor(i / per);
-  const k = i % per;
-  const jitter = Math.floor(Math.random() * 60) * 60 * 1000; // 0~59분
-  return new Date(slotStart(day, k) + jitter).toISOString();
+  // 워드프레스에 이미 잡혀 있는 시각(예약·임시글)과 최소 간격 안에 드는 슬롯은 건너뛴다.
+  // 그래서 수강생 폴더 기록이 없어도, 글을 1개씩 따로 만들어도 하루 3개·3시간 간격이 지켜진다 (2026-09-21 실측: 10개가 전부 12시대에 몰림).
+  const 간격ms = Math.max(1, minGapHours) * 60 * 60 * 1000;
+  const 겹침 = (t) => 피할시각들.some((x) => Math.abs(x - t) < 간격ms);
+  let i = index + skipped;
+  for (let 시도 = 0; 시도 < 400; 시도 += 1) {
+    const day = Math.floor(i / per);
+    const k = i % per;
+    const t = slotStart(day, k);
+    if (!겹침(t) && !겹침(t + 59 * 60 * 1000)) {
+      const jitter = Math.floor(Math.random() * 60) * 60 * 1000; // 0~59분
+      return new Date(t + jitter).toISOString();
+    }
+    i += 1;
+  }
+  return new Date(slotStart(Math.floor(i / per), i % per)).toISOString();
 }
 
-function postDateForIndex(index, mode, startDate, {randomDays = 30, fixedTime = "", stepDays = 1, hourGap = 0, perDay = 3, minGapHours = 3} = {}) {
+function postDateForIndex(index, mode, startDate, {randomDays = 30, fixedTime = "", stepDays = 1, hourGap = 0, perDay = 3, minGapHours = 3, 피할시각들 = []} = {}) {
   // 날짜를 아예 보내지 않으면 워드프레스가 지금 시각으로 저장한다 (--date-mode=now 로만).
   if (mode === "now" || mode === "none") return null;
-  // 기본값: 하루 3개, 최소 3시간 간격, 시각 무작위
-  if (mode === "spread") return spreadDate(index, {perDay, minGapHours, startDate: mode === "spread" && startDate && startDate.getTime() > Date.now() ? startDate : null});
+  // 기본값: 하루 3개, 최소 3시간 간격, 시각 무작위, 이미 잡힌 시각은 피함
+  if (mode === "spread") return spreadDate(index, {perDay, minGapHours, startDate: startDate && startDate.getTime() > Date.now() ? startDate : null, 피할시각들});
 
   // 시간 간격 모드 — 글마다 N시간씩 미룬다.
   //
@@ -613,6 +624,37 @@ function normalizeSpaces(value) {
   return String(value || "").normalize("NFC").replace(/\s+/g, " ").trim();
 }
 
+// 대주제 키워드 — 제목 목록 대부분에 공통으로 들어 있는 앞부분 문구.
+// 예: "온라인 사칭과 피싱 예방을 위해 …", "온라인 사칭과 피싱 예방에서 …" → "온라인 사칭과 피싱 예방"
+// 랭크매스 포커스 키워드로 이걸 쓴다 (2026-09-21 진현님: 대주제로 넣어야 함). 제목·본문에 그대로 들어 있어 SEO 점검이 통과된다.
+function 대주제키워드(titles) {
+  const 목록 = (titles || []).map((t) => normalizeSpaces(t)).filter(Boolean);
+  if (목록.length < 2) return "";
+  // 어절로 나누고 끝의 조사를 뗀다 ("공간의/공간으로/공간에서" → "공간"). 그런 다음 2~5어절 연속 구를 세어,
+  // 제목의 70% 이상에 들어 있는 것 중 가장 긴 구를 고른다. 제목 앞이 아니라 중간에 있어도 잡힌다.
+  const 조사 = /(으로부터|에서는|에서|으로|로서|로써|에게|한테|까지|부터|처럼|보다|이라|이란|라는|이란|을|를|이|가|은|는|의|에|로|과|와|도|만|나|랑)$/;
+  const 어절들 = 목록.map((t) => t.replace(/[()[\]{}"'“”‘’!?.,:;|/\\]+/g, " ").split(/\s+/).filter(Boolean).map((w) => (w.length > 2 ? w.replace(조사, "") : w)).filter(Boolean));
+  const 카운트 = new Map();
+  for (const ws of 어절들) {
+    const 본것 = new Set();
+    for (let n = 2; n <= 5; n += 1) for (let i = 0; i + n <= ws.length; i += 1) {
+      const key = ws.slice(i, i + n).join(" ");
+      if (본것.has(key)) continue;
+      본것.add(key);
+      카운트.set(key, (카운트.get(key) || 0) + 1);
+    }
+  }
+  const 기준 = Math.ceil(목록.length * 0.7);
+  let best = "";
+  for (const [key, c] of 카운트) {
+    if (c < 기준) continue;
+    if (key.length < 4 || key.length > 30) continue;
+    const n = key.split(" ").length, bn = best.split(" ").length;
+    if (!best || n > bn || (n === bn && key.length > best.length)) best = key;
+  }
+  return best;
+}
+
 function normalizeFocusKeyword(value, title) {
   const cleaned = normalizeSpaces(value)
     .replace(/[()[\]{}"'“”‘’!?.,:;|/\\]+/g, " ")
@@ -680,31 +722,37 @@ async function fetchAllPostTitles({siteUrl, username, appPassword}) {
   const base = wordpressBaseUrl(siteUrl);
   const perPage = 100;
   const titles = [];
+  const dates = [];
   for (let page = 1; page <= 30; page += 1) {
-    const url = `${base}/wp-json/wp/v2/posts?context=edit&status=draft,pending,future,publish,private&per_page=${perPage}&page=${page}&orderby=id&order=asc&_fields=title`;
+    const url = `${base}/wp-json/wp/v2/posts?context=edit&status=draft,pending,future,publish,private&per_page=${perPage}&page=${page}&orderby=id&order=asc&_fields=title,date_gmt,status`;
     let response;
     try {
       response = await wpFetch(url, {headers: {Authorization: `Basic ${credentials}`, Accept: "application/json"}});
     } catch (error) {
-      return {titles, complete: false, reason: error instanceof Error ? error.message : String(error)};
+      return {titles, dates, complete: false, reason: error instanceof Error ? error.message : String(error)};
     }
     // 마지막 페이지를 넘어서면 워드프레스가 400을 준다 — 정상 종료로 본다
     if (response.status === 400) break;
-    if (!response.ok) return {titles, complete: false, reason: `상태 코드 ${response.status}`};
+    if (!response.ok) return {titles, dates, complete: false, reason: `상태 코드 ${response.status}`};
     let data;
     try {
       data = await response.json();
     } catch {
-      return {titles, complete: false, reason: "응답을 해석하지 못함"};
+      return {titles, dates, complete: false, reason: "응답을 해석하지 못함"};
     }
     if (!Array.isArray(data) || data.length === 0) break;
     for (const post of data) {
       const raw = stripTags(post?.title?.raw || post?.title?.rendered || "");
       if (raw) titles.push(raw);
+      // 앞으로 공개될 글의 시각 — 새 글의 날짜를 잡을 때 이 시각들과 겹치지 않게 피한다
+      if (post?.date_gmt && (post.status === "future" || post.status === "draft" || post.status === "pending")) {
+        const t = Date.parse(post.date_gmt.endsWith("Z") ? post.date_gmt : post.date_gmt + "Z");
+        if (Number.isFinite(t) && t > Date.now() - 60 * 60 * 1000) dates.push(t);
+      }
     }
     if (data.length < perPage) break;
   }
-  return {titles, complete: true};
+  return {titles, dates, complete: true};
 }
 
 async function findExistingPostByTitle({siteUrl, username, appPassword, title}) {
@@ -998,7 +1046,7 @@ async function fetchWordPressCategories({siteUrl, username, appPassword}) {
   return collected;
 }
 
-async function generatePostMeta({apiKey, model, title}) {
+async function generatePostMeta({apiKey, model, title, 고정키워드 = ""}) {
   const systemPrompt = [
     "너는 한국어 글 제목을 보고 워드프레스 발행 메타를 만드는 편집자다.",
     "반드시 JSON 객체만 출력한다. 설명, 코드블록, 마크다운은 출력하지 않는다.",
@@ -1010,6 +1058,7 @@ async function generatePostMeta({apiKey, model, title}) {
 
   const userPrompt = [
     `글 제목: ${title}`,
+    고정키워드 ? `포커스 키워드는 "${고정키워드}" 로 정해져 있다. focusKeyword 에 그대로 쓰고, excerpt 와 featuredImageAlt 에 이 문구를 자연스럽게 1회 포함해라.` : "",
     "아래 JSON 형식으로만 답해.",
     "{",
     '  "slug": "semantic-english-slug",',
@@ -1308,7 +1357,7 @@ function postHasInlineImage(post, media) {
   return content.includes(`wp-image-${media.id}`) || content.includes(`"id":${media.id}`);
 }
 
-async function generateArticle({apiKey, model, title, minChars}) {
+async function generateArticle({apiKey, model, title, minChars, 키워드 = ""}) {
   const systemPrompt = [
     "너는 애드센스 승인용 정보성 글을 작성하는 한국어 에디터다.",
     "허위 정보, 과장, 출처 없는 단정, 의료/법률/금융 확정 조언을 피한다.",
@@ -1325,6 +1374,7 @@ async function generateArticle({apiKey, model, title, minChars}) {
   const userPrompt = [
     `제목: ${title}`,
     `최소 글자수: 한국어 기준 ${minChars}자 이상`,
+    키워드 ? `포커스 키워드: "${키워드}" — 첫 문단 안에 그대로 1회, h2 소제목 중 하나에 1회, 본문 곳곳에 자연스럽게 3~5회 포함한다. 억지로 반복하지 않는다.` : "",
     "요청:",
     "- 초보자가 실제로 이해하고 따라할 수 있게 작성",
     "- 첫 문단은 검색자가 왜 이 글을 읽어야 하는지 자연스럽게 설명",
@@ -1687,6 +1737,10 @@ console.log("");
 진행 = new 진행표시({전체: titles.length, 라벨: `사이트${site} · 글 ${titles.length}개 만드는 중`});
 const 이번실행 = {글수: 0, krw: 0, usd: 0, total_tokens: 0};
 
+const 잡힌시각들 = Array.isArray(existingOnWordPress.dates) ? [...existingOnWordPress.dates] : [];
+// 랭크매스 포커스 키워드 = 제목 파일의 대주제 (제목 대부분에 공통으로 든 문구). 없으면 글마다 OpenAI 가 고른 키워드를 쓴다.
+const 대주제 = argValue("focus-keyword", "") || 대주제키워드(allTitleEntries.map((e) => e.title));
+if (대주제) console.log(`포커스 키워드(대주제): ${대주제}`);
 const results = [];
 for (let index = 0; index < titles.length; index += 1) {
   const titleEntry = titleEntries[index];
@@ -1705,8 +1759,10 @@ for (let index = 0; index < titles.length; index += 1) {
     let meta = fallbackPostMeta(title);
     let metaUsage = {inputTokens: 0, outputTokens: 0, totalTokens: 0};
     try {
-      const generatedMeta = await generatePostMeta({apiKey: env.OPENAI_API_KEY, model, title});
+      const 이글키워드 = 대주제 && normalizeSpaces(title).includes(대주제) ? 대주제 : "";
+      const generatedMeta = await generatePostMeta({apiKey: env.OPENAI_API_KEY, model, title, 고정키워드: 이글키워드});
       meta = generatedMeta.meta;
+      if (이글키워드) meta = {...meta, focusKeyword: 이글키워드};
       metaUsage = generatedMeta.usage;
     } catch (metaError) {
       const message = metaError instanceof Error ? metaError.message : String(metaError);
@@ -1722,7 +1778,7 @@ for (let index = 0; index < titles.length; index += 1) {
     let 짧음 = false;
     for (let 시도 = 1; 시도 <= 2; 시도 += 1) {
       try {
-        const made = await generateArticle({apiKey: env.OPENAI_API_KEY, model, title, minChars});
+        const made = await generateArticle({apiKey: env.OPENAI_API_KEY, model, title, minChars, 키워드: meta.focusKeyword});
         html = made.html;
         articleUsage = made.usage;
         짧음 = made.짧음;
@@ -1775,7 +1831,8 @@ for (let index = 0; index < titles.length; index += 1) {
     writeFileSync(localPath, htmlWithImage, "utf8");
     writeFileSync(visiblePath, htmlWithImage, "utf8");
 
-    const postDate = postDateForIndex(index + dateOffset, dateMode, startDate, {randomDays, fixedTime, stepDays, hourGap, perDay, minGapHours});
+    const postDate = postDateForIndex(index + dateOffset, dateMode, startDate, {randomDays, fixedTime, stepDays, hourGap, perDay, minGapHours, 피할시각들: 잡힌시각들});
+    if (postDate) 잡힌시각들.push(Date.parse(postDate)); // 이번 실행에서 잡은 시각도 다음 글이 피하게
     let post = await createDraftPost({siteUrl, username, appPassword, title, html: htmlWithImage, date: postDate, meta, featuredMediaId: featuredMedia.id, selectedCategory});
     if (!postHasInlineImage(post, featuredMedia)) {
       post = await updateDraftPostContent({siteUrl, username, appPassword, postId: post.id, html: htmlWithImage, featuredMediaId: featuredMedia.id, selectedCategory});

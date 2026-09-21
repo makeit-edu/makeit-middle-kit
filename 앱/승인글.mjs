@@ -498,6 +498,49 @@ export async function 글만들기({작업폴더, 사이트 = 1, 개수 = 1, 날
   };
 }
 
+// 임시글 날짜 다시 흩기 — 이미 만들어진 임시글(아직 공개 안 된 것)의 발행일을 하루 N개·최소 M시간 간격·무작위 시각으로 다시 잡는다.
+// 2026-09-21: 옛 판으로 만들어 12시대에 몰린 글 10개를 되돌리는 용도. 공개된 글은 건드리지 않는다.
+export async function 날짜재배치({작업폴더, 사이트 = 1, 하루개수 = 3, 최소간격시간 = 3}) {
+  const 설정 = await 설정읽기(작업폴더);
+  const s = (설정.사이트 || []).find((x) => Number(x.번호) === Number(사이트));
+  if (!s) return {결과: "설정 필요", 빠진: [`사이트${사이트} 워드프레스 정보`]};
+  const {wpFetch} = await import(`file://${스크립트("lib/wp.mjs")}`);
+  const base = 주소정리(s.주소);
+  const cred = Buffer.from(`${s.아이디}:${s.앱비밀번호}`).toString("base64");
+  const 헤더 = {Authorization: `Basic ${cred}`, Accept: "application/json"};
+  const 글들 = [];
+  for (let page = 1; page <= 30; page += 1) {
+    const r = await wpFetch(`${base}/wp-json/wp/v2/posts?context=edit&status=draft,pending,future&per_page=100&page=${page}&orderby=id&order=asc&_fields=id,title,date_gmt,status`, {headers: 헤더});
+    if (r.status === 400) break;
+    if (!r.ok) return {결과: "실패", 이유: `워드프레스 응답 ${r.status}`};
+    const data = await r.json();
+    if (!Array.isArray(data) || data.length === 0) break;
+    글들.push(...data);
+    if (data.length < 100) break;
+  }
+  const 대상 = 글들.filter((p) => p.status === "draft" || p.status === "pending" || p.status === "future");
+  대상.sort((a, b) => a.id - b.id);
+  const KST = 9 * 3600 * 1000;
+  const per = Math.max(1, 하루개수), gapMs = (Math.max(1, 최소간격시간) + 1) * 3600 * 1000;
+  const now = Date.now(), 최소 = now + 10 * 60 * 1000;
+  const kstNow = new Date(now + KST);
+  const dayStart = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate()) - KST;
+  const slot = (day, k) => dayStart + day * 86400000 + 8 * 3600 * 1000 + k * gapMs;
+  let skipped = 0;
+  for (let k = 0; k < per; k += 1) if (slot(0, k) < 최소) skipped += 1;
+  const 바뀜 = [];
+  for (let n = 0; n < 대상.length; n += 1) {
+    const i = n + skipped;
+    const t = slot(Math.floor(i / per), i % per) + Math.floor(Math.random() * 60) * 60000;
+    const iso = new Date(t).toISOString().replace(/\.\d{3}Z$/, "");
+    const r = await wpFetch(`${base}/wp-json/wp/v2/posts/${대상[n].id}`, {method: "POST", headers: {...헤더, "Content-Type": "application/json"}, body: JSON.stringify({date_gmt: iso, status: 대상[n].status === "future" ? "future" : "draft"})});
+    const 제목 = String(대상[n].title?.raw || 대상[n].title?.rendered || "").replace(/<[^>]+>/g, "");
+    const kst = new Date(t + KST).toISOString().replace("T", " ").slice(0, 16);
+    바뀜.push({제목, 발행날짜: kst, 됨: r.ok});
+  }
+  return {결과: "됨", 재배치: 바뀜.length, 글: 바뀜};
+}
+
 // 진단 — 설정 상태 + 사이트 연결 + 지금까지 만든 글·쓴 돈
 export async function 진단({작업폴더, 수강코드목록 = 기본수강코드}) {
   const 상태 = await 설정상태(작업폴더, 수강코드목록);
