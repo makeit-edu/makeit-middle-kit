@@ -371,7 +371,10 @@ export function extractTitlesFromText(text) {
     .filter((line) => !isIgnoredLine(line));
 
   const numberedLines = lines.filter(isNumberedTitleLine);
-  const shouldUseNumberedLines = numberedLines.length >= 5;
+  // 번호 줄이 5개 이상이면 번호 줄만 쓰고 번호를 뗀다. 5개보다 적어도 모든 줄이 "1. 제목" "2) 제목" 모양이면 뗀다
+  // (2026-09-23 실측: 제목 2개를 붙여넣었더니 "1. 가족 사칭…" 이 그대로 임시글 제목이 됐다). "2026 기초연금" 처럼 점·괄호가 없는 숫자는 건드리지 않는다.
+  const allDotNumbered = lines.length > 0 && lines.every((line) => /^\s*\(?\d{1,4}\)?[.)]\s+\S/.test(line));
+  const shouldUseNumberedLines = numberedLines.length >= 5 || allDotNumbered;
   const sourceLines = shouldUseNumberedLines ? numberedLines : lines;
 
   return sourceLines
