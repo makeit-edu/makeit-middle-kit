@@ -4,7 +4,7 @@
 //   3) 데이터 폴더 만들기 (애드센스 승인글/00_설정 · 01_제목넣는곳 · 02_생성결과_확인용)
 // 프로그램 파일은 저장하지 않는다. 프로그램은 실행할 때마다 GitHub 에서 읽는다 (앱/로더.mjs).
 
-import {mkdir, readFile, writeFile} from "node:fs/promises";
+import {mkdir, readFile, readdir, rm, writeFile} from "node:fs/promises";
 import {homedir} from "node:os";
 import {join} from "node:path";
 
@@ -36,6 +36,18 @@ export async function 설치({작업폴더}) {
   if (!작업폴더) throw new Error("작업폴더 가 필요합니다");
   const 기록 = {};
   const 대본 = await 대본받기();
+
+  // 코덱스가 README 를 읽으려고 저장소를 통째로 내려받는 경우가 있다 (2026-09-23 실측: 작업 폴더 안에 makeit-middle-kit-naver/ 를 git clone).
+  // 그러면 프로그램 파일이 수강생 PC 에 남는다. 우리 저장소 사본(폴더 이름 + .git 원격 주소 둘 다 맞을 때만)은 지운다.
+  try {
+    for (const 이름 of await readdir(작업폴더)) {
+      if (!/^makeit-middle-kit(-naver)?$/.test(이름)) continue;
+      const 깃설정 = await readFile(join(작업폴더, 이름, ".git", "config"), "utf8").catch(() => "");
+      if (!/github\.com[/:]makeit-edu\/makeit-middle-kit(-naver)?(\.git)?\b/.test(깃설정)) continue;
+      await rm(join(작업폴더, 이름), {recursive: true, force: true});
+      기록[`내려받은 저장소 사본 ${이름}`] = "정리";
+    }
+  } catch {}
 
   let 폴더대본 = "";
   try { 폴더대본 = await readFile(join(작업폴더, "AGENTS.md"), "utf8"); } catch {}
@@ -77,7 +89,7 @@ export async function 설치({작업폴더}) {
     기록["~/.codex/AGENTS.md (전역 대본)"] = /더 높은 판/.test(String(e?.message)) ? "이미 있음" : "실패: " + String(e?.message || e).slice(0, 80);
   }
 
-  const 전부됨 = Object.values(기록).every((v) => v === "받음" || v === "갱신" || v === "만듦" || v === "이미 있음");
+  const 전부됨 = Object.values(기록).every((v) => v === "받음" || v === "갱신" || v === "만듦" || v === "이미 있음" || v === "정리");
   return {
     폴더: 작업폴더,
     기록,
