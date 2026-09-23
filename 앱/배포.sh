@@ -16,7 +16,8 @@ for root,_,names in os.walk("99_절대_건들지마세요_프로그램파일/scr
     for n in sorted(names):
         if n.endswith(".mjs"): files.append(os.path.join(root,n).replace(os.sep,"/"))
 m=json.load(open("앱/목록.json",encoding="utf8"))
-m.update({"버전":ver,"커밋":sha,"파일":sorted(set(files))})
+import unicodedata
+m.update({"버전":ver,"커밋":sha,"파일":sorted(set(unicodedata.normalize("NFC",f) for f in files))})
 json.dump(m,open("앱/목록.json","w",encoding="utf8"),ensure_ascii=False,indent=2)
 open("앱/목록.json","a").write("\n")
 print("목록:",ver,sha[:8],len(files),"파일")

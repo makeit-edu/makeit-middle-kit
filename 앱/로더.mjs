@@ -16,7 +16,7 @@ import {tmpdir} from "node:os";
 import {dirname, join} from "node:path";
 import {pathToFileURL} from "node:url";
 
-export const 버전 = "2026-09-23a";
+export const 버전 = "2026-09-23b";
 const 저장소 = "makeit-edu/makeit-middle-kit";
 const 브랜치 = "main";
 const 목록파일 = "앱/목록.json";
@@ -29,7 +29,8 @@ function 진입목록(목록) {
 }
 
 function 인코딩(파일) {
-  return 파일.split("/").map(encodeURIComponent).join("/");
+  // 한글 파일 이름은 붙인 모양(NFC)으로 주소를 만든다. 맥에서 만든 목록은 자모가 쪼개져(NFD) 있어 GitHub 가 404 를 준다 (2026-09-23 실측).
+  return String(파일).normalize("NFC").split("/").map(encodeURIComponent).join("/");
 }
 
 async function 받기(url, {timeout = 20000} = {}) {
@@ -96,7 +97,7 @@ export async function 불러오기({작업폴더, _재귀 = false} = {}) {
   try {
     ({목록, 경로} = await 목록읽기());
   } catch (e) {
-    return {정지: true, 안내: "인터넷에서 프로그램 목록을 받지 못했습니다. 인터넷 연결을 확인하고 잠시 후 다시 해주세요.", 상세: String(e?.message || e)};
+    return {정지: true, 안내: "깃허브의 키트 파일을 읽지 못했어요. 인터넷 연결을 확인하고 잠시 후 다시 해주세요.", 상세: String(e?.message || e)};
   }
   if (목록.정지 === true) {
     return {정지: true, 안내: 목록.정지안내 || "지금은 프로그램이 잠시 멈춰 있습니다. 강의 공지를 확인해 주세요."};
@@ -180,6 +181,6 @@ export async function 불러오기({작업폴더, _재귀 = false} = {}) {
     };
   } catch (e) {
     await rm(임시폴더, {recursive: true, force: true});
-    return {정지: true, 안내: "프로그램을 받는 중 실패했습니다. 잠시 후 다시 해주세요.", 상세: String(e?.message || e), 받은파일수: 받은.length};
+    return {정지: true, 안내: "깃허브의 키트 파일을 읽다가 멈췄어요. 잠시 후 다시 해주세요. 계속 그러면 이 화면을 문의 채널에 올려 주세요.", 상세: String(e?.message || e), 받은파일수: 받은.length};
   }
 }
