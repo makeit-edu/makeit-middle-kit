@@ -625,10 +625,19 @@ export async function 진단({작업폴더, 수강코드목록 = 기본수강코
 
 // 대본 최신화 — 로더가 임시폴더에 받아 둔 앱/AGENTS.md 를 작업폴더와 전역 ~/.codex/AGENTS.md(마커 사이)에 덮어쓴다.
 // 설치를 다시 하지 않아도 다음 채팅부터 새 대본이 적용된다. 실패해도 본 작업은 계속.
+// 대본의 판 번호. 1주차 저장소 대본은 판 1, 2주차 저장소(승인글+네이버) 대본은 판 2.
+// 더 높은 판이 이미 깔려 있으면 낮은 판으로 덮지 않는다 (2주차 설치 뒤 1주차 채팅이 돌아도 네이버 대본이 사라지지 않게).
+function 대본판(글) {
+  const m = /<!-- 키트판 (\d+) -->/.exec(String(글 || ""));
+  return m ? Number(m[1]) : String(글 || "").includes("메킷 키트") ? 1 : 0;
+}
 async function 대본최신화(작업폴더) {
   try {
     const 대본 = await readFile(join(여기, "AGENTS.md"), "utf8");
     if (!대본.includes("메킷 키트")) return "건너뜀";
+    let 폴더대본 = "";
+    try { 폴더대본 = await readFile(join(작업폴더, "AGENTS.md"), "utf8"); } catch {}
+    if (대본판(폴더대본) > 대본판(대본)) return "더 높은 판이 깔려 있어 그대로 둠";
     await writeFile(join(작업폴더, "AGENTS.md"), 대본, "utf8");
     const 시작표 = "<!-- 메킷키트 시작 (설치.mjs 가 관리. 손으로 고치지 마세요) -->";
     const 끝표 = "<!-- 메킷키트 끝 -->";
@@ -637,6 +646,7 @@ async function 대본최신화(작업폴더) {
     try { 기존 = await readFile(전역파일, "utf8"); } catch {}
     const 덩어리 = `${시작표}\n${대본.trim()}\n${끝표}`;
     const a = 기존.indexOf(시작표), b = 기존.indexOf(끝표);
+    if (a >= 0 && b > a && 대본판(기존.slice(a, b)) > 대본판(대본)) return "갱신 (전역은 더 높은 판이라 그대로 둠)";
     const 새것 = a >= 0 && b > a ? 기존.slice(0, a) + 덩어리 + 기존.slice(b + 끝표.length) : (기존.trim() ? 기존.trimEnd() + "\n\n" : "") + 덩어리 + "\n";
     if (새것 !== 기존) {
       await mkdir(join(homedir(), ".codex"), {recursive: true});

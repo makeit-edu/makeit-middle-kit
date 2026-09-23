@@ -11,6 +11,11 @@ import {join} from "node:path";
 const 저장소 = "makeit-edu/makeit-middle-kit";
 const 시작표 = "<!-- 메킷키트 시작 (설치.mjs 가 관리. 손으로 고치지 마세요) -->";
 const 끝표 = "<!-- 메킷키트 끝 -->";
+// 대본 판 번호 (1주차=1, 2주차=2). 더 높은 판이 깔려 있으면 낮은 판으로 덮지 않는다.
+function 대본판(글) {
+  const m = /<!-- 키트판 (\d+) -->/.exec(String(글 || ""));
+  return m ? Number(m[1]) : String(글 || "").includes("메킷 키트") ? 1 : 0;
+}
 
 async function 대본받기() {
   const 파일 = "앱/AGENTS.md";
@@ -32,8 +37,10 @@ export async function 설치({작업폴더}) {
   const 기록 = {};
   const 대본 = await 대본받기();
 
-  await writeFile(join(작업폴더, "AGENTS.md"), 대본, "utf8");
-  기록["AGENTS.md (작업 폴더 대본)"] = "받음";
+  let 폴더대본 = "";
+  try { 폴더대본 = await readFile(join(작업폴더, "AGENTS.md"), "utf8"); } catch {}
+  if (대본판(폴더대본) > 대본판(대본)) 기록["AGENTS.md (작업 폴더 대본)"] = "이미 있음";
+  else { await writeFile(join(작업폴더, "AGENTS.md"), 대본, "utf8"); 기록["AGENTS.md (작업 폴더 대본)"] = "받음"; }
 
   for (const d of ["00_설정", "01_제목넣는곳", "02_생성결과_확인용"]) await mkdir(join(작업폴더, "애드센스 승인글", d), {recursive: true});
   기록["애드센스 승인글/ 폴더 3개"] = "만듦";
@@ -58,6 +65,7 @@ export async function 설치({작업폴더}) {
     try { 기존 = await readFile(전역파일, "utf8"); } catch {}
     const 덩어리 = `${시작표}\n${대본.trim()}\n${끝표}`;
     const a = 기존.indexOf(시작표), b = 기존.indexOf(끝표);
+    if (a >= 0 && b > a && 대본판(기존.slice(a, b)) > 대본판(대본)) throw new Error("더 높은 판이 이미 깔려 있음");
     const 새것 = a >= 0 && b > a
       ? 기존.slice(0, a) + 덩어리 + 기존.slice(b + 끝표.length)
       : (기존.trim() ? 기존.trimEnd() + "\n\n" : "") + 덩어리 + "\n";
@@ -66,7 +74,7 @@ export async function 설치({작업폴더}) {
     await writeFile(전역파일, 새것, "utf8");
     기록["~/.codex/AGENTS.md (전역 대본)"] = a >= 0 ? "갱신" : "받음";
   } catch (e) {
-    기록["~/.codex/AGENTS.md (전역 대본)"] = "실패: " + String(e?.message || e).slice(0, 80);
+    기록["~/.codex/AGENTS.md (전역 대본)"] = /더 높은 판/.test(String(e?.message)) ? "이미 있음" : "실패: " + String(e?.message || e).slice(0, 80);
   }
 
   const 전부됨 = Object.values(기록).every((v) => v === "받음" || v === "갱신" || v === "만듦" || v === "이미 있음");
