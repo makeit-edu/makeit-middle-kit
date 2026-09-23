@@ -569,7 +569,7 @@ export async function 날짜재배치({작업폴더, 사이트 = 1, 하루개수
 // ───────── 처방 — 오류 문구를 "수강생이 지금 할 일" 로 바꾼다 (2026-09-21 진현님: 수강생이 진단 결과로 스스로 고치게) ─────────
 // 종류: 내설정(키설정·수강코드) · 사이트(워드프레스 쪽) · OpenAI · 잠시(기다리면 됨) · 프로그램(처방 목록에 없음 → 문의)
 const 처방표 = [
-  {종류: "OpenAI", 패턴: /insufficient_quota|exceeded your current quota|billing hard limit|quota/i,
+  {종류: "OpenAI", 패턴: /insufficient_quota|exceeded your current quota|billing hard limit|quota|no credits remaining|add credits|credit balance/i,
     원인: "OpenAI 크레딧이 없어요", 할일: "platform.openai.com → Settings → Billing 에서 크레딧을 충전(5달러부터)한 뒤, 다시 '승인글 자동화 시작해' 라고 하세요."},
   {종류: "내설정", 패턴: /Incorrect API key|invalid_api_key|키가 맞지 않습니다|OpenAI[^\n]{0,40}\b401\b/i,
     원인: "OpenAI 키가 틀렸어요", 할일: "platform.openai.com → API keys 에서 키를 새로 만들어 키설정.txt 첫 줄(sk-…)을 바꾸고 다시 끌어다 놓으세요."},
