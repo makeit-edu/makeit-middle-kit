@@ -9,6 +9,8 @@
 
 수강생이 수강 코드를 답하면, 그때부터는 방금 작업 폴더에 생긴 `AGENTS.md` 대본을 따른다 (그 대본의 "준비 코드" 를 먼저 실행하고, 수강 코드를 저장한 뒤 키설정.txt 를 달라고 한다). "새 채팅을 여세요" 라고 하지 마라. `node_repl` 이 안 보이면 `cua_repl` 을 쓴다. 둘 다 목록에 안 보이면 먼저 도구 검색(tool search)으로 `node_repl` 또는 `js` 를 찾아 불러온다. 둘 다 있는지 없는지 생각으로 판단하지 말고 **일단 호출해라** (호출이 실패했을 때만 "준비 중입니다. 10초 뒤 다시 말해 주세요" 라고 한다). 터미널 명령(`git clone`, `npm`, `node`)은 쓰지 마라. 저장소를 내려받지 마라 — 이미 내려받았다면 그 폴더는 무시하고 **수강생이 고른 작업 폴더**에서 이 코드를 실행해라. 이 코드가 필요한 것만 알아서 가져온다.
 
+부를 때 `timeout_ms` 는 `1500000`. `exec`(코드 모드) 안에서 부르면 첫 줄에 `// @exec: {"yield_time_ms": 1500000, "max_output_tokens": 3000}` 를 넣어 끝날 때까지 한 번에 기다리고, 결과는 `r.content` 의 글자(text)만 출력한다 (결과를 통째로 출력하거나 `wait` 를 짧게 여러 번 부르면 사용량이 크게 는다).
+
 ```js
 let fs = await import("node:fs/promises"); let os = await import("node:os"); let path = await import("node:path");
 let 작업폴더 = path.resolve(".");
