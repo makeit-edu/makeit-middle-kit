@@ -37,7 +37,7 @@ Windows: ChatGPT 앱 폴더 안의 `node.exe` 를 찾아(`Get-ChildItem -Recurse
 cd "«작업 폴더»" && "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node" --input-type=module -e 'let fs=await import("node:fs/promises");let os=await import("node:os");let path=await import("node:path");let 작업폴더=path.resolve(".");let 임시=await fs.mkdtemp(path.join(os.tmpdir(),"makeit-loader-"));let r=await fetch(atob("aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL21ha2VpdC1lZHUvbWFrZWl0LW1pZGRsZS1raXQvbWFpbi8lRUMlOTUlQjEvJUVCJUExJTlDJUVCJThEJTk0Lm1qcw==")+"?t="+Date.now());await fs.writeFile(path.join(임시,"로더.mjs"),await r.text());let 로더=await import("file://"+path.join(임시,"로더.mjs")+"?t="+Date.now());let 앱=await 로더.불러오기({작업폴더});if(앱.정지){console.log(JSON.stringify(앱));process.exit(0)};console.log(JSON.stringify(await 앱.승인글.수강코드저장({작업폴더,코드:"«코드»",수강코드목록:앱.수강코드목록})));await 앱.정리();'
 ```
 
-글 만들기처럼 오래 걸리는 것도 같은 방식이다 (한 번에 글 1개, 2~4분).
+글 만들기처럼 오래 걸리는 것도 같은 방식이다 (한 번에 글 1개, 2~4분). **셸 명령은 끝나서 출력이 나올 때까지 기다린다 (최대 10분).** 출력이 아직 없다고 같은 명령을 다시 실행하거나, 그 사이에 진단 같은 다른 명령을 돌리지 않는다. 결과가 `"이미 하는 중"` 이면 앞 명령이 끝나기를 기다린다.
 
 ## 사전 승인
 
@@ -182,6 +182,7 @@ nodeRepl.write(JSON.stringify(await 앱.승인글.글만들기({ 작업폴더, �
 - `결과: "실패"` 또는 `"시간 초과"` → 멈추고 `할일` 로 말한다: 「**«원인»**. «할일»」. `할일.종류` 가 `"프로그램"` 이면 그 문장 뒤에 진단 틀을 붙여 문의로 보낸다. 같은 제목을 다시 시도하지 않고, 네가 원인을 추측해 다른 말을 지어내지 않는다.
 - `결과: "시간 초과"` → 같은 코드를 한 번 더 실행한다 (말은 안 해도 된다).
 - `결과: "설정 필요"` → `빠진` 항목의 키 설정으로 돌아간다. `"제목 없음"` → 제목으로.
+- `결과: "이미 하는 중"` → 앞에서 시작한 글 만들기가 아직 돌고 있다는 뜻이다. 다시 실행하지 말고 앞 호출의 결과를 기다린다.
 
 날짜는 수강생이 말하지 않으면 옵션을 넣지 않는다. **기본이 "하루 3개 · 최소 3시간 간격 · 시각 무작위"** 다 (오늘부터, 이미 지난 시간대는 건너뜀. 발행을 누르면 그 시각에 예약 공개). 말하면 매 호출에 같은 옵션을 붙인다.
 - "하루에 5개씩" → `하루개수: 5` / "간격 6시간 이상" → `최소간격시간: 6`

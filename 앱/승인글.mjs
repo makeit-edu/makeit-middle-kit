@@ -8,14 +8,14 @@
 // 수강생 폴더(작업폴더)에 남는 것: 애드센스 승인글/00_설정/설정.json (키·사이트), 01_제목넣는곳, 02_생성결과_확인용.
 // 프로그램은 임시 폴더에만 있다가 지워진다.
 
-import {mkdir, readFile, writeFile} from "node:fs/promises";
+import {mkdir, readFile, rm, stat, writeFile} from "node:fs/promises";
 import {existsSync} from "node:fs";
 import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {Worker} from "node:worker_threads";
 import {homedir} from "node:os";
 
-export const 버전 = "2026-09-21d";
+export const 버전 = "2026-09-23a";
 
 const 여기 = dirname(fileURLToPath(import.meta.url));            // <임시>/앱
 const 프로그램폴더 = join(여기, "..", "99_절대_건들지마세요_프로그램파일");
@@ -424,7 +424,32 @@ function 마지막줄들(text, n) {
 }
 
 // 글 만들기 — 한 번 부르면 글 `개수`개 (대본은 1개씩 반복해서 부른다: 25분 한도 + 글마다 게이지·💰 보고)
-export async function 글만들기({작업폴더, 사이트 = 1, 개수 = 1, 날짜모드 = "", 시작날짜 = "", 무작위일수 = 0, 시간간격 = 0, 하루개수 = 0, 최소간격시간 = 0}) {
+// 중복 실행 잠금 — 같은 일이 이미 돌고 있으면 두 번째 호출은 바로 돌려보낸다.
+// 2026-09-23 실측: 코덱스가 셸로 글 만들기를 기다리지 못하고 같은 명령을 한 번 더 시작했다 (글 2개가 생길 뻔함).
+// 잠금 파일에 프로세스 번호를 적어 두고, 그 프로세스가 죽었거나 20분이 지났으면 낡은 잠금으로 보고 걷어 낸다.
+export async function 잠금으로({작업폴더, 이름, 일}) {
+  const 파일 = join(작업폴더, "애드센스 승인글", "02_생성결과_확인용", `.${이름}.잠금`);
+  try {
+    const s = await stat(파일);
+    const pid = Number((await readFile(파일, "utf8")).trim()) || 0;
+    let 살아있음 = true;
+    const 프로세스 = globalThis.process;
+    if (pid && 프로세스 && typeof 프로세스.kill === "function") { try { 프로세스.kill(pid, 0); } catch { 살아있음 = false; } }
+    if (살아있음 && Date.now() - s.mtimeMs < 20 * 60 * 1000) {
+      return {결과: "이미 하는 중", 안내: "앞에서 시작한 작업이 아직 돌고 있어요. 끝날 때까지 기다린 뒤 결과를 보세요. 같은 명령을 다시 실행하지 않는다."};
+    }
+  } catch {}
+  await mkdir(dirname(파일), {recursive: true});
+  await writeFile(파일, String(globalThis.process?.pid || 0), "utf8");
+  try { return await 일(); } finally { await rm(파일, {force: true}).catch(() => {}); }
+}
+
+export async function 글만들기(옵션 = {}) {
+  if (!옵션.작업폴더) throw new Error("작업폴더 가 필요합니다");
+  return 잠금으로({작업폴더: 옵션.작업폴더, 이름: `승인글-사이트${Number(옵션.사이트) || 1}`, 일: () => 글만들기본체(옵션)});
+}
+
+async function 글만들기본체({작업폴더, 사이트 = 1, 개수 = 1, 날짜모드 = "", 시작날짜 = "", 무작위일수 = 0, 시간간격 = 0, 하루개수 = 0, 최소간격시간 = 0}) {
   const 설정 = await 설정읽기(작업폴더);
   const 빠진 = [];
   if (!설정.수강코드) 빠진.push("수강 코드");
