@@ -55,8 +55,10 @@
     <section class="step" id="step-3" aria-labelledby="title-3">
       <div class="num" aria-hidden="true">3</div><div class="body">
         <h2 id="title-3">받은 플러그인 ZIP 끌어다 놓기</h2>
-        <p>코덱스가 <b>“메킷애센 플러그인 ZIP 파일을 끌어다 놓아 주세요”</b> 라고 하면, 강의에서 받은 ZIP 을 <b>압축을 풀지 말고 그대로</b> 채팅창에 끌어다 놓으세요.</p>
+        <p>코덱스가 <b>“받으신 메킷애센 플러그인 ZIP 파일을 여기에 끌어다 놓아 주세요”</b> 라고 하면, 강의에서 받은 ZIP 을 <b>압축을 풀지 말고 그대로</b> 채팅창에 끌어다 놓고, 아래 한마디를 적어 엔터를 누르세요.</p>
+        <div class="prompt"><p id="zip-prompt">받은 메킷애센 ZIP 이야</p><button type="button" data-copy="zip-prompt">한마디 복사</button></div>
         <div class="file-flow" aria-label="받은 원본 ZIP은 보관하고 코덱스가 별도 작업본을 만듭니다"><div><span class="file-tag">ZIP</span><b>받은 원본</b><small>01_원본ZIP넣는곳 에 보관</small></div><span class="arrow" aria-hidden="true">→</span><div><span class="file-tag blue">수정</span><b>내 작업본</b><small>02_작업본 — 코덱스가 여기만 고쳐요</small></div></div>
+        <aside class="note warn"><b>끌어다 놓기가 안 되면</b>작업 폴더 → <span class="path">메킷애센 수정 → 01_원본ZIP넣는곳</span> 에 ZIP 을 복사해 넣고 <span class="type">넣었어</span> 라고 말하세요. 코덱스가 그 폴더에서 ZIP 을 찾습니다.</aside>
         <aside class="note stop"><b>원본 ZIP 은 지우지 마세요</b>잘못 바뀌었을 때 돌아갈 기준입니다. 8번 되돌리기에서 씁니다.</aside>
       </div>
     </section>
@@ -131,7 +133,7 @@
     <h2 id="commands-title">코덱스에게 하는 말은 이렇게</h2>
     <div class="cmds"><div class="cmd"><b>시작 문장</b><span>처음 한 번 (2번). 이미 했으면 새 채팅에서 “메킷애센 고쳐줘”</span></div><div class="cmd"><b>바꾸고 싶은 것</b><span>불편한 점과 원하는 결과 한 가지 (4·5번)</span></div><div class="cmd"><b>이 부분만 원래대로</b><span>원하지 않은 변경 하나만 되돌리기</span></div><div class="cmd"><b>처음부터 다시</b><span>작업본을 원본에서 새로 (지금 작업본은 옆에 보관)</span></div></div>
     <h2>막혔을 때</h2>
-    <div class="cmds"><div class="cmd"><b>ZIP 을 못 읽어요</b><span>압축을 풀지 말고 ZIP 파일 그대로 채팅창에 끌어다 놓으세요.</span></div><div class="cmd"><b>라이선스·광고 부분이 바뀌었대요</b><span>코덱스가 그 부분을 원본대로 되돌린 뒤 다시 ZIP 을 만듭니다.</span></div><div class="cmd"><b>다른 곳도 바뀌었어요</b><span>원하지 않은 부분을 말하고 그 변경만 되돌려 달라고 하세요.</span></div><div class="cmd"><b>올렸는데 화면이 그대로예요</b><span>캐시 비우기 → 플러그인 목록에서 버전(1.2.4.1 등)이 바뀌었는지 확인.</span></div><div class="cmd"><b>사이트 오류가 나요</b><span>8번대로 원본 ZIP 으로 교체. 관리자가 안 열리면 플러그인 폴더 이름 바꾸기.</span></div></div>
+    <div class="cmds"><div class="cmd"><b>ZIP 을 못 읽어요</b><span>압축을 풀지 말고 ZIP 파일 그대로 채팅창에 끌어다 놓으세요. 그래도 안 되면 메킷애센 수정 → 01_원본ZIP넣는곳 에 넣고 “넣었어”.</span></div><div class="cmd"><b>라이선스·광고 부분이 바뀌었대요</b><span>코덱스가 그 부분을 원본대로 되돌린 뒤 다시 ZIP 을 만듭니다.</span></div><div class="cmd"><b>다른 곳도 바뀌었어요</b><span>원하지 않은 부분을 말하고 그 변경만 되돌려 달라고 하세요.</span></div><div class="cmd"><b>올렸는데 화면이 그대로예요</b><span>캐시 비우기 → 플러그인 목록에서 버전(1.2.4.1 등)이 바뀌었는지 확인.</span></div><div class="cmd"><b>사이트 오류가 나요</b><span>8번대로 원본 ZIP 으로 교체. 관리자가 안 열리면 플러그인 폴더 이름 바꾸기.</span></div></div>
     <aside class="note warn"><b>읽기 편하고 빨라지면 무조건 승인되나요?</b>아닙니다. 특정 디자인이나 PageSpeed 점수는 애드센스 승인 기준표가 아닙니다. Google도 좋은 페이지 경험을 권하지만 점수만으로 상위 노출을 보장하지 않습니다. <a href="https://developers.google.com/search/docs/appearance/page-experience">공식 안내</a></aside>
     <details class="teacher"><summary>강사용 검증 범위</summary><p>3주차 프로그램(원본 ZIP 풀기·검사·설치 ZIP 만들기)은 실제 메킷애센 1.2.4 ZIP 으로 시험했습니다: 라이선스 함수 변경과 괄호 깨짐은 막고, 만든 ZIP 은 압축 검사를 통과하며 맨 위 폴더 이름·버전(1.2.4.1)이 맞습니다. 워드프레스에 실제로 올려 교체하는 것, Windows, 첫 수강생 완주는 아직 확인 전입니다.</p><p><a href="https://github.com/makeit-edu/makeit-middle-kit">저장소</a></p></details>
   </section>
