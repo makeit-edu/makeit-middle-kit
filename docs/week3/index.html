@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="받은 메킷애센 플러그인을 코덱스로 내 필요에 맞게 고쳐 내 워드프레스에 업데이트하는 3주차 안내서.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="robots" content="noindex">
+  <title>메킷애센 고치기 — 월부월백 중급반 3주차</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#steps">실습 순서로 바로가기</a>
+<main class="wrap">
+  <header>
+    <p class="eyebrow">월부월백 중급반 · 3주차</p>
+    <h1>코덱스로<br>내 메킷애센 고치기</h1>
+    <p>강의에서 받은 플러그인, 이제 <b>내가 원하는 대로 고쳐서</b> 내 워드프레스에 올립니다.<br>읽기 편하게, 휴대폰에서도 보기 좋게, 필요한 곳은 더 가볍게.</p>
+  </header>
+
+  <section class="prep" aria-labelledby="prep-title">
+    <h2 id="prep-title">먼저 챙길 것</h2>
+    <ul>
+      <li><b>ChatGPT 앱 (Plus 이상)</b> — 1·2주차에 쓰던 코덱스 그대로</li>
+      <li><b>강의에서 받은 메킷애센 플러그인 ZIP</b> — 압축을 풀지 말고 ZIP 그대로</li>
+      <li><b>1주차에 쓰던 작업 폴더</b> — 같은 폴더에서 합니다 (처음이면 바탕화면에 빈 폴더 하나)</li>
+      <li><b>내 워드프레스 관리자 로그인</b> — 고친 플러그인을 올릴 곳 (연습용 사이트가 있으면 거기서 먼저)</li>
+      <li>내 사이트에서 불편한 <b>기능이나 모양 한 가지</b> — 모르겠으면 아래 예시부터 보세요</li>
+    </ul>
+  </section>
+  <p class="tiny">안내서는 휴대폰으로 봐도 됩니다. 고치기는 컴퓨터에서 하세요.</p>
+
+  <aside class="note warn intro-note"><b>이번에는 새 사이트나 글을 만들지 않습니다</b>이미 받은 <b>메킷애센</b>을 내 필요에 맞게 고칩니다. 코덱스가 깃허브의 참고 자료(가독성·모바일·속도·검색·수정 원칙)를 읽고 고치고, 원본 ZIP 은 그대로 보관합니다. 라이선스·광고·초기화 기능은 건드리지 않습니다.</aside>
+
+  <div class="steps" id="steps">
+    <section class="step" id="step-1" aria-labelledby="title-1">
+      <div class="num" aria-hidden="true">1</div><div class="body">
+        <h2 id="title-1">코덱스 열고 1주차 폴더 고르기</h2>
+        <p>ChatGPT 앱 → 왼쪽 <b>Codex</b> → <b>새 채팅</b> → 작업 폴더로 <b>1주차에 쓰던 폴더</b>를 고릅니다.</p>
+        <div class="screen"><div class="bar"><span>작업 폴더 · 설명용 그림</span></div><div class="folder-picture"><span class="folder-icon" aria-hidden="true"></span><b>메킷키트</b><span>1주차부터 쓰던 폴더 — 안에 ‘메킷애센 수정’ 폴더가 새로 생겨요</span></div></div>
+        <aside class="note ok"><b>같은 폴더에서 합니다</b>승인글·네이버 파일은 그대로 두고, 이번 작업은 폴더 안 <span class="path">메킷애센 수정</span> 에서만 합니다. 1주차를 안 했다면 바탕화면에 빈 폴더를 하나 만들어 고르세요.</aside>
+      </div>
+    </section>
+
+    <section class="step" id="step-2" aria-labelledby="title-2">
+      <div class="num" aria-hidden="true">2</div><div class="body">
+        <h2 id="title-2">시작 — 이 한 줄</h2>
+        <p>아래 문장을 복사해서 <b>코덱스 채팅창</b>에 붙여넣으세요.</p>
+        <div class="prompt"><p id="install-prompt">깃허브 makeit-edu/makeit-middle-kit 저장소의 README 를 읽고 거기 적힌 대로 설치한 뒤 메킷애센 고쳐줘</p><button type="button" data-copy="install-prompt">시작 문장 복사</button></div>
+        <aside class="note ok"><b>1·2주차와 같은 저장소입니다</b>저장소 이름은 계속 <b>makeit-edu/makeit-middle-kit</b> 하나입니다. 이미 설치했어도 이 문장을 치면 최신으로 맞춰지고 바로 메킷애센 고치기로 넘어갑니다.</aside>
+        <aside class="note warn"><b>"설치를 진행할까요?" 라고 물으면</b><span class="type">진행해</span> 라고 답하세요. 1주차를 안 했다면 <b>수강 코드</b>만 한 번 묻습니다. 이번에는 키설정.txt 가 필요 없습니다.</aside>
+      </div>
+    </section>
+
+    <section class="step" id="step-3" aria-labelledby="title-3">
+      <div class="num" aria-hidden="true">3</div><div class="body">
+        <h2 id="title-3">받은 플러그인 ZIP 끌어다 놓기</h2>
+        <p>코덱스가 <b>“메킷애센 플러그인 ZIP 파일을 끌어다 놓아 주세요”</b> 라고 하면, 강의에서 받은 ZIP 을 <b>압축을 풀지 말고 그대로</b> 채팅창에 끌어다 놓으세요.</p>
+        <div class="file-flow" aria-label="받은 원본 ZIP은 보관하고 코덱스가 별도 작업본을 만듭니다"><div><span class="file-tag">ZIP</span><b>받은 원본</b><small>01_원본ZIP넣는곳 에 보관</small></div><span class="arrow" aria-hidden="true">→</span><div><span class="file-tag blue">수정</span><b>내 작업본</b><small>02_작업본 — 코덱스가 여기만 고쳐요</small></div></div>
+        <aside class="note stop"><b>원본 ZIP 은 지우지 마세요</b>잘못 바뀌었을 때 돌아갈 기준입니다. 8번 되돌리기에서 씁니다.</aside>
+      </div>
+    </section>
+
+    <section class="step" id="step-4" aria-labelledby="title-4">
+      <div class="num" aria-hidden="true">4</div><div class="body">
+        <h2 id="title-4">내가 바꿀 것 고르기</h2>
+        <p>코덱스가 <b>“어떤 걸 바꾸고 싶으세요?”</b> 라고 물으면 <b>하나</b>를 말하세요. 학생마다 달라도 됩니다. 아래에서 고르면 문장이 바뀝니다.</p>
+        <fieldset class="upgrade-options"><legend>어디를 고칠까요?</legend><label><input type="radio" name="upgrade" value="reading" checked><span><b>읽기 편하게</b><small>본문 글자·줄 간격·문단 여백</small></span></label><label><input type="radio" name="upgrade" value="mobile"><span><b>휴대폰에서 보기 좋게</b><small>목차·관련 글·이미지 배치</small></span></label><label><input type="radio" name="upgrade" value="speed"><span><b>느린 부분 고치기</b><small>PageSpeed 결과로 원인부터</small></span></label></fieldset>
+        <div class="prompt"><p id="change-prompt">메킷애센을 읽기 편하게 고쳐줘. 본문 글자 크기·줄 간격·문단 여백을 조금 넉넉하게 하고 싶어. 글 내용은 그대로 두고, 라이선스·광고·초기화 기능은 건드리지 마.</p><button type="button" data-copy="change-prompt">선택한 문장 복사</button></div>
+        <div class="note warn" id="speed-first" hidden><b>속도를 골랐다면 측정부터</b>5번의 PageSpeed 안내대로 결과를 먼저 코덱스에 주세요. 점수만 보고 무작정 고치지 않습니다.</div>
+        <div class="screen"><div class="bar"><span>읽기 편함 비교 · 설명용 모형</span></div><div class="reading-demo"><section class="reading-before"><h3>빽빽한 화면</h3><p>이 글에서 필요한 내용을 차례로 확인해 보세요. 작은 글자와 좁은 줄 간격은 화면에서 읽기 불편할 수 있습니다.</p><p>글 내용은 그대로 두고 글자와 여백만 조정할 수 있습니다.</p></section><section class="reading-after"><h3>여유 있는 화면</h3><p>이 글에서 필요한 내용을 차례로 확인해 보세요. 작은 글자와 좁은 줄 간격은 화면에서 읽기 불편할 수 있습니다.</p><p>글 내용은 그대로 두고 글자와 여백만 조정할 수 있습니다.</p></section></div><div class="screen-caption">원리를 보여 주는 모형입니다. 실제 메킷애센 변경 전후나 검색·승인 효과를 잰 화면은 아닙니다.</div></div>
+        <aside class="note ok"><b>무엇을 바꿀지 모르겠다면</b><span class="type">내 메킷애센에서 고칠 만한 것 세 가지를 쉽게 제안해줘. 아직 고치지 마.</span> 라고 말하고, 그중 하나를 고르세요.</aside>
+      </div>
+    </section>
+
+    <section class="step" id="step-5" aria-labelledby="title-5">
+      <div class="num" aria-hidden="true">5</div><div class="body">
+        <h2 id="title-5">코덱스가 고치고 검사하기</h2>
+        <p>코덱스가 깃허브의 참고 자료 중 <b>필요한 것만</b> 읽고, 작업본을 고친 뒤 스스로 검사합니다. 라이선스·광고·초기화 부분이 바뀌었거나 괄호·따옴표가 깨졌으면 <b>ZIP 을 만들지 않고 먼저 바로잡습니다.</b></p>
+        <div class="cmds examples"><div class="cmd"><b>글자</b><span>휴대폰에서 본문이 작아요. 내용은 그대로 두고 읽기 편하게 해줘.</span></div><div class="cmd"><b>목차</b><span>목차가 본문을 가려요. 휴대폰에서 겹치지 않게 해줘.</span></div><div class="cmd"><b>속도</b><span>이 PageSpeed 결과에서 메킷애센이 원인인 부분만 찾아줘.</span></div></div>
+        <div class="personal"><label for="idea">내 말로 더 구체적으로 적기</label><textarea id="idea" rows="3" maxlength="2000" placeholder="예: 본문 문단 사이가 너무 좁아요. 글 내용은 그대로 두고 간격을 넓혀줘."></textarea><button type="button" id="build-prompt">내 요청문 만들기</button><div class="prompt" id="personal-result" hidden><p id="own-prompt"></p><button type="button" data-copy="own-prompt">내 요청문 복사</button></div><p class="caption">이 입력란은 문장만 만듭니다. 복사해서 코덱스에 보내야 고쳐집니다.</p></div>
+        <details><summary>실제로 메킷애센을 바꾼 예시 보기</summary>
+        <p>아래는 기존 관련 글 표시를 카드로 바꾼 <b>실제 로컬 워드프레스 시험</b>입니다. 예시 하나일 뿐, 모든 학생이 같은 카드로 만들 필요는 없습니다.</p>
+        <figure><figcaption><span>바꾸기 전</span>글자로 보이던 관련 글</figcaption><a href="images/makeit-before.png" target="_blank" rel="noopener"><img src="images/makeit-before.png" alt="변경 전 텍스트 중심 관련 글 목록" width="1118" loading="lazy"></a></figure>
+        <figure><figcaption><span>바꾼 뒤</span>사진이 있는 관련 글 카드</figcaption><a href="images/makeit-after-1440.png" target="_blank" rel="noopener"><img src="images/makeit-after-1440.png" alt="변경 후 사진과 제목이 있는 세 열의 관련 글 카드" width="1118" loading="lazy"></a></figure>
+        <p class="caption">검증용 글·이미지를 쓴 화면입니다. 사진을 누르면 크게 볼 수 있습니다.</p>
+        </details>
+        <details id="speed-guide"><summary>속도 고치기 — PageSpeed Insights 쓰는 법</summary>
+          <p>페이지스피드는 <b>내 페이지의 속도와 고칠 곳을 보는 검사 도구</b>입니다. 플러그인을 대신 고쳐 주지는 않습니다.</p>
+          <a class="linkbig" href="https://pagespeed.web.dev/" target="_blank" rel="noopener">PageSpeed Insights 열기 ↗</a>
+          <ol class="install-route"><li><b>고치기 전:</b> 검사할 글 주소를 넣고 분석합니다. ‘모바일’ 결과 화면을 캡처해 둡니다.</li><li><b>코덱스에 주기:</b> 캡처를 채팅창에 넣고, 메킷애센 안에서 고칠 수 있는 원인 하나를 찾게 합니다.</li><li><b>고친 뒤:</b> 워드프레스에 올리고 같은 글·같은 조건에서 다시 검사합니다. 가능하면 전후 각각 3번 재고 가운데 값을 비교합니다.</li></ol>
+          <div class="metric-list"><p><b>성능 점수</b> — 모의 검사 종합 점수. 한 번의 숫자로 단정하지 않아요.</p><p><b>LCP</b> — 큰 내용이 나타나는 시간.</p><p><b>CLS</b> — 화면 배치가 얼마나 흔들리는지.</p></div>
+          <p class="caption">점수는 검사마다 달라질 수 있습니다. 실제 방문자 자료는 최근 28일 집계라 바로 바뀌지 않고, ‘데이터 없음’은 0점이 아닙니다. 광고·통계·라이선스를 빼서 점수만 올리지 않습니다. <a href="https://developers.google.com/speed/docs/insights/v5/about">Google 측정 안내</a></p>
+        </details>
+        <aside class="note warn"><b>다른 곳까지 바꾼다고 하면</b><span class="type">내가 고른 부분만 바꿔줘</span> 라고 말하세요.</aside>
+      </div>
+    </section>
+
+    <section class="step" id="step-6" aria-labelledby="title-6">
+      <div class="num" aria-hidden="true">6</div><div class="body">
+        <h2 id="title-6">설치 ZIP 받기</h2>
+        <p>검사를 통과하면 코덱스가 <b>워드프레스에 올릴 ZIP</b>을 만들고 이렇게 말합니다.</p>
+        <div class="note ok">“다 고쳤어요! 워드프레스에 올릴 파일을 만들었어요 (버전 1.2.4.1). 작업 폴더 → 메킷애센 수정 → 03_완성ZIP 안에 있어요.”</div>
+        <div class="file-flow" aria-label="완성 ZIP 위치"><div><span class="file-tag">폴더</span><b>메킷애센 수정</b><small>작업 폴더 안</small></div><span class="arrow" aria-hidden="true">→</span><div><span class="file-tag blue">ZIP</span><b>03_완성ZIP</b><small>makeit-adsense-midclass-1.2.4.1.zip</small></div></div>
+        <aside class="note ok"><b>더 고치고 싶으면</b>그냥 말하면 됩니다. 다음 ZIP 은 버전이 한 칸 더 올라갑니다 (1.2.4.2).</aside>
+      </div>
+    </section>
+
+    <section class="step" id="step-7" aria-labelledby="title-7">
+      <div class="num" aria-hidden="true">7</div><div class="body">
+        <h2 id="title-7">내 워드프레스에 올리기</h2>
+        <p>플러그인 올리기는 <b>내가 직접</b> 합니다. 연습용 사이트가 있으면 거기서 먼저 해 보세요.</p>
+        <div class="screen"><div class="bar"><span>워드프레스 · 이동 순서</span></div><ol class="install-route"><li>관리자 → <b>플러그인</b> → <b>새 플러그인 추가</b></li><li><b>플러그인 업로드</b> → 03_완성ZIP 의 ZIP 선택 → <b>지금 설치</b></li><li><b>“현재 버전을 업로드한 버전으로 교체”</b> 누르기</li><li>내 사이트의 글을 컴퓨터·휴대폰에서 <b>다시 확인</b></li></ol></div>
+        <aside class="note warn"><b>화면이 그대로면</b>캐시 플러그인(WP Rocket 등)이 있으면 캐시를 비우고, 휴대폰은 새로고침하세요. 올린 뒤 관리자 화면을 처음 열 때 메킷애센이 홈·메뉴를 한 번 다시 맞춥니다 (정식 업데이트 때와 같아요).</aside>
+        <aside class="note stop"><b>새로 설치하지 말고 ‘교체’</b>교체 버튼이 안 보이고 새 플러그인으로 들어가면, 원본과 수정본을 함께 켜지 마세요. 폴더 이름이 원본과 같은 ZIP 이어야 교체됩니다.</aside>
+        <div class="note ok"><b>오늘의 결과물</b>받은 플러그인을 그대로 쓰는 데서 한 걸음 더 나아가, <b>내가 원한 대로 바뀐 메킷애센</b>을 내 사이트에 올렸습니다.</div>
+      </div>
+    </section>
+
+    <section class="step" id="step-8" aria-labelledby="title-8">
+      <div class="num" aria-hidden="true">8</div><div class="body">
+        <h2 id="title-8">마음에 안 들면 되돌리기</h2>
+        <p><span class="path">메킷애센 수정 → 01_원본ZIP넣는곳</span> 의 <b>원본 ZIP</b>을 7번과 같은 방법(업로드 → 교체)으로 올리면 원래대로 돌아갑니다.</p>
+        <aside class="note warn"><b>관리자 화면이 안 열리면</b>호스팅의 파일 관리자에서 <span class="path">wp-content/plugins/makeit-adsense-midclass</span> 폴더 이름을 바꾸면 플러그인이 꺼집니다. 그다음 관리자에 들어가 원본 ZIP 을 올립니다.</aside>
+        <aside class="note stop"><b>‘초기화’는 되돌리기가 아닙니다</b>메킷애센의 초기화 버튼은 글·설정을 지웁니다. 되돌릴 때는 원본 ZIP 을 씁니다.</aside>
+      </div>
+    </section>
+  </div>
+
+  <section class="tail" aria-labelledby="commands-title">
+    <h2 id="commands-title">코덱스에게 하는 말은 이렇게</h2>
+    <div class="cmds"><div class="cmd"><b>시작 문장</b><span>처음 한 번 (2번). 이미 했으면 새 채팅에서 “메킷애센 고쳐줘”</span></div><div class="cmd"><b>바꾸고 싶은 것</b><span>불편한 점과 원하는 결과 한 가지 (4·5번)</span></div><div class="cmd"><b>이 부분만 원래대로</b><span>원하지 않은 변경 하나만 되돌리기</span></div><div class="cmd"><b>처음부터 다시</b><span>작업본을 원본에서 새로 (지금 작업본은 옆에 보관)</span></div></div>
+    <h2>막혔을 때</h2>
+    <div class="cmds"><div class="cmd"><b>ZIP 을 못 읽어요</b><span>압축을 풀지 말고 ZIP 파일 그대로 채팅창에 끌어다 놓으세요.</span></div><div class="cmd"><b>라이선스·광고 부분이 바뀌었대요</b><span>코덱스가 그 부분을 원본대로 되돌린 뒤 다시 ZIP 을 만듭니다.</span></div><div class="cmd"><b>다른 곳도 바뀌었어요</b><span>원하지 않은 부분을 말하고 그 변경만 되돌려 달라고 하세요.</span></div><div class="cmd"><b>올렸는데 화면이 그대로예요</b><span>캐시 비우기 → 플러그인 목록에서 버전(1.2.4.1 등)이 바뀌었는지 확인.</span></div><div class="cmd"><b>사이트 오류가 나요</b><span>8번대로 원본 ZIP 으로 교체. 관리자가 안 열리면 플러그인 폴더 이름 바꾸기.</span></div></div>
+    <aside class="note warn"><b>읽기 편하고 빨라지면 무조건 승인되나요?</b>아닙니다. 특정 디자인이나 PageSpeed 점수는 애드센스 승인 기준표가 아닙니다. Google도 좋은 페이지 경험을 권하지만 점수만으로 상위 노출을 보장하지 않습니다. <a href="https://developers.google.com/search/docs/appearance/page-experience">공식 안내</a></aside>
+    <details class="teacher"><summary>강사용 검증 범위</summary><p>3주차 프로그램(원본 ZIP 풀기·검사·설치 ZIP 만들기)은 실제 메킷애센 1.2.4 ZIP 으로 시험했습니다: 라이선스 함수 변경과 괄호 깨짐은 막고, 만든 ZIP 은 압축 검사를 통과하며 맨 위 폴더 이름·버전(1.2.4.1)이 맞습니다. 워드프레스에 실제로 올려 교체하는 것, Windows, 첫 수강생 완주는 아직 확인 전입니다.</p><p><a href="https://github.com/makeit-edu/makeit-middle-kit">저장소</a></p></details>
+  </section>
+  <footer>메킷 키트 · 월부월백 중급반 · 3주차</footer>
+</main>
+<div id="notice" role="status" aria-live="polite"></div>
+<script src="script.js"></script>
+</body>
+</html>

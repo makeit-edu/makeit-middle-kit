@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>네이버 글 자동화 — 월부월백 중급반</title>
+<style>
+:root{
+  --ink:#111418;
+  --ink-2:#4d5560;
+  --ink-3:#8b939d;
+  --bg:#fff;
+  --box:#f4f6f8;
+  --line:#e3e7ec;
+  --blue:#1155cc;
+  --blue-bg:#eaf1fe;
+  --warn:#b45309;
+  --warn-bg:#fdf4e7;
+  --stop:#c62828;
+  --stop-bg:#fdeeed;
+  --ok:#0f7b4f;
+  --ok-bg:#e8f5ee;
+  --font:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#e9edf2;--ink-2:#aeb7c2;--ink-3:#7b8490;
+    --bg:#101317;--box:#191d23;--line:#282e36;
+    --blue:#7cadff;--blue-bg:#16233a;
+    --warn:#dfa44f;--warn-bg:#241c10;
+    --stop:#f0736b;--stop-bg:#2a1513;
+    --ok:#4dbd8a;--ok-bg:#102019;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:var(--font);font-size:19px;line-height:1.75;
+  word-break:keep-all;-webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:740px;margin:0 auto;padding:56px 24px 120px}
+
+/* 표지 */
+header{margin:0 0 44px}
+header .eyebrow{
+  font-size:15px;color:var(--blue);font-weight:700;margin:0 0 10px;letter-spacing:.02em;
+}
+header h1{
+  font-size:44px;line-height:1.2;margin:0 0 16px;font-weight:800;letter-spacing:-.03em;
+}
+header p{margin:0;font-size:21px;color:var(--ink-2);line-height:1.65}
+header b{color:var(--ink)}
+
+/* 준비물 */
+.prep{
+  background:var(--box);border-radius:14px;padding:24px 26px;margin:0 0 12px;
+}
+.prep h2{font-size:19px;margin:0 0 14px;font-weight:800}
+.prep ul{margin:0;padding:0;list-style:none}
+.prep li{
+  padding:7px 0 7px 30px;position:relative;font-size:18.5px;color:var(--ink-2);line-height:1.6;
+}
+.prep li::before{
+  content:"";position:absolute;left:4px;top:16px;
+  width:8px;height:8px;border-radius:50%;background:var(--blue);
+}
+.prep li b{color:var(--ink)}
+.tiny{font-size:16.5px;color:var(--ink-3);margin:14px 0 40px;line-height:1.6}
+
+/* 단계 */
+.step{
+  display:flex;gap:22px;padding:30px 0;border-top:1px solid var(--line);
+}
+.step:first-of-type{border-top:2px solid var(--ink)}
+.num{
+  flex:0 0 auto;width:58px;
+  font-family:var(--mono);font-size:42px;font-weight:700;line-height:1.1;
+  color:var(--blue);font-variant-numeric:tabular-nums;letter-spacing:-.04em;
+}
+.body{flex:1;min-width:0;padding-top:4px}
+.body h3{
+  font-size:25px;line-height:1.35;margin:0 0 12px;font-weight:800;letter-spacing:-.02em;
+}
+.body p{margin:0 0 10px;font-size:18.5px;color:var(--ink-2);line-height:1.7}
+.body p:last-child{margin-bottom:0}
+.body b{color:var(--ink);font-weight:700}
+.path{
+  display:inline-block;font-family:var(--mono);font-size:17px;
+  background:var(--box);padding:2px 9px;border-radius:6px;color:var(--ink);
+  word-break:break-all;
+}
+.type{
+  display:inline-block;font-family:var(--mono);font-size:19px;font-weight:700;
+  background:var(--ink);color:var(--bg);padding:4px 13px;border-radius:7px;
+  letter-spacing:-.01em;
+}
+a{color:var(--blue);font-weight:600}
+.linkbig{
+  display:block;margin:14px 0;padding:16px 18px;
+  background:var(--blue-bg);border-radius:12px;
+  font-family:var(--mono);font-size:16px;font-weight:600;
+  word-break:break-all;line-height:1.55;text-decoration:none;
+}
+.linkbig:hover{filter:brightness(.97)}
+
+/* 알림 */
+.note{
+  margin:14px 0 0;padding:15px 18px;border-radius:12px;font-size:17.5px;line-height:1.65;
+}
+.note b{font-weight:700}
+.note>b:first-child{display:block;margin-bottom:3px;font-weight:800}
+.note.stop{background:var(--stop-bg);color:var(--ink)}
+.note.stop>b:first-child{color:var(--stop)}
+.note.warn{background:var(--warn-bg);color:var(--ink)}
+.note.warn>b:first-child{color:var(--warn)}
+.note.ok{background:var(--ok-bg);color:var(--ink)}
+.note.ok>b:first-child{color:var(--ok)}
+
+/* 터미널 */
+.term{
+  background:#0e1116;color:#cfd6de;border-radius:12px;
+  padding:16px 18px;margin:14px 0 0;
+  font-family:var(--mono);font-size:15px;line-height:1.6;
+  overflow-x:auto;white-space:pre;
+}
+.term .hi{background:#22c55e;color:#06240f;font-weight:700;padding:1px 7px;border-radius:4px}
+
+/* 브라우저 화면 재현 (ChatGPT 로그인 절차) */
+.web{
+  margin:14px 0 0;border:1px solid var(--line);border-radius:12px;
+  background:var(--box);overflow:hidden;
+}
+.web .bar{display:flex;gap:6px;align-items:center;padding:9px 13px;border-bottom:1px solid var(--line)}
+.web .bar i{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var(--ink-3);opacity:.35}
+.web .bar span{
+  margin-left:7px;font-family:var(--mono);font-size:13px;color:var(--ink-3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.web .scr{padding:24px 20px;text-align:center;background:var(--bg)}
+.web .scr h4{font-size:20px;margin:0 0 7px;font-weight:800;line-height:1.35;letter-spacing:-.02em}
+.web .scr p{font-size:16.5px;margin:0;color:var(--ink-3);line-height:1.55}
+.web .acct{
+  display:flex;align-items:center;gap:11px;
+  margin:17px auto 0;max-width:330px;padding:11px 16px;
+  border:1px solid var(--line);border-radius:99px;text-align:left;
+}
+.web .acct i{
+  flex:0 0 auto;width:32px;height:32px;border-radius:50%;
+  background:var(--blue-bg);color:var(--blue);
+  font-size:13.5px;font-weight:800;font-style:normal;
+  display:flex;align-items:center;justify-content:center;
+}
+.web .acct em{display:block;font-style:normal;font-size:16px;font-weight:700;line-height:1.4}
+.web .acct small{display:block;font-size:14px;color:var(--ink-3);line-height:1.4;word-break:break-all}
+.web .btn{
+  display:inline-block;margin:17px 0 0;padding:10px 44px;border-radius:99px;
+  background:var(--ink);color:var(--bg);font-size:16.5px;font-weight:700;
+}
+.web .code9{display:flex;gap:6px;justify-content:center;margin:18px 0 0;flex-wrap:wrap}
+.web .code9 u{
+  width:33px;height:44px;border:1.5px solid var(--line);border-radius:9px;
+  display:flex;align-items:center;justify-content:center;text-decoration:none;
+  font-family:var(--mono);font-size:18px;font-weight:700;color:var(--ink-3);
+}
+.web .code9 u.gap{border:none;width:10px}
+.web .cap{
+  padding:12px 17px;font-size:16.5px;color:var(--ink-2);line-height:1.6;
+  border-top:1px solid var(--line);background:var(--box);
+}
+.web .cap b{color:var(--ink);font-weight:700}
+.scrnum{
+  margin:26px 0 0;font-size:16px;font-weight:800;color:var(--blue);letter-spacing:.02em;
+}
+
+
+/* 마무리 */
+.tail{margin-top:56px;padding-top:36px;border-top:2px solid var(--ink)}
+.tail h2{font-size:27px;margin:0 0 20px;font-weight:800;letter-spacing:-.02em}
+.cmds{margin:0 0 34px}
+.cmd{
+  display:flex;gap:16px;align-items:baseline;
+  padding:13px 0;border-bottom:1px solid var(--line);
+}
+.cmd .k{
+  flex:0 0 118px;font-family:var(--mono);font-size:18.5px;font-weight:700;
+}
+.cmd .v{font-size:18px;color:var(--ink-2);line-height:1.5}
+footer{
+  margin-top:44px;padding-top:26px;border-top:1px solid var(--line);
+  font-size:17px;color:var(--ink-3);line-height:1.7;
+}
+footer a{font-weight:600}
+
+@media (max-width:620px){
+  body{font-size:18px}
+  .wrap{padding:36px 18px 90px}
+  header h1{font-size:33px}
+  header p{font-size:19px}
+  .step{gap:15px;padding:26px 0}
+  .num{width:40px;font-size:32px}
+  .body h3{font-size:21px}
+  .body p{font-size:17.5px}
+  .cmd{flex-direction:column;gap:2px}
+  .cmd .k{flex:none}
+  /* 코드 9칸이 두 줄로 쪼개지지 않게 — 실제 화면처럼 한 줄로 */
+  .web .code9{gap:5px;flex-wrap:nowrap}
+  .web .code9 u{width:25px;height:38px;font-size:16px;border-radius:7px}
+  .web .code9 u.gap{width:8px}
+  .web .scr{padding:20px 14px}
+  .web .scr h4{font-size:18px}
+}
+@media print{
+  body{font-size:11.5pt;background:#fff;color:#000}
+  .wrap{max-width:none;padding:0}
+  .step{page-break-inside:avoid}
+  .term{background:#f2f2f2;color:#000;border:1px solid #999}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">월부월백 중급반 · 2주차</p>
+  <h1>네이버 블로그<br>글 자동으로 쓰기</h1>
+  <p>키워드 하나만 말하면 코덱스가 <b>글과 사진을 만들고</b><br>
+  네이버에 <b>임시저장까지</b> 해 줍니다. 발행만 직접 누르세요.</p>
+</header>
+
+<div class="prep">
+  <h2>먼저 챙길 것</h2>
+  <ul>
+    <li><b>ChatGPT 앱</b>이 깔린 컴퓨터 (윈도우·맥) — <b>Plus 이상</b> 계정</li>
+    <li><b>크롬</b> — 네이버 블로그 아이디로 로그인할 수 있으면 됩니다</li>
+    <li><b>1주차에 쓰던 작업 폴더</b> — 키 설정이 이미 돼 있어서 다시 안 합니다</li>
+    <li><b>1주차를 안 했다면</b> — <b>수강 코드</b>(자료실 공지)와 채워 둔 <b>키설정.txt</b> (아래 상자 참고)</li>
+    <li>쓰고 싶은 <b>키워드</b> (예: 장수축하금 지원대상) 또는 따라 쓰고 싶은 <b>네이버 글 주소</b></li>
+  </ul>
+</div>
+<p class="tiny">휴대폰·태블릿으로는 작업할 수 없습니다. 이 안내서는 휴대폰으로 봐도 됩니다.</p>
+
+<div class="note warn" style="margin:0 0 40px"><b>1주차를 안 했다면 — 키 설정부터</b>
+설치하면 코덱스가 1주차와 똑같이 <b>수강 코드</b>를 먼저 묻고, 이어서 <b>키설정.txt</b> 를 달라고 합니다.
+공지에서 받은 키설정.txt 를 메모장으로 열고 <b>한 줄에 하나씩</b> 넣어 두세요.
+<pre style="background:var(--box);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:15px;line-height:1.8;overflow:auto;margin:10px 0 6px">sk-여기에붙여넣기            ← OpenAI 키
+https://내사이트.com          ← 사이트 주소
+워드프레스관리자아이디         ← 관리자 아이디
+xxxx xxxx xxxx xxxx xxxx xxxx ← 애플리케이션 비밀번호</pre>
+네이버 글에는 <b>OpenAI 키</b>만 있으면 됩니다. 워드프레스 세 줄은 승인글용이라, 아직 없으면 비워 두고 나중에 넣어도 됩니다.</div>
+
+<div class="step">
+  <div class="num">1</div>
+  <div class="body">
+    <h3>크롬에 코덱스 확장 설치</h3>
+    <p>ChatGPT 앱 → 왼쪽 <b>Codex</b> → <b>설정</b> → <b>컴퓨터 사용</b> → <b>Chrome</b> 에서 크롬 확장을 설치합니다.</p>
+    <p>설치가 끝나면 크롬 오른쪽 위 <b>퍼즐 모양</b>을 눌러 ChatGPT(Codex) 확장이 <b>켜져 있는지</b> 확인하세요. 핀(📌)을 꽂아 두면 편합니다.</p>
+    <div class="note ok"><b>한 번만 하면 됩니다</b>
+    코덱스가 이 확장으로 크롬의 네이버 글쓰기 화면에 글을 넣습니다. 다른 탭·다른 사이트는 건드리지 않습니다.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">2</div>
+  <div class="body">
+    <h3>사진 넣기 허용 켜기</h3>
+    <p>크롬 주소창에 <span class="path">chrome://extensions</span> 를 치고 엔터 → ChatGPT 확장의 <b>세부정보</b> → <b>파일 URL에 대한 액세스 허용</b> 을 켭니다.</p>
+    <div class="note warn"><b>이걸 안 켜면 사진만 빠집니다</b>
+    글은 다 들어가고 사진만 안 올라갑니다. 코덱스가 "사진만 빠졌어요" 라고 알려 주면 이걸 켜세요.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">3</div>
+  <div class="body">
+    <h3>크롬에서 네이버 로그인</h3>
+    <p>크롬으로 <b>naver.com</b> 에 들어가 블로그 아이디로 로그인하세요. <b>로그인 상태 유지</b>를 체크해 두면 다음부터 다시 안 해도 됩니다.</p>
+    <div class="note stop"><b>로그인은 직접</b>
+    아이디·비밀번호·2차 인증은 코덱스에게 알려 주지 마세요. 크롬에서 내가 직접 합니다.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">4</div>
+  <div class="body">
+    <h3>코덱스 열고 1주차 폴더 고르기</h3>
+    <p>ChatGPT 앱 → <b>Codex</b> → <b>새 채팅</b> → 작업 폴더로 <b>1주차에 쓰던 폴더</b>를 고릅니다.</p>
+    <div class="note warn"><b>같은 폴더를 고르세요</b>
+    1주차 키 설정(수강 코드·OpenAI 키)을 그대로 씁니다. 1주차 승인글 자동화도 이 폴더에서 계속 됩니다.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">5</div>
+  <div class="body">
+    <h3>설치 — 이 한 줄</h3>
+    <p style="text-align:center;margin:14px 0"><span class="type" style="font-size:19px;padding:8px 14px;display:inline-block;line-height:1.5">깃허브 makeit-edu/makeit-middle-kit 저장소의 README 를 읽고 거기 적힌 대로 설치한 뒤 네이버 글 써줘</span></p>
+    <p>30초쯤 뒤 코덱스가 크롬의 네이버 로그인까지 알아서 확인하고 이렇게 말합니다.</p>
+    <div class="note ok">“네이버 준비됐어요! 어떤 키워드로 글을 쓸까요? (예: 장수축하금 지원대상)<br>따라 쓰고 싶은 네이버 블로그 글 주소를 주셔도 돼요.”</div>
+    <div class="note warn"><b>"설치를 진행할까요?" 라고 물으면</b>
+    <span class="type">진행해</span> 라고 답하세요. 코덱스가 인터넷에서 받은 프로그램을 처음 실행하기 전에 한 번 확인하는 것입니다.</div>
+    <div class="note warn"><b>1주차와 같은 저장소입니다</b>
+    저장소 이름은 1·2·3주차 모두 <b>makeit-edu/makeit-middle-kit</b> 하나입니다. 이미 설치했어도 이 문장을 한 번 더 치면 최신으로 맞춰지고 바로 네이버로 넘어갑니다. "README 를 읽고" 도 꼭 넣으세요.</div>
+    <div class="note warn"><b>1주차를 안 했다면</b>
+    먼저 “수강 코드를 알려 주세요” → 수강 코드 → “키설정.txt 를 끌어다 놓아 주세요” → 키설정.txt 를 채팅창에 끌어다 놓기.
+    “키 설정이 끝났어요!” 가 나오면 이어서 네이버 준비로 넘어갑니다.</div>
+    <div class="note warn"><b>"크롬에서 네이버에 로그인해 주세요" 가 나오면</b>
+    3번대로 로그인하고 채팅창에 <span class="type">됐어요</span> 라고 치세요.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">6</div>
+  <div class="body">
+    <h3>키워드 말하기</h3>
+    <p>키워드를 치고 엔터. 코덱스가 글과 사진 3장을 만듭니다. <b>1분 안팎</b> 걸립니다.</p>
+    <pre style="background:var(--box);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px 16px;font-size:15px;line-height:1.7;overflow:auto">글 완성: 장수축하금 지원대상, 우리 부모님도 해당될까? (사진 3장)
+💰 이 글: 토큰 9,880개 · 약 65원
+   지금까지 네이버 1개 · 약 65원</pre>
+    <div class="note ok"><b>따라 쓰기도 됩니다</b>
+    잘 쓴 네이버 글 주소(blog.naver.com/…)를 주면 그 글의 <b>순서·표·사진 배치만</b> 참고하고 문장은 전부 새로 씁니다.</div>
+    <div class="note ok"><b>사진에는 글자가 없습니다</b>
+    한글·영어·숫자 어떤 글자도 넣지 않고, 내용과 어울리는 그림만 만듭니다.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">7</div>
+  <div class="body">
+    <h3>네이버에 쓰는 동안 지켜보기</h3>
+    <p>코덱스가 크롬에 네이버 글쓰기 화면을 열고 제목·본문·소제목·표·인용구·사진을 차례로 넣습니다. <b>5~8분</b> 걸립니다.</p>
+    <div class="note stop"><b>크롬 창을 건드리지 마세요</b>
+    쓰는 동안 크롬 창을 <b>화면 가득, 맨 앞에</b> 두고 마우스·키보드를 만지지 마세요. 다른 창이 위를 덮으면 글이 안 들어갑니다.</div>
+    <div class="note warn"><b>"계속 쓰는 중이에요" 가 나와도 정상</b>
+    긴 글은 두세 번에 나눠서 씁니다. 코덱스가 알아서 이어서 씁니다.</div>
+    <div class="note ok"><b>"전체 글감" 창이 잠깐 떠도 그대로 두세요</b>
+    쓰는 도중 글감 창이 뜨면 프로그램이 바로 X 로 끄고, 빠진 글자까지 다시 넣고 이어서 씁니다.</div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">8</div>
+  <div class="body">
+    <h3>읽어 보고 발행은 직접</h3>
+    <div class="note ok">“다 썼어요! 네이버에 임시저장해 뒀습니다.<br>크롬 화면에서 글을 읽어 보시고, 괜찮으면 오른쪽 위 ‘발행’ 을 직접 눌러 주세요.”</div>
+    <p>크롬에 열린 글을 읽어 보고 <b>발행</b> 버튼을 누르세요. 코덱스는 발행을 절대 누르지 않습니다.</p>
+    <p>창을 닫았다면 네이버 블로그 → <b>글쓰기</b> → 오른쪽 위 <b>저장 옆 숫자</b>를 누르면 임시저장 글이 나옵니다.</p>
+    <div class="note ok"><b>다음 글은</b>
+    키워드만 또 말하면 됩니다. 새 채팅이면 같은 폴더를 고르고 <span class="type">네이버 글 써줘</span>. 로그인·키는 다시 안 묻습니다.</div>
+  </div>
+</div>
+
+<div class="cmds-wrap" style="margin-top:36px">
+  <h2>코덱스에게 하는 말은 이게 전부</h2>
+  <div class="cmds">
+    <div class="cmd"><div class="k">설치 문장</div><div class="v">처음 한 번 (5번)</div></div>
+    <div class="cmd"><div class="k">키워드</div><div class="v">쓸 글 주제 (예: 장수축하금 지원대상)</div></div>
+    <div class="cmd"><div class="k">네이버 글 주소</div><div class="v">따라 쓰고 싶은 글이 있을 때</div></div>
+    <div class="cmd"><div class="k">됐어요</div><div class="v">네이버 로그인을 하고 났을 때</div></div>
+    <div class="cmd"><div class="k">네이버 글 써줘</div><div class="v">새 채팅에서 다시 시작할 때</div></div>
+    <div class="cmd"><div class="k">승인글 자동화 시작해</div><div class="v">1주차 워드프레스 승인글 (같은 폴더에서 그대로 됨)</div></div>
+    <div class="cmd"><div class="k">네이버 진단</div><div class="v">네이버가 뭔가 이상할 때 제일 먼저</div></div>
+  </div>
+
+  <h2>막혔을 때</h2>
+  <p style="font-size:18.5px;color:var(--ink-2);margin:0 0 12px">
+  멈추면 코덱스가 <b>원인과 할 일</b>을 바로 알려 줍니다. 모르겠으면 <span class="type">네이버 진단</span>.
+  거의 다 내가 바로 고칠 수 있는 것들이라, 할 일대로 하고 다시 하면 됩니다.</p>
+  <div class="cmds">
+    <div class="cmd"><div class="k">크롬 확장이 설치돼 있지 않아요</div><div class="v">1번대로 코덱스 설정에서 크롬 확장 설치 → 다시 '네이버 글 써줘'</div></div>
+    <div class="cmd"><div class="k">크롬과 코덱스가 연결돼 있지 않아요</div><div class="v">크롬을 켜고 퍼즐 모양에서 ChatGPT(Codex) 확장이 켜져 있는지 확인 → 다시</div></div>
+    <div class="cmd"><div class="k">네이버 로그인이 안 돼 있어요</div><div class="v">크롬에서 네이버 로그인 → '됐어요'</div></div>
+    <div class="cmd"><div class="k">크롬 창이 가려져 입력이 안 됐어요</div><div class="v">크롬 창을 화면 가득 맨 앞에 두고, 쓰는 동안 손대지 않기 → 다시</div></div>
+    <div class="cmd"><div class="k">'작성 중인 글' 알림이 떠 있어요</div><div class="v">네이버 글쓰기 화면의 알림에서 '취소' → 다시</div></div>
+    <div class="cmd"><div class="k">글쓰기 화면이 늦게 떴거나 탭이 닫혔어요</div><div class="v">네이버 글쓰기 탭을 모두 닫고 다시. 쓰다 만 글은 임시저장에 남아 있음</div></div>
+    <div class="cmd"><div class="k">사진만 빠졌어요</div><div class="v">2번 '파일 URL에 대한 액세스 허용' 켜기 → 다음 글부터 사진 들어감</div></div>
+    <div class="cmd"><div class="k">OpenAI 키가 틀렸어요</div><div class="v">platform.openai.com → API keys 에서 새 키 → 채팅창에 sk- 키 붙여넣기</div></div>
+    <div class="cmd"><div class="k">OpenAI 크레딧이 없어요</div><div class="v">platform.openai.com → Billing 에서 충전(5달러부터) → 다시</div></div>
+    <div class="cmd"><div class="k">따라 쓸 글 주소를 못 읽었어요</div><div class="v">blog.naver.com/아이디/글번호 모양인지 확인. 비공개 글은 안 됨. 키워드만 줘도 됨</div></div>
+    <div class="cmd"><div class="k">입력할 곳이 크롬 화면 밖이었어요</div><div class="v">크롬 창을 최대화(화면 가득)하고 맨 앞에 둔 뒤 다시 '네이버 글 써줘'</div></div>
+    <div class="cmd"><div class="k">표·소제목 같은 일부가 빠졌어요</div><div class="v">코덱스가 알려 준 곳만 발행 전에 네이버 화면에서 직접 고치기. 새로 쓰고 싶으면 크롬 창을 최대화하고 다시 '네이버 글 써줘'</div></div>
+    <div class="cmd"><div class="k">그 밖의 오류로 멈췄어요</div><div class="v">코덱스가 알려 준 오류 내용을 보고, 네이버 글쓰기 탭을 닫은 뒤 다시 '네이버 글 써줘'</div></div>
+  </div>
+  <p style="font-size:18.5px;color:var(--ink-2);margin:12px 0 12px">
+  멈추면 코덱스가 <b>무엇이 안 됐는지</b>와 <b>할 일</b>을 알려 줍니다. 그대로 하고
+  다시 <span class="type">네이버 글 써줘</span> 만 하면 됩니다. 쓰다 만 글은 네이버 임시저장에 남아 있으니 지워도 됩니다.</p>
+  <div class="note ok"><b>프로그램은 내 컴퓨터에 남지 않습니다</b>
+  실행할 때마다 최신판을 인터넷에서 읽어 옵니다. 폴더에 남는 건 내가 만든 글과 사진뿐입니다
+  (<span class="path">네이버 승인글/03_쓴글</span>).</div>
+  <div class="note stop"><b>폴더 안 파일은 지우지 마세요</b>
+  설정 파일을 지우면 키 설정을 처음부터 다시 해야 합니다.</div>
+</div>
+
+<footer>
+  메킷 키트 · 월부월백 중급반
+</footer>
+
+</div>
+</body>
+</html>

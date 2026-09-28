@@ -16,13 +16,13 @@ import {tmpdir} from "node:os";
 import {dirname, join} from "node:path";
 import {pathToFileURL} from "node:url";
 
-export const 버전 = "2026-09-28a";
+export const 버전 = "2026-09-28b";
 const 저장소 = "makeit-edu/makeit-middle-kit";
 const 브랜치 = "main";
 const 목록파일 = "앱/목록.json";
 const 진입파일 = "앱/승인글.mjs";
 // 목록.json 의 "진입": {"승인글": "앱/승인글.mjs", "네이버": "앱/네이버.mjs"} 처럼 적으면 앱.승인글, 앱.네이버 로 준다.
-// 1주차 저장소는 승인글 하나, 2주차 저장소는 승인글+네이버. 로더 코드는 두 저장소가 똑같다 (저장소 이름만 다름).
+// 지금은 한 저장소에 승인글·네이버·메킷애센 셋이 다 들어 있다. (옛 2주차 저장소는 이 저장소를 그대로 따라 만든 사본)
 function 진입목록(목록) {
   const m = 목록 && typeof 목록.진입 === "object" && 목록.진입 ? 목록.진입 : {승인글: 진입파일};
   return Object.entries(m).filter(([, f]) => typeof f === "string" && f.endsWith(".mjs"));
@@ -106,7 +106,7 @@ export async function 불러오기({작업폴더, _재귀 = false} = {}) {
   const 파일들 = Array.isArray(목록.파일) ? 목록.파일 : [];
   const 진입들 = 진입목록(목록);
   const 빠진진입 = 진입들.filter(([, f]) => !파일들.includes(f)).map(([, f]) => f);
-  if (!진입들.length || 빠진진입.length) return {정지: true, 안내: "프로그램 목록이 비어 있습니다. 강사에게 알려 주세요.", 상세: `목록에 ${빠진진입.join(", ") || 진입파일} 없음`};
+  if (!진입들.length || 빠진진입.length) return {정지: true, 안내: "프로그램 목록을 읽지 못했어요. 1~2분 뒤 다시 해 주세요.", 상세: `목록에 ${빠진진입.join(", ") || 진입파일} 없음`};
 
   const 임시폴더 = await mkdtemp(join(tmpdir(), "makeit-app-"));
   const 받은 = [];

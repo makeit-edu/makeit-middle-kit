@@ -1,0 +1,65 @@
+{
+  "버전": "2026-09-17a",
+  "표컨테이너": ".se-component.se-table",
+  "글쓰기주소": "https://blog.naver.com/GoBlogWrite.naver",
+  "설명": "네이버 스마트에디터 ONE 셀렉터와 동작. 2026-09-15 실측으로 통한 것만 넣었다. 네이버가 화면을 바꾸면 이 파일만 고친다.",
+
+  "타이핑딜레이": 35,
+
+  "글쓰기주소패턴": [
+    "blog\\.naver\\.com/.*(PostWrite|GoBlogWrite|postwrite)",
+    "blog\\.naver\\.com/[^/]+/postwrite",
+    "blog\\.naver\\.com/[^/?]+\\?.*Redirect=Write"
+  ],
+
+  "프레임": "iframe#mainFrame",
+  "작성중팝업버튼": "취소",
+
+  "제목칸": [
+    ".se-documentTitle .se-text-paragraph",
+    ".se-documentTitle [contenteditable=\"true\"]",
+    ".se-title-text"
+  ],
+  "본문칸": [
+    ".se-component.se-text .se-text-paragraph",
+    ".se-section-text .se-text-paragraph",
+    ".se-content [contenteditable=\"true\"]"
+  ],
+  "본문문단": ".se-component.se-text .se-text-paragraph",
+
+  "문단서식버튼": [
+    ".se-text-format-toolbar-button",
+    "button[class*=text-format-toolbar-button]"
+  ],
+  "소제목옵션": [
+    "button:has-text(\"소제목\")",
+    "li:has-text(\"소제목\")"
+  ],
+
+  "인용구버튼": [
+    "button:has-text(\"인용구 추가\")",
+    "button[aria-label*=\"인용구\"]"
+  ],
+  "표버튼": [
+    "button:has-text(\"표 추가\")",
+    "button[class*=table-toolbar-button]"
+  ],
+  "표칸": "td",
+  "구분선버튼": [
+    "button:has-text(\"구분선 추가\")",
+    "button[aria-label*=\"구분선\"]"
+  ],
+  "사진버튼": [
+    "button:has-text(\"사진 추가\")",
+    "button[class*=image-toolbar-button]"
+  ],
+  "본문추가버튼": [
+    "button:has-text(\"본문 추가\")",
+    ".se-canvas-bottom-button"
+  ],
+
+  "저장버튼": [
+    "button[class*=save_btn]",
+    "button:has-text(\"저장\")"
+  ]
+}
