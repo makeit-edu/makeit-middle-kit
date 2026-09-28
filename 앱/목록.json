@@ -1,8 +1,8 @@
 {
-  "버전": "2026-09-28a",
+  "버전": "2026-09-28b",
   "정지": false,
   "정지안내": "",
-  "커밋": "28e7a079add6e672bb29b107e8e2c16ced56fe9f",
+  "커밋": "3846851a6937d56807bd61494a590f32203f25a3",
   "파일": [
     "99_절대_건들지마세요_프로그램파일/scripts/adsense-auto-drafts.mjs",
     "99_절대_건들지마세요_프로그램파일/scripts/adsense-create-drafts.mjs",
@@ -20,9 +20,27 @@
     "99_절대_건들지마세요_프로그램파일/scripts/update-kit.mjs",
     "99_절대_건들지마세요_프로그램파일/scripts/wordpress-connection-check.mjs",
     "앱/AGENTS.md",
+    "앱/네이버.mjs",
+    "앱/네이버/naver-typing.mjs",
+    "앱/네이버/recipe.json",
+    "앱/네이버/글만들기.mjs",
+    "앱/메킷애센.mjs",
+    "앱/메킷애센/자료/answer-readiness.md",
+    "앱/메킷애센/자료/classroom.md",
+    "앱/메킷애센/자료/performance.md",
+    "앱/메킷애센/자료/readability.md",
+    "앱/메킷애센/자료/search-review.md",
+    "앱/메킷애센/자료/verification.md",
+    "앱/메킷애센/자료/wordpress-changes.md",
+    "앱/메킷애센/자료/work-method.md",
     "앱/승인글.mjs"
   ],
   "수강코드": [
     "weolbumakeitmiddle"
-  ]
+  ],
+  "진입": {
+    "승인글": "앱/승인글.mjs",
+    "네이버": "앱/네이버.mjs",
+    "메킷애센": "앱/메킷애센.mjs"
+  }
 }
