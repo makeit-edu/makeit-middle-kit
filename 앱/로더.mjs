@@ -16,7 +16,7 @@ import {tmpdir} from "node:os";
 import {dirname, join} from "node:path";
 import {pathToFileURL} from "node:url";
 
-export const 버전 = "2026-09-23b";
+export const 버전 = "2026-09-28a";
 const 저장소 = "makeit-edu/makeit-middle-kit";
 const 브랜치 = "main";
 const 목록파일 = "앱/목록.json";
@@ -181,6 +181,6 @@ export async function 불러오기({작업폴더, _재귀 = false} = {}) {
     };
   } catch (e) {
     await rm(임시폴더, {recursive: true, force: true});
-    return {정지: true, 안내: "깃허브의 키트 파일을 읽다가 멈췄어요. 잠시 후 다시 해주세요. 계속 그러면 이 화면을 문의 채널에 올려 주세요.", 상세: String(e?.message || e), 받은파일수: 받은.length};
+    return {정지: true, 안내: "깃허브의 키트 파일을 읽다가 멈췄어요. 인터넷 연결을 확인하고 1~2분 뒤 다시 해 주세요.", 상세: String(e?.message || e), 받은파일수: 받은.length};
   }
 }
