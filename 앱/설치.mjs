@@ -4,8 +4,9 @@
 //   3) 데이터 폴더 만들기 (애드센스 승인글/00_설정 · 01_제목넣는곳 · 02_생성결과_확인용)
 // 프로그램 파일은 저장하지 않는다. 프로그램은 실행할 때마다 GitHub 에서 읽는다 (앱/로더.mjs).
 //
-// 내 커스텀 키트 (2026-10-17): 저장소 를 넘기면 그 저장소(수강생이 자기 깃허브로 복사한 키트)의 대본을 받아
+// 내 커스텀 키트 (2026-10-17, 10/19 비공개로): 저장소 를 넘기면 그 저장소(수강생이 자기 깃허브에 복사한 키트)의 대본을 받아
 // 준비 코드의 저장소 줄을 그 이름으로 맞춰 '그 폴더에만' 저장하고, 폴더에 표시(00_설정/키트저장소.txt)를 남긴다.
+// 비공개 저장소면 토큰(읽기 전용)으로 읽고, 받은 토큰은 그 폴더의 00_설정/깃허브토큰.txt 에만 둔다 (원본 키트 폴더에는 두지 않는다).
 // 전역 ~/.codex/AGENTS.md 의 원본 대본은 건드리지 않는다 (원본 키트는 원래 폴더에서 그대로 쓰게).
 
 import {mkdir, readFile, readdir, rm, writeFile} from "node:fs/promises";
@@ -14,6 +15,7 @@ import {join} from "node:path";
 
 const 공식저장소 = "makeit-edu/makeit-middle-kit";
 const 저장소꼴 = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/;
+const 토큰꼴 = /^[A-Za-z0-9_]{20,255}$/;
 // 대본의 준비 코드 속 저장소 줄(`let 저장소 = "…";`)을 이 키트의 저장소로 맞춘다. 원본이면 그대로다.
 export function 저장소묶기(대본, 저장소) {
   return String(대본).replace(/let 저장소 ?= ?"[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+";/g, (줄) => 줄.replace(/"[^"]*"/, `"${저장소}"`));
@@ -26,30 +28,51 @@ function 대본판(글) {
   return m ? Number(m[1]) : String(글 || "").includes("메킷 키트") ? 1 : 0;
 }
 
-async function 대본받기(저장소) {
+async function 대본받기(저장소, 토큰 = "") {
   const 파일 = "앱/AGENTS.md";
   const 경로 = 파일.split("/").map(encodeURIComponent).join("/");
+  const headers = 토큰 ? {Authorization: `token ${토큰}`} : {};
+  let 상태 = 0;
   try {
-    const r = await fetch(`https://api.github.com/repos/${저장소}/contents/${경로}?ref=main`, {signal: AbortSignal.timeout(20000)});
+    const r = await fetch(`https://api.github.com/repos/${저장소}/contents/${경로}?ref=main`, {signal: AbortSignal.timeout(20000), headers});
+    상태 = r.status;
     if (r.ok) {
       const body = await r.json();
       if (body.content) return Buffer.from(String(body.content).replace(/\s/g, ""), "base64").toString("utf8");
     }
   } catch {}
-  const r2 = await fetch(`https://raw.githubusercontent.com/${저장소}/main/${경로}?t=${Date.now()}`, {signal: AbortSignal.timeout(20000)});
-  if (!r2.ok) throw new Error(`대본을 받지 못했습니다 (HTTP ${r2.status})`);
+  const r2 = await fetch(`https://raw.githubusercontent.com/${저장소}/main/${경로}?t=${Date.now()}`, {signal: AbortSignal.timeout(20000), headers});
+  if (!r2.ok) {
+    const e = new Error(`대본을 받지 못했습니다 (HTTP ${r2.status})`);
+    e.상태 = 상태 === 401 || 상태 === 404 ? 상태 : r2.status;
+    throw e;
+  }
   return r2.text();
 }
 
-export async function 설치({작업폴더, 저장소 = 공식저장소}) {
+export async function 설치({작업폴더, 저장소 = 공식저장소, 토큰: 받은토큰 = ""}) {
   if (!작업폴더) throw new Error("작업폴더 가 필요합니다");
-  저장소 = String(저장소 || 공식저장소).trim().replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/+$/, "");
+  저장소 = String(저장소 || 공식저장소).trim().replace(/^https?:\/\/(www\.)?github\.com\//, "").replace(/[?#].*$/, "").replace(/\.git$/, "").replace(/\/+$/, "").split("/").slice(0, 2).join("/");
   if (!저장소꼴.test(저장소)) return {폴더: 작업폴더, 기록: {}, 결과: `저장소 이름이 이상해요(${저장소}). '깃허브아이디/저장소이름' 꼴이어야 해요.`, 다음: ""};
   const 커스텀 = 저장소.toLowerCase() !== 공식저장소;
+  const 토큰파일 = join(작업폴더, "애드센스 승인글", "00_설정", "깃허브토큰.txt");
+  // 토큰은 커스텀 저장소에만 쓴다: 받은 토큰 → 없으면 그 폴더에 이미 있는 토큰
+  let 토큰 = "";
+  if (커스텀) {
+    토큰 = String(받은토큰 || "").trim().replace(/^["'`]+|["'`]+$/g, "");
+    if (!토큰) { try { 토큰 = (await readFile(토큰파일, "utf8")).trim().split(/\s+/)[0] || ""; } catch {} }
+    if (!토큰꼴.test(토큰)) 토큰 = "";
+  }
   const 기록 = {};
   let 대본;
-  try { 대본 = 저장소묶기(await 대본받기(저장소), 저장소); }
-  catch (e) { return {폴더: 작업폴더, 기록, 결과: 커스텀 ? `깃허브의 내 커스텀 키트(${저장소})에서 대본을 받지 못했어요. 저장소 이름과 공개 여부를 확인하고 다시 해 주세요.` : "일부 실패 — 인터넷 연결을 확인하고 1~2분 뒤 같은 문장으로 다시 설치해 주세요", 다음: ""}; }
+  try { 대본 = 저장소묶기(await 대본받기(저장소, 토큰), 저장소); }
+  catch (e) {
+    const 결과 = !커스텀 ? "일부 실패 — 인터넷 연결을 확인하고 1~2분 뒤 같은 문장으로 다시 설치해 주세요"
+      : e?.상태 === 401 ? "깃허브 토큰이 틀렸거나 만료됐어요. 깃허브에서 새 토큰을 만들어 다시 해 주세요."
+      : e?.상태 === 404 && !토큰 ? `깃허브의 내 커스텀 키트(${저장소})를 읽지 못했어요. 비공개 저장소라면 먼저 원본 키트(makeit-edu/makeit-middle-kit)를 설치한 뒤 '내 커스텀 키트 만들어줘' 라고 하세요. 거기서 읽기 전용 토큰을 넣어요.`
+      : `깃허브의 내 커스텀 키트(${저장소})에서 대본을 받지 못했어요. 저장소 이름과, 토큰을 만들 때 이 저장소를 골랐는지 확인하고 다시 해 주세요.`;
+    return {폴더: 작업폴더, 기록, 결과, 다음: ""};
+  }
 
   // 코덱스가 README 를 읽으려고 저장소를 통째로 내려받는 경우가 있다 (2026-09-23 실측: 작업 폴더 안에 makeit-middle-kit-naver/ 를 git clone).
   // 그러면 프로그램 파일이 수강생 PC 에 남는다. 우리 저장소 사본(폴더 이름 + .git 원격 주소 둘 다 맞을 때만)은 지운다.
@@ -77,6 +100,9 @@ export async function 설치({작업폴더, 저장소 = 공식저장소}) {
   const 표시 = join(작업폴더, "애드센스 승인글", "00_설정", "키트저장소.txt");
   if (커스텀) { await writeFile(표시, `${저장소}\n`, "utf8"); 기록["내 커스텀 키트 표시"] = "만듦"; }
   else await rm(표시, {force: true}).catch(() => {});
+  // 깃허브 토큰 — 커스텀 저장소를 이 토큰으로 읽었으면 이 폴더에 둔다 (값은 어디에도 찍지 않는다). 원본으로 다시 깔면 지운다.
+  if (커스텀 && 토큰) { await writeFile(토큰파일, 토큰 + "\n", {encoding: "utf8", mode: 0o600}); 기록["깃허브 토큰 (읽기 전용)"] = "저장"; }
+  else if (!커스텀) await rm(토큰파일, {force: true}).catch(() => {});
   // 수강생이 채울 키설정.txt (있으면 그대로 둔다)
   const 키파일 = join(작업폴더, "애드센스 승인글", "00_설정", "키설정.txt");
   try {
@@ -112,7 +138,7 @@ export async function 설치({작업폴더, 저장소 = 공식저장소}) {
     기록["~/.codex/AGENTS.md (전역 대본)"] = /더 높은 판/.test(String(e?.message)) ? "이미 있음" : "실패: " + String(e?.message || e).slice(0, 80);
   }
 
-  const 전부됨 = Object.values(기록).every((v) => v === "받음" || v === "갱신" || v === "만듦" || v === "이미 있음" || v === "정리" || v === "원본 그대로 둠");
+  const 전부됨 = Object.values(기록).every((v) => v === "받음" || v === "갱신" || v === "만듦" || v === "이미 있음" || v === "정리" || v === "원본 그대로 둠" || v === "저장");
   return {
     폴더: 작업폴더,
     저장소,
