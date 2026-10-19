@@ -25,7 +25,7 @@ import {tmpdir} from "node:os";
 import {dirname, join} from "node:path";
 import {fileURLToPath, pathToFileURL} from "node:url";
 
-export const 버전 = "2026-10-19b";
+export const 버전 = "2026-10-19c";
 
 const 여기 = dirname(fileURLToPath(import.meta.url));
 const 공식저장소 = "makeit-edu/makeit-middle-kit";
@@ -192,7 +192,7 @@ export async function 토큰으로연결({작업폴더, 토큰} = {}) {
     if (!저장소) {
       if (!빈이름) return 멈춤("내 깃허브에 비슷한 이름의 저장소가 너무 많아요", "깃허브에서 쓰지 않는 my-makeit-kit 저장소를 지우고 다시 말해 주세요.");
       const r = await 깃허브(`/repos/${공식저장소}/generate`, {토큰, 방법: "POST", 몸: {owner: 아이디, name: 빈이름, private: true, include_all_branches: false, description: "내 메킷 키트 (비공개) — 메킷 키트가 원본에서 복사"}});
-      if (r.상태 !== 201) return 멈춤(`깃허브에 내 키트를 만들지 못했어요 (HTTP ${r.상태})`, "1~2분 뒤 '내 커스텀 키트 만들어줘' 라고 다시 말해 주세요.");
+      if (r.상태 !== 201) return 멈춤(`깃허브에 내 키트를 만들지 못했어요 (HTTP ${r.상태})`, "깃허브에 가입할 때 온 이메일에서 인증(Verify)을 마쳤는지 확인하고, 1~2분 뒤 '내 커스텀 키트 만들어줘' 라고 다시 말해 주세요.");
       저장소 = r.몸.full_name;
       새로만듦 = true;
     }
