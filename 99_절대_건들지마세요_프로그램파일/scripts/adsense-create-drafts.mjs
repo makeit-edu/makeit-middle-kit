@@ -5,6 +5,7 @@ import {existsSync, mkdirSync, readFileSync, writeFileSync} from "node:fs";
 import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {readTitleEntries, resolveTitleFile} from "./title-files.mjs";
+import {readTitleRotation, rotateTitleEntries, saveTitleRotation} from "./title-rotation.mjs";
 import {keysGuideMessage, requireLicense} from "./lib/env.mjs";
 import {wpFetch} from "./lib/wp.mjs";
 import {돈줄, 예산상태, 원장기록, 진행표시, 천단위, 퍼센트, 퍼센트문구} from "./lib/usage.mjs";
@@ -1669,6 +1670,9 @@ if (!dryRun && (!ready(siteUrl, ["example.com", "example-"]) || !ready(username,
 const titleCatalog = readTitleEntries(titlesPath);
 const allTitleEntries = titleCatalog.entries;
 const previousDraftHistory = readDraftHistory(outputDir, visibleOutputDir);
+// 앱의 임시 프로그램 폴더가 아닌 사이트별 영구 결과 폴더에 둔다.
+const rotationPath = join(visibleOutputDir, "title-rotation.json");
+const rotation = readTitleRotation(rotationPath);
 
 // 이미 쓴 글 걸러내기 ① 이 키트로 만든 기록  ② 워드프레스에 실제로 올라가 있는 글
 const existingOnWordPress = includeUsedTitles
@@ -1689,7 +1693,12 @@ const usedTitleKeys = new Set([
 const availableTitleEntries = includeUsedTitles
   ? allTitleEntries
   : allTitleEntries.filter((entry) => !usedTitleKeys.has(titleKey(entry.title)));
-const titleEntries = limit > 0 ? availableTitleEntries.slice(0, limit) : availableTitleEntries;
+const titleEntries = rotateTitleEntries(allTitleEntries, {
+  ...rotation,
+  usedTitleKeys: includeUsedTitles ? new Set() : usedTitleKeys,
+  titleKey,
+  limit,
+});
 const titles = titleEntries.map((entry) => entry.title);
 if (titles.length === 0) {
   if (allTitleEntries.length > 0 && usedTitleKeys.size > 0 && !includeUsedTitles) {
@@ -1951,6 +1960,15 @@ for (let index = 0; index < titles.length; index += 1) {
     results.push({site, title, ok: false, error: message});
     console.log(`  실패: ${message}`);
     if (진행) 진행.글실패();
+  } finally {
+    // 성공/기존 글 확인 직후 저장한다. 실행 도중 종료되어도 완료한 글과
+    // 순환 위치는 남고, 실패한 제목은 사용 처리하지 않아 다음에 재시도한다.
+    if (results.at(-1)?.ok) {
+      const checkpoint = mergeDraftHistory(previousDraftHistory, results);
+      writeFileSync(join(visibleOutputDir, "draft-history.json"), JSON.stringify(checkpoint, null, 2), "utf8");
+      writeFileSync(join(outputDir, "draft-history.json"), JSON.stringify(checkpoint, null, 2), "utf8");
+      saveTitleRotation(rotationPath, titleEntry);
+    }
   }
 }
 if (진행) 진행.끝(results.filter((item) => item.ok && !item.skipped).length > 0 ? "다 됐어요 ✅" : "끝 (새로 만든 글 없음)");

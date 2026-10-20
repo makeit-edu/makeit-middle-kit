@@ -17,6 +17,8 @@
     "99_절대_건들지마세요_프로그램파일/scripts/lib/wp.mjs",
     "99_절대_건들지마세요_프로그램파일/scripts/save.mjs",
     "99_절대_건들지마세요_프로그램파일/scripts/title-files.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/title-rotation.mjs",
+    "99_절대_건들지마세요_프로그램파일/scripts/title-rotation.test.mjs",
     "99_절대_건들지마세요_프로그램파일/scripts/update-kit.mjs",
     "99_절대_건들지마세요_프로그램파일/scripts/wordpress-connection-check.mjs",
     "앱/AGENTS.md",
