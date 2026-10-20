@@ -3,6 +3,40 @@ import {extname, join} from "node:path";
 import {siteNumbers} from "./lib/sites.mjs";
 
 const TITLE_FOLDER_PARTS = ["애드센스 승인글", "01_제목넣는곳"];
+
+// 대표 카테고리가 달라도 세부 번호가 같을 수 있으므로 두 번호를 함께 쓴다.
+export function titleRotationKey(entry) {
+  return JSON.stringify([Number(entry.parentCategoryNumber || 0), Number(entry.childCategoryNumber || 0)]);
+}
+
+export function selectRotatingTitles(entries, {usedTitleKeys = new Set(), lastCategoryKey = "", limit = 0} = {}) {
+  const keyOfTitle = (title) => String(title).replace(/\s+/g, " ").trim().normalize("NFC").toLowerCase();
+  const groups = new Map();
+  const seen = new Set(usedTitleKeys);
+  for (const entry of entries) {
+    const key = titleRotationKey(entry);
+    if (!groups.has(key)) groups.set(key, []);
+    const titleKey = keyOfTitle(entry.title);
+    if (seen.has(titleKey)) continue;
+    seen.add(titleKey);
+    groups.get(key).push(entry);
+  }
+  // 빈 그룹도 순서에 남겨야 마지막으로 쓴 그룹이 소진되어도 그 다음부터 이어진다.
+  const keys = [...groups.keys()];
+  const queues = [...groups.values()];
+  const selected = [];
+  let cursor = keys.indexOf(lastCategoryKey) + 1;
+  let remaining = queues.reduce((sum, queue) => sum + queue.length, 0);
+  while (remaining > 0 && (!(limit > 0) || selected.length < limit)) {
+    const queue = queues[cursor % queues.length];
+    if (queue.length > 0) {
+      selected.push(queue.shift());
+      remaining -= 1;
+    }
+    cursor += 1;
+  }
+  return selected;
+}
 // 사이트 순서를 가리키는 우리말 표현 — 파일명 자동 찾기에 쓴다
 const ORDINALS = {
   1: ["첫번째", "첫째", "일번"],

@@ -4,7 +4,7 @@ import {createHash} from "node:crypto";
 import {existsSync, mkdirSync, readFileSync, writeFileSync} from "node:fs";
 import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
-import {readTitleEntries, resolveTitleFile} from "./title-files.mjs";
+import {readTitleEntries, resolveTitleFile, selectRotatingTitles, titleRotationKey} from "./title-files.mjs";
 import {keysGuideMessage, requireLicense} from "./lib/env.mjs";
 import {wpFetch} from "./lib/wp.mjs";
 import {돈줄, 예산상태, 원장기록, 진행표시, 천단위, 퍼센트, 퍼센트문구} from "./lib/usage.mjs";
@@ -391,6 +391,7 @@ function compactDraftHistoryEntry(item) {
     parentCategoryId: Number(item.parentCategoryId || 0),
     categoryIds: Array.isArray(item.categoryIds) ? item.categoryIds.map((id) => Number(id)).filter((id) => id > 0) : [],
     createdAt: item.createdAt || new Date().toISOString(),
+    rotationCategoryKey: item.rotationCategoryKey || "",
   };
 }
 
@@ -1689,7 +1690,14 @@ const usedTitleKeys = new Set([
 const availableTitleEntries = includeUsedTitles
   ? allTitleEntries
   : allTitleEntries.filter((entry) => !usedTitleKeys.has(titleKey(entry.title)));
-const titleEntries = limit > 0 ? availableTitleEntries.slice(0, limit) : availableTitleEntries;
+const lastRotatedEntry = previousDraftHistory
+  .filter((entry) => entry.rotationCategoryKey)
+  .sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1);
+const titleEntries = selectRotatingTitles(allTitleEntries, {
+  usedTitleKeys: includeUsedTitles ? new Set() : usedTitleKeys,
+  lastCategoryKey: lastRotatedEntry?.rotationCategoryKey || "",
+  limit,
+});
 const titles = titleEntries.map((entry) => entry.title);
 if (titles.length === 0) {
   if (allTitleEntries.length > 0 && usedTitleKeys.size > 0 && !includeUsedTitles) {
@@ -1879,6 +1887,8 @@ for (let index = 0; index < titles.length; index += 1) {
       site,
       title,
       ok: true,
+      createdAt: new Date().toISOString(),
+      rotationCategoryKey: titleRotationKey(titleEntry),
       postId: post.id,
       date: post.date || postDate,
       status: "draft",
@@ -1919,6 +1929,10 @@ for (let index = 0; index < titles.length; index += 1) {
       estimated_usd: estimatedUsd,
       estimated_krw: estimatedKrw,
     });
+    // 앱은 글마다 별도 프로세스로 실행한다. 중단되어도 마지막 성공 다음부터 이어간다.
+    const completedHistory = mergeDraftHistory(previousDraftHistory, results);
+    writeFileSync(join(outputDir, "draft-history.json"), JSON.stringify(completedHistory, null, 2), "utf8");
+    writeFileSync(join(visibleOutputDir, "draft-history.json"), JSON.stringify(completedHistory, null, 2), "utf8");
     const categorySourceLabel = selectedCategory?.source ? `(${selectedCategory.source})` : "";
     const categoryLabel = selectedCategory ? ` / 카테고리 ${selectedCategory.name}${categorySourceLabel}` : " / 카테고리 미지정";
     // 이 글은 위에서 results 에 이미 담겼다. 여기서 또 더하면 두 배로 세어진다.
